@@ -1,6 +1,6 @@
 # Core contract
 
-Estado: borrador inicial
+Estado: validado (2026-07-10)
 
 ## Proposito
 

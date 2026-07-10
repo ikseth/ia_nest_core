@@ -10,9 +10,10 @@ Definir y estabilizar el core antes de escribir integraciones.
 2. Alcance del core.
 3. Arquitectura minima.
 4. Contratos internos.
-5. Bateria de evaluacion.
+5. Bateria de evaluacion (definir la bateria como criterio de aceptacion,
+   antes de implementar; el motor `eval.run` que la ejecuta llega en fase 6+).
 6. Implementacion minima.
-7. Interfaz MCP minima.
+7. Interfaces MCP y REST minimas (paridad con CLI).
 8. Plan de repos/modulos externos.
 
 ## Criterio de avance

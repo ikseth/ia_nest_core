@@ -1,6 +1,6 @@
 # IA_NEST Core Context
 
-Estado: borrador revisado
+Estado: validado
 Version: 0.2 - 2026-07-10
 Revisado por: Claude Code, en colaboracion con el usuario
 

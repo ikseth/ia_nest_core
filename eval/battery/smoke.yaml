@@ -1,0 +1,15 @@
+# Pista smoke: backend real (ADR 0013), config real. Umbrales, no veredicto
+# reproducible. SEED: ampliar con dominios reales cuando se definan.
+
+- id: smoke_general_nonempty
+  track: smoke
+  description: "El backend real responde de forma no vacia y con latencia razonable a un prompt general."
+  capability: prompt.run
+  input:
+    prompt: "Explica en una frase que es un sistema operativo."
+    domain: general
+    identity: { user_id: local, service: local_cli }
+  thresholds:
+    latency_ms_max: 60000
+    must_be_nonempty: true
+    min_chars: 20

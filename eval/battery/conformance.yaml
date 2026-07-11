@@ -1,0 +1,113 @@
+# Pista conformance: deterministica, adaptadores fake, fixture autocontenido.
+# Veredicto reproducible; alimenta conformance_digest (ADR 0017).
+
+- id: routing_keyword_match
+  track: conformance
+  description: "Un prompt con keyword de soporte se enruta al dominio support."
+  capability: domain.route
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "tengo un error en el sistema"
+    identity: { user_id: u1, service: local_cli }
+  expect:
+    domain: support
+    model: fake_a
+
+- id: routing_default_domain
+  track: conformance
+  description: "Un prompt sin keywords cae al dominio general por defecto."
+  capability: domain.route
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "hola, buenos dias"
+    identity: { user_id: u1, service: local_cli }
+  expect:
+    domain: general
+    model: fake_b
+
+- id: fallback_used_when_preferred_unavailable
+  track: conformance
+  description: "Si el modelo preferido no esta disponible, se usa el fallback y se registra la sustitucion."
+  capability: prompt.run
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "reporto un fallo"
+    domain: support
+    identity: { user_id: u1, service: local_cli }
+  world:
+    unavailable_models: [fake_a]
+  expect:
+    model: fake_b
+    trace_substitution: true
+
+- id: model_unavailable_error
+  track: conformance
+  description: "Si ni el preferido ni los fallback estan disponibles, error tipado ModelUnavailable (ADR 0005)."
+  capability: prompt.run
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "reporto un fallo"
+    domain: support
+    identity: { user_id: u1, service: local_cli }
+  world:
+    unavailable_models: [fake_a, fake_b]
+  expect:
+    error_type: ModelUnavailable
+
+- id: identity_propagated_to_trace
+  track: conformance
+  description: "La identidad del request aparece en la fila de traza CSV (ADR 0015)."
+  capability: prompt.run
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "hola"
+    domain: general
+    identity: { user_id: u42, service: local_cli, session_id: s1 }
+  expect:
+    trace_fields:
+      user_id: u42
+      service: local_cli
+      session_id: s1
+
+- id: admin_capability_no_identity_required
+  track: conformance
+  description: "Las capacidades administrativas no exigen identidad (ADR 0011)."
+  capability: model.list
+  fixture: eval/fixtures/config.yaml
+  input: {}
+  expect:
+    status: ok
+
+- id: config_validate_detects_dangling_reference
+  track: conformance
+  description: "config.validate detecta un preferred_model inexistente (integridad referencial, ADR 0014)."
+  capability: config.validate
+  input:
+    config_inline:
+      models:
+        - id: only_model
+          provider: fake
+          adapter: openai_compatible
+          endpoint: fake://x
+          model_name: x
+          capabilities: [chat]
+          profile: default
+      domains:
+        - id: broken
+          description: "Dominio con referencia colgante"
+          preferred_model: does_not_exist
+          fallback_models: []
+          profile: default
+          routing_rules: { keywords: [] }
+          status: active
+      profiles:
+        - id: default
+          temperature: 0.2
+          max_tokens: 128
+          top_p: 1.0
+          max_iterations: 2
+          max_time_s: 10
+          max_context_tokens: 2048
+  expect:
+    error_type: ConfigValidationError
+    error_field: preferred_model

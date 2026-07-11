@@ -1,0 +1,55 @@
+# Fixture de configuracion para la pista conformance (ADR 0014).
+# Modelos y dominios FAKE, autocontenidos: no tocan red ni GPU.
+
+models:
+  - id: fake_a
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://a
+    model_name: fake-a
+    capabilities: [chat]
+    profile: default
+  - id: fake_b
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://b
+    model_name: fake-b
+    capabilities: [chat]
+    profile: default
+
+domains:
+  - id: support
+    description: "Dominio de soporte tecnico (fixture)"
+    preferred_model: fake_a
+    fallback_models: [fake_b]
+    profile: default
+    routing_rules:
+      keywords: [error, fallo, bug]
+    status: active
+  - id: general
+    description: "Dominio general por defecto (fixture)"
+    preferred_model: fake_b
+    fallback_models: []
+    profile: default
+    routing_rules:
+      keywords: []
+    status: active
+
+profiles:
+  - id: default
+    temperature: 0.2
+    max_tokens: 512
+    top_p: 1.0
+    max_iterations: 4
+    max_time_s: 30
+    max_context_tokens: 4096
+
+identity_defaults:
+  user_id: local
+  service: local_cli
+
+telemetry:
+  csv_path: local/telemetry/eval.csv
+  jsonl_path: local/telemetry/eval.jsonl
+  rotation: size
+  strict_mode: false

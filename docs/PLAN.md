@@ -15,7 +15,10 @@ acumula ideas sin decision.
 - Fase 4 Contratos internos: `CORE_CONTRACT.md` + contexto de identidad
   (validado).
 
-## Fase 5: Bateria de evaluacion (actual)
+## Fase 5: Bateria de evaluacion (completada)
+
+Estado: validada 2026-07-11. Artefactos en `eval/` (README, fixtures,
+battery) y ADR 0017 (formato de resultados).
 
 Objetivo: definir la bateria como CRITERIO DE ACEPTACION antes de
 implementar, no como evaluacion de una implementacion ya hecha. Fija el
@@ -53,7 +56,7 @@ Criterio de salida:
 Se parte en dos cortes para respetar "piezas pequenas". Cada corte tiene
 criterio de salida propio.
 
-### Fase 6a: vertical minimo de inferencia
+### Fase 6a: vertical minimo de inferencia (actual)
 
 Objetivo: el corte end-to-end mas fino posible (senal #1 de
 `VISION_FUNCIONAL.md`: "responde por CLI con modelos locales").

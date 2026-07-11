@@ -365,7 +365,7 @@ implementacion previa, no de estrategia):
 ## Que queda fuera de este borrador
 
 - La version MCP concreta (D4) se fija al implementar la interfaz MCP.
-- El mecanismo de `config.validate` merece su propia pagina cuando se cierre
-  esta arquitectura; aqui se lista solo su lugar.
+- El esquema de `config.validate` esta fijado en el ADR 0014; su pagina de
+  detalle puede escribirse al implementar.
 - La estrategia interna de memoria (niveles, consolidacion): fuera del core;
   solo se define la costura (ver "Frontera de memoria").

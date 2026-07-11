@@ -6,3 +6,6 @@ __pycache__/
 dist/
 build/
 
+# Contexto local no versionado (detalles de red/hardware, endpoints, secretos)
+/local/
+

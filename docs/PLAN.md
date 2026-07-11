@@ -59,13 +59,15 @@ Objetivo: el corte end-to-end mas fino posible (senal #1 de
 `VISION_FUNCIONAL.md`: "responde por CLI con modelos locales").
 
 Cadena: CLI -> prompt_runtime -> ModelAdapter (OpenAI-compatible, ADR 0003)
--> backend local, con modelo/dominio DECLARADO explicitamente (sin router
-todavia; `prompt.run` admite dominio declarado por contrato). Incluye
-identidad (default local configurado), traza minima (CSV+JSONL, ADR 0010) y
-`NullMemoryAdapter` conectado (no-op, ADR 0011) para no crear deuda.
+-> backend de desarrollo (ADR 0013), con modelo/dominio DECLARADO
+explicitamente (sin router todavia; `prompt.run` admite dominio declarado por
+contrato). Incluye identidad (default local configurado), traza minima
+(CSV+JSONL, ADR 0010/0015) y `NullMemoryAdapter` conectado (no-op, ADR 0011)
+para no crear deuda.
 
 Criterio de salida:
-- `prompt.run` responde por CLI con un modelo local real (smoke de calidad).
+- `prompt.run` responde por CLI con un modelo real en el backend de
+  desarrollo (smoke de calidad).
 - Genera traza por request con identidad.
 - La pista de conformance de la bateria pasa contra adaptador fake, con
   veredicto reproducible.

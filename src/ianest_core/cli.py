@@ -3,15 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 
-import yaml
-
-from ianest_core.config import load_config, validate_config_dict
-from ianest_core.evaluation import run_eval
 from ianest_core.errors import CoreError
-from ianest_core.registry import ModelRegistry
-from ianest_core.runtime import DomainRuntime, PromptRuntime
+from ianest_core import service
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,6 +24,8 @@ def main(argv: list[str] | None = None) -> int:
             return _config_validate(args)
         if args.command == "eval" and args.eval_command == "run":
             return _eval_run(args)
+        if args.command == "runtime" and args.runtime_command == "health":
+            return _runtime_health(args)
     except CoreError as exc:
         return _emit_error(exc, json_output=getattr(args, "json", False))
     parser.print_help()
@@ -84,80 +80,87 @@ def _build_parser() -> argparse.ArgumentParser:
     eval_run_parser.add_argument("--track", choices=["conformance", "smoke"], default="conformance")
     eval_run_parser.add_argument("--battery-dir", default="eval/battery")
     eval_run_parser.add_argument("--json", action="store_true")
+
+    runtime_parser = subparsers.add_parser("runtime")
+    runtime_subparsers = runtime_parser.add_subparsers(dest="runtime_command")
+    health_parser = runtime_subparsers.add_parser("health")
+    health_parser.add_argument("--json", action="store_true")
     return parser
 
 
 def _prompt_run(args: argparse.Namespace) -> int:
-    config = load_config(Path(args.config))
-    runtime = PromptRuntime(config)
-    result = runtime.run(
+    result = service.run_prompt(
+        config_path=args.config,
         prompt=args.prompt,
-        model_id=args.model,
-        domain_id=args.domain,
-        identity_override=_identity_override(args),
+        model=args.model,
+        domain=args.domain,
+        identity=_identity_override(args),
     )
     if args.json:
-        print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True))
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
-        print(result.response)
+        print(result["response"])
     return 0
 
 
 def _domain_route(args: argparse.Namespace) -> int:
-    config = load_config(Path(args.config))
-    runtime = DomainRuntime(config)
-    result = runtime.route(
+    result = service.route_domain(
+        config_path=args.config,
         prompt=args.prompt,
-        identity_override=_identity_override(args),
         tags=args.tag,
+        identity=_identity_override(args),
     )
     if args.json:
-        print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True))
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
-        print(f"{result.domain}\t{result.model}\t{result.reason}")
+        print(f"{result['domain']}\t{result['model']}\t{result['reason']}")
     return 0
 
 
 def _domain_list(args: argparse.Namespace) -> int:
-    config = load_config(Path(args.config))
-    records = ModelRegistry(config).domain_records()
+    result = service.list_domains(config_path=args.config)
     if args.json:
-        print(json.dumps({"domains": records}, ensure_ascii=False, sort_keys=True))
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
-        for record in records:
+        for record in result["domains"]:
             print(f"{record['id']}\t{record['preferred_model']}\t{record['status']}")
     return 0
 
 
 def _model_list(args: argparse.Namespace) -> int:
-    config = load_config(Path(args.config))
-    records = ModelRegistry(config).model_records()
+    result = service.list_models(config_path=args.config)
     if args.json:
-        print(json.dumps({"models": records}, ensure_ascii=False, sort_keys=True))
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
-        for record in records:
+        for record in result["models"]:
             print(f"{record['id']}\t{record['provider']}\t{record['available']}\t{record['profile']}")
     return 0
 
 
 def _config_validate(args: argparse.Namespace) -> int:
-    with Path(args.config).open("r", encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle) or {}
-    validate_config_dict(raw)
-    payload = {"status": "ok"}
+    result = service.validate_config(config_path=args.config)
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
         print("ok")
     return 0
 
 
 def _eval_run(args: argparse.Namespace) -> int:
-    result = run_eval(battery_dir=args.battery_dir, track=args.track, config_path=args.config)
+    result = service.run_eval(config_path=args.config, battery_dir=args.battery_dir, track=args.track)
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
         print(f"{result['verdict']}\t{result['conformance_digest']}")
+    return 0
+
+
+def _runtime_health(args: argparse.Namespace) -> int:
+    result = service.health(config_path=args.config)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        print(f"{result['status']}\t{result['mcp']['protocol_version']}")
     return 0
 
 

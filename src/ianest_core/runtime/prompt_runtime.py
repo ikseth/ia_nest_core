@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from ianest_core.adapters import (
+    Event,
     FakeAdapter,
     ModelAdapter,
     ModelRequest,
@@ -173,6 +174,98 @@ class PromptRuntime:
             domain=domain,
             params=params,
             trace=trace,
+        )
+
+    def stream(
+        self,
+        *,
+        prompt: str,
+        model_id: str | None = None,
+        domain_id: str | None = None,
+        identity_override: dict[str, str] | None = None,
+        request_id: str | None = None,
+    ):
+        started = time.monotonic()
+        request_id = request_id or str(uuid4())
+        route = None
+        if model_id is None and domain_id is None:
+            route = self.router.route(prompt)
+            resolved = route.resolved
+        else:
+            resolved = self.registry.resolve_prompt_target(model_id, domain_id)
+        domain = resolved.domain.id if resolved.domain is not None else ""
+        identity_data = dict(identity_override or {})
+        if domain and not identity_data.get("domain_tag"):
+            identity_data["domain_tag"] = domain
+        identity = Identity.from_defaults(self.config.identity_defaults, identity_data)
+        params = dict(resolved.profile.params)
+        extra = dict(resolved.profile.extra)
+        adapter = self._adapter_for(resolved.model)
+        req = ModelRequest(messages=[{"role": "user", "content": prompt}], params=params, extra=extra)
+
+        self.memory.read_context(identity)
+        self.telemetry.record(
+            request_id=request_id,
+            event="request_start",
+            capability="prompt.run",
+            identity=identity,
+            payload={"prompt": prompt},
+            domain=domain,
+            model=resolved.model.id,
+        )
+        if route is not None or resolved.substituted:
+            payload = route.to_dict() if route is not None else {}
+            if resolved.substituted:
+                payload = {
+                    **payload,
+                    "substituted": True,
+                    "preferred_model": resolved.preferred_model,
+                    "model": resolved.model.id,
+                }
+            self.telemetry.record(
+                request_id=request_id,
+                event="route",
+                capability="prompt.run",
+                identity=identity,
+                payload=payload,
+                domain=domain,
+                model=resolved.model.id,
+            )
+        self.telemetry.record(
+            request_id=request_id,
+            event="model_call",
+            capability="prompt.run",
+            identity=identity,
+            payload={"model_name": resolved.model.model_name, "adapter": resolved.model.adapter},
+            domain=domain,
+            model=resolved.model.id,
+        )
+
+        text_parts: list[str] = []
+        try:
+            for event in adapter.stream(req):
+                if event.type == "token":
+                    text_parts.append(str(event.data.get("text", "")))
+                yield event
+                if event.type == "error":
+                    break
+                if event.type == "done":
+                    break
+        finally:
+            pass
+
+        latency_ms = _latency_ms(started)
+        done_text = "".join(text_parts)
+        self.telemetry.record(
+            request_id=request_id,
+            event="done",
+            capability="prompt.run",
+            identity=identity,
+            payload={"response": done_text},
+            domain=domain,
+            model=resolved.model.id,
+            latency_ms=latency_ms,
+            status="ok",
         )
 
     def _adapter_for(self, model: ModelConfig) -> ModelAdapter:

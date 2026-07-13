@@ -101,6 +101,10 @@ Debe devolver:
 
 Ejecuta un prompt contra el dominio seleccionado o declarado.
 
+Resolucion de modelo por precedencia (ADR 0019): modelo directo declarado >
+dominio declarado (usa su `preferred_model`) > orquestador/router (o dominio
+por defecto). El modelo resuelto debe existir en `models[]`.
+
 Debe devolver:
 
 - respuesta,

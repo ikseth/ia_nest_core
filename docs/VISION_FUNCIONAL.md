@@ -1,6 +1,6 @@
 # Vision funcional
 
-Estado: borrador validado por cuestionario inicial
+Estado: validado (cuestionario inicial)
 
 ## Objetivo
 

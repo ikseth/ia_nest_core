@@ -362,7 +362,7 @@ implementacion previa, no de estrategia):
   dominios, perfiles, rutas antes de arrancar).
 - `eval.run` -> evaluation.
 
-## Que queda fuera de este borrador
+## Que queda fuera de esta arquitectura
 
 - La version MCP concreta (D4) se fija al implementar la interfaz MCP.
 - El esquema de `config.validate` esta fijado en el ADR 0014; su pagina de

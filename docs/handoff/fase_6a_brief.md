@@ -40,6 +40,31 @@ Componentes minimos:
 7. CLI: comando para ejecutar `prompt.run` (prompt + dominio/modelo declarado),
    leyendo la config.
 
+## Decisiones de interfaz (resueltas 2026-07-11)
+
+- ModelAdapter (ADR 0018): un unico metodo `stream(req) -> Iterator[Event]`.
+  El modo bloqueante es un helper compartido `run_blocking(adapter, req)` que
+  colecta hasta `done`. `Event = {type: token|step|trace|done|error, data}`;
+  `ModelRequest = {messages, params, extra}`;
+  `ModelResponse = {text, model, tokens_in, tokens_out}`. Los adaptadores
+  (OpenAICompatible, Fake) implementan solo `stream()`.
+- Resolucion de prompt.run (ADR 0019): precedencia modelo directo > dominio
+  (usa `preferred_model`) > orquestador / dominio por defecto. En 6a se
+  implementan las dos vias explicitas; el auto-route es 6b. El modelo debe
+  existir en `models[]`.
+- CLI: subcomandos por capacidad, salida legible + `--json`. Ejemplos:
+
+  ```
+  ianest prompt run --prompt "..." --domain support
+  ianest prompt run --prompt "..." --model llama31_8b --json
+  ianest model list
+  ianest --config <ruta> ...
+  ```
+
+- Errores (ADR 0020): jerarquia bajo `CoreError` con `type` (estable),
+  `message`, `field` opcional; serializacion comun `{type, message, field}`.
+  Tipos ya en contrato: `ModelUnavailable`, `ConfigValidationError`.
+
 ## Fuera de fase 6a (NO implementar aqui)
 
 - `domain_router` / ruteo por reglas -> fase 6b.

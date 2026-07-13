@@ -30,3 +30,7 @@ propio ADR, antes de implementar el componente que afectan:
 
 Ninguno de estos puntos cambia el alcance actual del core; son huecos de
 detalle dentro del alcance ya definido en `docs/ALCANCE_CORE.md`.
+
+## Estado
+
+Resuelto: los puntos anteriores se cerraron en los ADRs 0003-0011.

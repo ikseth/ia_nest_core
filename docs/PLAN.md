@@ -105,7 +105,7 @@ Criterio de salida:
 - `runtime.health` declara la version MCP y es verificable.
 - Ninguna de las dos capas contiene logica de negocio (misma capa de nucleo).
 
-## Fase 8: Bucle de razonamiento (reasoning.run) (actual)
+## Fase 8: Bucle de razonamiento (reasoning.run) (completada)
 
 Objetivo: implementar `reasoning.run` (CORE_CONTRACT): razonamiento iterativo
 controlado y observable, SIN invocar herramientas (ADR 0022).
@@ -127,7 +127,7 @@ Criterio de salida:
 - Casos de conformance deterministas (FakeAdapter) para los cortes.
 - Paridad CLI/REST/MCP; pytest en verde; core minimo instalable sin extras.
 
-## Fase 9: Scripts de instalacion y deteccion de runtime/GPU
+## Fase 9: Scripts de instalacion y deteccion de runtime/GPU (actual)
 
 Objetivo: cerrar el punto de `ALCANCE_CORE.md` y del checklist "core cerrado".
 

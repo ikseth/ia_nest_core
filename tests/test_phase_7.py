@@ -47,10 +47,16 @@ def test_service_prompt_matches_cli_json(capsys) -> None:
 
 def test_runtime_health_declares_mcp_default_protocol() -> None:
     result = service.health(config_path=CONFIG)
+    try:
+        from mcp.types import DEFAULT_NEGOTIATED_VERSION
+    except ImportError:
+        expected = "2025-03-26"
+    else:
+        expected = DEFAULT_NEGOTIATED_VERSION
 
     assert result["status"] == "ok"
     assert result["process"]["ok"] is True
-    assert result["mcp"]["protocol_version"] == "2025-03-26"
+    assert result["mcp"]["protocol_version"] == expected
     assert result["backend"]["available_models"] == 2
 
 

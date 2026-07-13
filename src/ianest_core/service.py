@@ -13,7 +13,7 @@ from ianest_core.evaluation import run_eval as run_eval_core
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
 from ianest_core.runtime import DomainRuntime, PromptRuntime
 
-MCP_PROTOCOL_VERSION = "2025-03-26"
+MCP_PROTOCOL_VERSION_FALLBACK = "2025-03-26"
 
 
 def run_prompt(
@@ -110,7 +110,7 @@ def health(*, config_path: str | Path, availability: AvailabilityProvider | None
             "available_models": sum(1 for model in models if model["available"]),
         },
         "gpu": _gpu_status(),
-        "mcp": {"protocol_version": MCP_PROTOCOL_VERSION},
+        "mcp": {"protocol_version": _mcp_protocol_version()},
     }
 
 
@@ -122,3 +122,11 @@ def sse_encode(event: dict[str, Any]) -> str:
 def _gpu_status() -> dict[str, Any]:
     dev_path = Path("/dev/nvidia0")
     return {"available": dev_path.exists(), "detail": "local best_effort"}
+
+
+def _mcp_protocol_version() -> str:
+    try:
+        from mcp.types import DEFAULT_NEGOTIATED_VERSION
+    except ImportError:
+        return MCP_PROTOCOL_VERSION_FALLBACK
+    return str(DEFAULT_NEGOTIATED_VERSION)

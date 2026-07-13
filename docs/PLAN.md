@@ -105,7 +105,46 @@ Criterio de salida:
 - `runtime.health` declara la version MCP y es verificable.
 - Ninguna de las dos capas contiene logica de negocio (misma capa de nucleo).
 
-## Fase 8: Plan de repos/modulos externos
+## Fase 8: Bucle de razonamiento (reasoning.run) (actual)
+
+Objetivo: implementar `reasoning.run` (CORE_CONTRACT): razonamiento iterativo
+controlado y observable, SIN invocar herramientas (ADR 0022).
+
+Alcance:
+- Iteracion con limites: iteraciones, tiempo y presupuesto de contexto/tokens
+  (ADR 0008), configurables por perfil (ADR 0014).
+- Salida observable por paso (eventos `step` del flujo D2, ADR 0004/0015).
+- Capacidad de desactivar pasos no necesarios.
+- Se expone por CLI/REST/MCP via la capa de servicio (paridad).
+- Reutiliza prompt_runtime, adaptadores, identidad y telemetria.
+
+Fuera de esta fase: invocacion de herramientas (tool_contracts, diferido).
+
+Criterio de salida:
+- `reasoning.run` corta por cada limite (iteraciones, tiempo, tokens) y lo
+  registra en traza.
+- Salida observable por paso.
+- Casos de conformance deterministas (FakeAdapter) para los cortes.
+- Paridad CLI/REST/MCP; pytest en verde; core minimo instalable sin extras.
+
+## Fase 9: Scripts de instalacion y deteccion de runtime/GPU
+
+Objetivo: cerrar el punto de `ALCANCE_CORE.md` y del checklist "core cerrado".
+
+Alcance:
+- Script de instalacion (venv + `pip install -e .`; extras de interfaz
+  opcionales).
+- Deteccion de runtime/GPU (nvidia-smi / backend disponible), integrada con
+  `runtime.health`.
+- Cabecera humana/IA en scripts no triviales (CONVENCIONES).
+- Repo publico: sin datos internos versionados; endpoints por env var.
+
+Criterio de salida:
+- Instalacion reproducible desde cero, documentada y verificada.
+- `runtime.health` refleja la deteccion de runtime/GPU.
+- Scripts con cabecera y sin secretos.
+
+## Fase 10: Plan de repos/modulos externos
 
 Objetivo: documentar las fronteras de handoff hacia los repos externos:
 `MemoryPort` -> `ia_nest_core_extended`; conciencia ->
@@ -119,5 +158,7 @@ Criterio de salida:
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).
-- La version MCP exacta (se fija en fase 7).
-- Optimizacion de rendimiento antes de tener el vertical funcionando.
+- tool_contracts (invocacion de herramientas, ADR 0007): diferido hasta que
+  exista una herramienta concreta que lo justifique (anti-entropia); sin fase
+  asignada (ADR 0022).
+- Optimizacion de rendimiento antes de tener el core funcionando.

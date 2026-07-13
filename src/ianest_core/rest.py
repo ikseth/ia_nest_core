@@ -44,6 +44,33 @@ def create_app(config_path: str | Path = "config/core.yaml"):
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
+    async def reasoning_run(request: Request):
+        payload = await request.json()
+        return _json(
+            service.run_reasoning(
+                config_path=config_path,
+                prompt=payload["prompt"],
+                model=payload.get("model"),
+                domain=payload.get("domain"),
+                identity=payload.get("identity", {}),
+            )
+        )
+
+    async def reasoning_stream(request: Request):
+        payload = await request.json()
+
+        def events():
+            for event in service.stream_reasoning(
+                config_path=config_path,
+                prompt=payload["prompt"],
+                model=payload.get("model"),
+                domain=payload.get("domain"),
+                identity=payload.get("identity", {}),
+            ):
+                yield service.sse_encode(event)
+
+        return StreamingResponse(events(), media_type="text/event-stream")
+
     async def domain_route(request: Request):
         payload = await request.json()
         return _json(
@@ -83,6 +110,8 @@ def create_app(config_path: str | Path = "config/core.yaml"):
     routes = [
         Route("/prompt/run", prompt_run, methods=["POST"]),
         Route("/prompt/stream", prompt_stream, methods=["POST"]),
+        Route("/reasoning/run", reasoning_run, methods=["POST"]),
+        Route("/reasoning/stream", reasoning_stream, methods=["POST"]),
         Route("/domain/route", domain_route, methods=["POST"]),
         Route("/model/list", model_list, methods=["GET"]),
         Route("/domain/list", domain_list, methods=["GET"]),

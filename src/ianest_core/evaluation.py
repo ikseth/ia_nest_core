@@ -15,8 +15,9 @@ import yaml
 from ianest_core.config import load_config, load_config_from_dict, validate_config_dict
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.errors import CoreError
+from ianest_core.adapters import ScriptedFakeAdapter
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
-from ianest_core.runtime import DomainRuntime, PromptRuntime
+from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime
 
 EVAL_SCHEMA_VERSION = "1"
 
@@ -70,6 +71,8 @@ def _execute_case(case: dict[str, Any], *, config_path: str | Path | None) -> di
         return _execute_domain_route(case, config_path=config_path)
     if capability == "prompt.run":
         return _execute_prompt_run(case, config_path=config_path)
+    if capability == "reasoning.run":
+        return _execute_reasoning_run(case, config_path=config_path)
     if capability == "model.list":
         return _execute_model_list(case, config_path=config_path)
     if capability == "config.validate":
@@ -140,6 +143,26 @@ def _execute_prompt_run(case: dict[str, Any], *, config_path: str | Path | None)
     return _case_result(case, assertions, domain=result.domain, model=result.model)
 
 
+def _execute_reasoning_run(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    config = _case_config(case, config_path=config_path)
+    adapter = ScriptedFakeAdapter("fake_reasoning", _case_reasoning_responses(case))
+    runtime = ReasoningRuntime(config, availability=_case_availability(case), adapter=adapter)
+    result = runtime.run(
+        prompt=case["input"].get("prompt", ""),
+        model_id=case["input"].get("model"),
+        domain_id=case["input"].get("domain"),
+        identity_override=case["input"].get("identity", {}),
+        request_id=case["id"],
+    )
+    actual = {
+        "stop_reason": result.stop_reason,
+        "steps": len(result.steps),
+        "output": result.output,
+    }
+    assertions = _assertions(actual, case.get("expect", {}))
+    return _case_result(case, assertions, domain=result.domain, model=result.model)
+
+
 def _execute_model_list(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
     config = _case_config(case, config_path=config_path)
     registry = ModelRegistry(config, availability=_case_availability(case))
@@ -168,6 +191,8 @@ def _execute_config_validate(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def _case_config(case: dict[str, Any], *, config_path: str | Path | None):
+    if "config_inline" in case.get("input", {}):
+        return load_config_from_dict(case["input"]["config_inline"])
     fixture = case.get("fixture")
     if not fixture and config_path is None:
         return load_config_from_dict(case["input"].get("config_inline", {}))
@@ -185,6 +210,11 @@ def _case_config(case: dict[str, Any], *, config_path: str | Path | None):
 def _case_availability(case: dict[str, Any]) -> StaticAvailabilityProvider:
     unavailable = set(case.get("world", {}).get("unavailable_models", []))
     return StaticAvailabilityProvider(unavailable_models=unavailable)
+
+
+def _case_reasoning_responses(case: dict[str, Any]) -> list[str]:
+    responses = case.get("world", {}).get("reasoning_responses", [])
+    return [json.dumps(item, ensure_ascii=False) if isinstance(item, dict) else str(item) for item in responses]
 
 
 def _assertions(actual: dict[str, Any], expected: dict[str, Any]) -> list[dict[str, Any]]:

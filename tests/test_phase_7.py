@@ -45,6 +45,31 @@ def test_service_prompt_matches_cli_json(capsys) -> None:
     assert cli_result["domain"] == service_result["domain"]
 
 
+def test_service_reasoning_matches_cli_json(capsys) -> None:
+    service_result = service.run_reasoning(config_path=CONFIG, prompt="hola", domain="general")
+
+    exit_code = main(
+        [
+            "--config",
+            CONFIG,
+            "reasoning",
+            "run",
+            "--prompt",
+            "hola",
+            "--domain",
+            "general",
+            "--json",
+        ]
+    )
+    captured = capsys.readouterr()
+    cli_result = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert cli_result["output"] == service_result["output"]
+    assert cli_result["model"] == service_result["model"]
+    assert cli_result["domain"] == service_result["domain"]
+
+
 def test_runtime_health_declares_mcp_default_protocol() -> None:
     result = service.health(config_path=CONFIG)
     try:
@@ -79,6 +104,16 @@ def test_rest_prompt_run_and_stream_have_service_parity() -> None:
     assert "event: token" in body
     assert "event: done" in body
 
+    response = client.post("/reasoning/run", json={"prompt": "hola", "domain": "general"})
+    assert response.status_code == 200
+    assert response.json()["stop_reason"] == "max_iterations"
+
+    with client.stream("POST", "/reasoning/stream", json={"prompt": "hola", "domain": "general"}) as stream:
+        reasoning_body = "".join(stream.iter_text())
+
+    assert "event: step" in reasoning_body
+    assert "event: done" in reasoning_body
+
 
 @pytest.mark.skipif(importlib.util.find_spec("mcp") is None, reason="MCP extra not installed")
 def test_mcp_server_exposes_tools() -> None:
@@ -90,9 +125,12 @@ def test_mcp_server_exposes_tools() -> None:
 
     assert server.name == "ia_nest_core"
 
-    async def call_prompt():
-        return await server.call_tool("prompt.run", {"prompt": "hola", "domain": "general"})
+    async def call_tools():
+        prompt_result = await server.call_tool("prompt.run", {"prompt": "hola", "domain": "general"})
+        reasoning_result = await server.call_tool("reasoning.run", {"prompt": "hola", "domain": "general"})
+        return prompt_result, reasoning_result
 
-    _, structured = anyio.run(call_prompt)
+    (_, structured), (_, reasoning_structured) = anyio.run(call_tools)
     assert structured["response"] == "fake response from fake_b: hola"
     assert structured["model"] == "fake_b"
+    assert reasoning_structured["stop_reason"] == "max_iterations"

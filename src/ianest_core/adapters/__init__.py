@@ -5,7 +5,7 @@ from ianest_core.adapters.base import (
     ModelResponse,
     run_blocking,
 )
-from ianest_core.adapters.fake import FakeAdapter
+from ianest_core.adapters.fake import FakeAdapter, ScriptedFakeAdapter
 from ianest_core.adapters.openai_compatible import OpenAICompatibleAdapter
 
 __all__ = [
@@ -15,6 +15,6 @@ __all__ = [
     "ModelRequest",
     "ModelResponse",
     "OpenAICompatibleAdapter",
+    "ScriptedFakeAdapter",
     "run_blocking",
 ]
-

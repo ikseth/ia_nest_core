@@ -111,3 +111,85 @@
   expect:
     error_type: ConfigValidationError
     error_field: preferred_model
+
+- id: reasoning_model_done
+  track: conformance
+  description: "reasoning.run corta cuando el modelo marca done."
+  capability: reasoning.run
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "resuelve"
+    domain: general
+    identity: { user_id: u1, service: local_cli }
+  world:
+    reasoning_responses:
+      - { output: "borrador", done: false }
+      - { output: "final", done: true }
+  expect:
+    stop_reason: model_done
+    steps: 2
+    output: final
+
+- id: reasoning_max_iterations
+  track: conformance
+  description: "reasoning.run corta por max_iterations si el modelo no marca done."
+  capability: reasoning.run
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "resuelve"
+    domain: general
+    identity: { user_id: u1, service: local_cli }
+  world:
+    reasoning_responses:
+      - { output: "i1", done: false }
+      - { output: "i2", done: false }
+      - { output: "i3", done: false }
+      - { output: "i4", done: false }
+  expect:
+    stop_reason: max_iterations
+    steps: 4
+    output: i4
+
+- id: reasoning_max_context_tokens
+  track: conformance
+  description: "reasoning.run corta por presupuesto de contexto bajo."
+  capability: reasoning.run
+  input:
+    config_inline:
+      models:
+        - id: fake_b
+          provider: fake
+          adapter: openai_compatible
+          endpoint: fake://b
+          model_name: fake-b
+          capabilities: [chat]
+          profile: tiny
+      domains:
+        - id: general
+          description: "Dominio general"
+          preferred_model: fake_b
+          fallback_models: []
+          profile: tiny
+          routing_rules: { keywords: [] }
+          status: active
+      profiles:
+        - id: tiny
+          temperature: 0.2
+          max_tokens: 64
+          top_p: 1.0
+          max_iterations: 4
+          max_time_s: 30
+          max_context_tokens: 1
+      identity_defaults:
+        user_id: local
+        service: local_cli
+    prompt: "resuelve"
+    domain: general
+    identity: { user_id: u1, service: local_cli }
+  world:
+    reasoning_responses:
+      - { output: "borrador", done: false }
+  expect:
+    stop_reason: max_context_tokens
+    steps: 1
+    output: borrador

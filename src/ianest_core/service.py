@@ -11,7 +11,7 @@ import yaml
 from ianest_core.config import load_config, validate_config_dict
 from ianest_core.evaluation import run_eval as run_eval_core
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
-from ianest_core.runtime import DomainRuntime, PromptRuntime
+from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime
 
 MCP_PROTOCOL_VERSION_FALLBACK = "2025-03-26"
 
@@ -46,6 +46,45 @@ def stream_prompt(
 ) -> Iterator[dict[str, Any]]:
     config = load_config(config_path)
     runtime = PromptRuntime(config, availability=availability)
+    for event in runtime.stream(
+        prompt=prompt,
+        model_id=model,
+        domain_id=domain,
+        identity_override=identity or {},
+    ):
+        yield {"type": event.type, "data": event.data}
+
+
+def run_reasoning(
+    *,
+    config_path: str | Path,
+    prompt: str,
+    model: str | None = None,
+    domain: str | None = None,
+    identity: dict[str, str] | None = None,
+    availability: AvailabilityProvider | None = None,
+) -> dict[str, Any]:
+    config = load_config(config_path)
+    result = ReasoningRuntime(config, availability=availability).run(
+        prompt=prompt,
+        model_id=model,
+        domain_id=domain,
+        identity_override=identity or {},
+    )
+    return result.to_dict()
+
+
+def stream_reasoning(
+    *,
+    config_path: str | Path,
+    prompt: str,
+    model: str | None = None,
+    domain: str | None = None,
+    identity: dict[str, str] | None = None,
+    availability: AvailabilityProvider | None = None,
+) -> Iterator[dict[str, Any]]:
+    config = load_config(config_path)
+    runtime = ReasoningRuntime(config, availability=availability)
     for event in runtime.stream(
         prompt=prompt,
         model_id=model,

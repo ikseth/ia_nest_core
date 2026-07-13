@@ -49,6 +49,7 @@ class PreparedPrompt:
     params: dict[str, Any]
     adapter: ModelAdapter
     req: ModelRequest
+    capability: str
 
 
 class PromptRuntime:
@@ -80,6 +81,7 @@ class PromptRuntime:
             domain_id=domain_id,
             identity_override=identity_override,
             request_id=request_id,
+            capability="prompt.run",
         )
 
         try:
@@ -142,6 +144,7 @@ class PromptRuntime:
             domain_id=domain_id,
             identity_override=identity_override,
             request_id=request_id,
+            capability="prompt.run",
         )
 
         text_parts: list[str] = []
@@ -191,6 +194,7 @@ class PromptRuntime:
         domain_id: str | None,
         identity_override: dict[str, str] | None,
         request_id: str | None,
+        capability: str = "prompt.run",
     ) -> PreparedPrompt:
         started = time.monotonic()
         request_id = request_id or str(uuid4())
@@ -214,7 +218,7 @@ class PromptRuntime:
         self.telemetry.record(
             request_id=request_id,
             event="request_start",
-            capability="prompt.run",
+            capability=capability,
             identity=identity,
             payload={"prompt": prompt},
             domain=domain,
@@ -232,7 +236,7 @@ class PromptRuntime:
             self.telemetry.record(
                 request_id=request_id,
                 event="route",
-                capability="prompt.run",
+                capability=capability,
                 identity=identity,
                 payload=payload,
                 domain=domain,
@@ -241,7 +245,7 @@ class PromptRuntime:
         self.telemetry.record(
             request_id=request_id,
             event="model_call",
-            capability="prompt.run",
+            capability=capability,
             identity=identity,
             payload={"model_name": resolved.model.model_name, "adapter": resolved.model.adapter},
             domain=domain,
@@ -256,13 +260,14 @@ class PromptRuntime:
             params=params,
             adapter=adapter,
             req=req,
+            capability=capability,
         )
 
     def _record_error(self, prepared: PreparedPrompt, payload: dict[str, Any], error_type: str) -> None:
         self.telemetry.record(
             request_id=prepared.request_id,
             event="error",
-            capability="prompt.run",
+            capability=prepared.capability,
             identity=prepared.identity,
             payload=payload,
             domain=prepared.domain,

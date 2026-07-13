@@ -24,6 +24,16 @@ def create_server(config_path: str | Path = "config/core.yaml"):
             identity=identity or {},
         )
 
+    @server.tool(name="reasoning.run", structured_output=True)
+    def reasoning_run(prompt: str, model: str | None = None, domain: str | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:
+        return service.run_reasoning(
+            config_path=config_path,
+            prompt=prompt,
+            model=model,
+            domain=domain,
+            identity=identity or {},
+        )
+
     @server.tool(name="domain.route", structured_output=True)
     def domain_route(prompt: str, tags: list[str] | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:
         return service.route_domain(

@@ -14,6 +14,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "prompt" and args.prompt_command == "run":
             return _prompt_run(args)
+        if args.command == "reasoning" and args.reasoning_command == "run":
+            return _reasoning_run(args)
+        if args.command == "reasoning" and args.reasoning_command == "stream":
+            return _reasoning_stream(args)
         if args.command == "domain" and args.domain_command == "route":
             return _domain_route(args)
         if args.command == "domain" and args.domain_command == "list":
@@ -49,6 +53,29 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--session-id")
     run_parser.add_argument("--domain-tag")
     run_parser.add_argument("--namespace")
+
+    reasoning_parser = subparsers.add_parser("reasoning")
+    reasoning_subparsers = reasoning_parser.add_subparsers(dest="reasoning_command")
+    reasoning_run_parser = reasoning_subparsers.add_parser("run")
+    reasoning_run_parser.add_argument("--prompt", required=True)
+    reasoning_run_parser.add_argument("--domain")
+    reasoning_run_parser.add_argument("--model")
+    reasoning_run_parser.add_argument("--json", action="store_true")
+    reasoning_run_parser.add_argument("--user-id")
+    reasoning_run_parser.add_argument("--service")
+    reasoning_run_parser.add_argument("--session-id")
+    reasoning_run_parser.add_argument("--domain-tag")
+    reasoning_run_parser.add_argument("--namespace")
+    reasoning_stream_parser = reasoning_subparsers.add_parser("stream")
+    reasoning_stream_parser.add_argument("--prompt", required=True)
+    reasoning_stream_parser.add_argument("--domain")
+    reasoning_stream_parser.add_argument("--model")
+    reasoning_stream_parser.add_argument("--json", action="store_true")
+    reasoning_stream_parser.add_argument("--user-id")
+    reasoning_stream_parser.add_argument("--service")
+    reasoning_stream_parser.add_argument("--session-id")
+    reasoning_stream_parser.add_argument("--domain-tag")
+    reasoning_stream_parser.add_argument("--namespace")
 
     domain_parser = subparsers.add_parser("domain")
     domain_subparsers = domain_parser.add_subparsers(dest="domain_command")
@@ -100,6 +127,36 @@ def _prompt_run(args: argparse.Namespace) -> int:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
         print(result["response"])
+    return 0
+
+
+def _reasoning_run(args: argparse.Namespace) -> int:
+    result = service.run_reasoning(
+        config_path=args.config,
+        prompt=args.prompt,
+        model=args.model,
+        domain=args.domain,
+        identity=_identity_override(args),
+    )
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        print(result["output"])
+    return 0
+
+
+def _reasoning_stream(args: argparse.Namespace) -> int:
+    for event in service.stream_reasoning(
+        config_path=args.config,
+        prompt=args.prompt,
+        model=args.model,
+        domain=args.domain,
+        identity=_identity_override(args),
+    ):
+        if args.json:
+            print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+        else:
+            print(f"{event['type']}\t{event['data']}")
     return 0
 
 

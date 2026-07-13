@@ -91,7 +91,7 @@ Criterio de salida:
 - El runner ejecuta la bateria completa: conformance reproducible + smoke con
   umbrales.
 
-## Fase 7: Interfaces MCP y REST minimas (actual)
+## Fase 7: Interfaces MCP y REST minimas (completada)
 
 Objetivo: exponer las capacidades del vertical por MCP y REST sin logica
 distinta a la CLI (regla de paridad de `CORE_CONTRACT.md`). MCP usa el SDK

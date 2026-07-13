@@ -21,3 +21,15 @@ El compromiso es que exista una version declarada y verificable, no que el
 numero este ya elegido. Se fija el numero exacto al implementar, tras
 verificar la revision estable vigente entonces. Detalle en `ARCHITECTURE.md`
 (D4).
+
+## Estado (cerrado en fase 7, 2026-07-11)
+
+`runtime.health` declara la version leyendola dinamicamente del SDK oficial
+`mcp` (`mcp.types.DEFAULT_NEGOTIATED_VERSION`), con `2025-03-26` como
+fallback cuando el extra no esta instalado.
+
+- Con `mcp` 1.28.1: version declarada `2025-03-26` (el `LATEST_PROTOCOL_VERSION`
+  del SDK es `2025-11-25`; se declara la negociada por defecto, mas
+  conservadora).
+- Verificado por Opus: el valor coincide con el del SDK y `runtime.health` lo
+  expone por CLI/REST/MCP.

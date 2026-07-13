@@ -13,10 +13,11 @@ from ianest_core.adapters import (
     run_blocking,
 )
 from ianest_core.config.schema import CoreConfig, ModelConfig
+from ianest_core.domain_router import DomainRouter
 from ianest_core.errors import CoreError
 from ianest_core.identity import Identity
 from ianest_core.memory import MemoryPort, NullMemoryAdapter
-from ianest_core.registry import ModelRegistry
+from ianest_core.registry import AvailabilityProvider, ModelRegistry
 from ianest_core.telemetry import TelemetryWriter
 
 
@@ -44,9 +45,11 @@ class PromptRuntime:
         config: CoreConfig,
         telemetry: TelemetryWriter | None = None,
         memory: MemoryPort | None = None,
+        availability: AvailabilityProvider | None = None,
     ) -> None:
         self.config = config
-        self.registry = ModelRegistry(config)
+        self.registry = ModelRegistry(config, availability=availability)
+        self.router = DomainRouter(self.registry)
         self.telemetry = telemetry or TelemetryWriter(config.telemetry)
         self.memory = memory or NullMemoryAdapter()
 
@@ -61,7 +64,12 @@ class PromptRuntime:
     ) -> PromptRunResult:
         started = time.monotonic()
         request_id = request_id or str(uuid4())
-        resolved = self.registry.resolve_prompt_target(model_id, domain_id)
+        route = None
+        if model_id is None and domain_id is None:
+            route = self.router.route(prompt)
+            resolved = route.resolved
+        else:
+            resolved = self.registry.resolve_prompt_target(model_id, domain_id)
         domain = resolved.domain.id if resolved.domain is not None else ""
         identity_data = dict(identity_override or {})
         if domain and not identity_data.get("domain_tag"):
@@ -82,6 +90,24 @@ class PromptRuntime:
             domain=domain,
             model=resolved.model.id,
         )
+        if route is not None or resolved.substituted:
+            payload = route.to_dict() if route is not None else {}
+            if resolved.substituted:
+                payload = {
+                    **payload,
+                    "substituted": True,
+                    "preferred_model": resolved.preferred_model,
+                    "model": resolved.model.id,
+                }
+            self.telemetry.record(
+                request_id=request_id,
+                event="route",
+                capability="prompt.run",
+                identity=identity,
+                payload=payload,
+                domain=domain,
+                model=resolved.model.id,
+            )
         self.telemetry.record(
             request_id=request_id,
             event="model_call",
@@ -125,6 +151,8 @@ class PromptRuntime:
             "tokens_in": response.tokens_in,
             "tokens_out": response.tokens_out,
             "status": "ok",
+            "substituted": resolved.substituted,
+            "preferred_model": resolved.preferred_model,
         }
         self.telemetry.record(
             request_id=request_id,
@@ -155,4 +183,3 @@ class PromptRuntime:
 
 def _latency_ms(started: float) -> int:
     return int((time.monotonic() - started) * 1000)
-

@@ -11,6 +11,7 @@ from ianest_core.errors import CoreError
 from ianest_core.identity import Identity
 
 SCHEMA_VERSION = "1"
+ROTATE_SIZE_BYTES = 5 * 1024 * 1024
 
 TRACE_CSV_FIELDS = [
     "schema_version",
@@ -131,10 +132,10 @@ class TelemetryWriter:
     ) -> None:
         if self.config is None:
             return
-        # TODO fase 6b: aplicar rotacion declarativa antes de escribir sinks.
         if csv_event and self.config.csv_path:
             csv_path = Path(self.config.csv_path)
             csv_path.parent.mkdir(parents=True, exist_ok=True)
+            self._rotate_if_needed(csv_path)
             needs_header = not csv_path.exists() or csv_path.stat().st_size == 0
             with csv_path.open("a", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=TRACE_CSV_FIELDS, delimiter=";")
@@ -144,6 +145,7 @@ class TelemetryWriter:
         if jsonl_event and self.config.jsonl_path:
             jsonl_path = Path(self.config.jsonl_path)
             jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+            self._rotate_if_needed(jsonl_path)
             with jsonl_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(json_event, ensure_ascii=False, sort_keys=True) + "\n")
 
@@ -154,3 +156,23 @@ class TelemetryWriter:
             self.errors.append(str(exc))
             if self.config is not None and self.config.strict_mode:
                 raise CoreError("TelemetryError", str(exc), None) from exc
+
+    def _rotate_if_needed(self, path: Path) -> None:
+        if self.config is None or not path.exists():
+            return
+        if self.config.rotation == "size" and path.stat().st_size >= ROTATE_SIZE_BYTES:
+            _rotate(path, datetime.now(UTC).strftime("%Y%m%d%H%M%S"))
+        elif self.config.rotation == "date":
+            mtime = datetime.fromtimestamp(path.stat().st_mtime, UTC).date()
+            today = datetime.now(UTC).date()
+            if mtime != today:
+                _rotate(path, mtime.isoformat())
+
+
+def _rotate(path: Path, suffix: str) -> None:
+    target = path.with_name(f"{path.name}.{suffix}")
+    counter = 1
+    while target.exists():
+        target = path.with_name(f"{path.name}.{suffix}.{counter}")
+        counter += 1
+    path.rename(target)

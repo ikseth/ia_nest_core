@@ -21,7 +21,10 @@ ENV_PATTERN = re.compile(r"^\$\{([A-Z0-9_]+)\}$")
 def load_config(path: str | Path) -> CoreConfig:
     with Path(path).open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle) or {}
+    return load_config_from_dict(raw)
 
+
+def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:
     models = [_load_model(item) for item in raw.get("models", [])]
     domains = [_load_domain(item) for item in raw.get("domains", [])]
     profiles = [_load_profile(item) for item in raw.get("profiles", [])]
@@ -79,4 +82,3 @@ def _load_telemetry(raw: dict[str, Any] | None) -> TelemetryConfig | None:
         rotation=str(raw.get("rotation", "size")),
         strict_mode=bool(raw.get("strict_mode", False)),
     )
-

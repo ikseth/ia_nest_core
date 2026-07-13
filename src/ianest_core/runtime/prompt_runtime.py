@@ -17,7 +17,7 @@ from ianest_core.domain_router import DomainRouter
 from ianest_core.errors import CoreError
 from ianest_core.identity import Identity
 from ianest_core.memory import MemoryPort, NullMemoryAdapter
-from ianest_core.registry import AvailabilityProvider, ModelRegistry
+from ianest_core.registry import AvailabilityProvider, ModelRegistry, ResolvedModel
 from ianest_core.telemetry import TelemetryWriter
 
 
@@ -37,6 +37,18 @@ class PromptRunResult:
             "params": self.params,
             "trace": self.trace,
         }
+
+
+@dataclass(frozen=True)
+class PreparedPrompt:
+    started: float
+    request_id: str
+    resolved: ResolvedModel
+    domain: str
+    identity: Identity
+    params: dict[str, Any]
+    adapter: ModelAdapter
+    req: ModelRequest
 
 
 class PromptRuntime:
@@ -62,6 +74,124 @@ class PromptRuntime:
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
     ) -> PromptRunResult:
+        prepared = self._prepare(
+            prompt=prompt,
+            model_id=model_id,
+            domain_id=domain_id,
+            identity_override=identity_override,
+            request_id=request_id,
+        )
+
+        try:
+            response = run_blocking(prepared.adapter, prepared.req)
+        except CoreError as exc:
+            self._record_error(prepared, exc.to_dict(), exc.type)
+            raise
+
+        latency_ms = _latency_ms(prepared.started)
+        trace = {
+            "request_id": prepared.request_id,
+            "capability": "prompt.run",
+            "user_id": prepared.identity.user_id,
+            "service": prepared.identity.service,
+            "session_id": prepared.identity.session_id,
+            "domain_tag": prepared.identity.domain_tag,
+            "namespace": prepared.identity.namespace,
+            "domain": prepared.domain,
+            "model": prepared.resolved.model.id,
+            "latency_ms": latency_ms,
+            "tokens_in": response.tokens_in,
+            "tokens_out": response.tokens_out,
+            "status": "ok",
+            "substituted": prepared.resolved.substituted,
+            "preferred_model": prepared.resolved.preferred_model,
+        }
+        self.telemetry.record(
+            request_id=prepared.request_id,
+            event="done",
+            capability="prompt.run",
+            identity=prepared.identity,
+            payload={"response": response.text},
+            domain=prepared.domain,
+            model=prepared.resolved.model.id,
+            latency_ms=latency_ms,
+            tokens_in=response.tokens_in,
+            tokens_out=response.tokens_out,
+            status="ok",
+        )
+        return PromptRunResult(
+            response=response.text,
+            model=prepared.resolved.model.id,
+            domain=prepared.domain,
+            params=prepared.params,
+            trace=trace,
+        )
+
+    def stream(
+        self,
+        *,
+        prompt: str,
+        model_id: str | None = None,
+        domain_id: str | None = None,
+        identity_override: dict[str, str] | None = None,
+        request_id: str | None = None,
+    ):
+        prepared = self._prepare(
+            prompt=prompt,
+            model_id=model_id,
+            domain_id=domain_id,
+            identity_override=identity_override,
+            request_id=request_id,
+        )
+
+        text_parts: list[str] = []
+        tokens_in = 0
+        tokens_out = 0
+        completed = False
+        for event in prepared.adapter.stream(prepared.req):
+            if event.type == "token":
+                text_parts.append(str(event.data.get("text", "")))
+            elif event.type == "done":
+                tokens_in = int(event.data.get("tokens_in", 0) or 0)
+                tokens_out = int(event.data.get("tokens_out", 0) or 0)
+                completed = True
+            elif event.type == "error":
+                error_type = str(event.data.get("type", "AdapterError"))
+                self._record_error(prepared, event.data, error_type)
+                yield event
+                return
+
+            yield event
+            if completed:
+                break
+
+        if not completed:
+            return
+
+        latency_ms = _latency_ms(prepared.started)
+        self.telemetry.record(
+            request_id=prepared.request_id,
+            event="done",
+            capability="prompt.run",
+            identity=prepared.identity,
+            payload={"response": "".join(text_parts)},
+            domain=prepared.domain,
+            model=prepared.resolved.model.id,
+            latency_ms=latency_ms,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            status="ok",
+        )
+
+    def _prepare(
+        self,
+        *,
+        prompt: str,
+        model_id: str | None,
+        domain_id: str | None,
+        identity_override: dict[str, str] | None,
+        request_id: str | None,
+    ) -> PreparedPrompt:
         started = time.monotonic()
         request_id = request_id or str(uuid4())
         route = None
@@ -117,62 +247,29 @@ class PromptRuntime:
             domain=domain,
             model=resolved.model.id,
         )
-
-        try:
-            response = run_blocking(adapter, req)
-        except CoreError as exc:
-            latency_ms = _latency_ms(started)
-            self.telemetry.record(
-                request_id=request_id,
-                event="error",
-                capability="prompt.run",
-                identity=identity,
-                payload=exc.to_dict(),
-                domain=domain,
-                model=resolved.model.id,
-                latency_ms=latency_ms,
-                status="error",
-                error_type=exc.type,
-            )
-            raise
-
-        latency_ms = _latency_ms(started)
-        trace = {
-            "request_id": request_id,
-            "capability": "prompt.run",
-            "user_id": identity.user_id,
-            "service": identity.service,
-            "session_id": identity.session_id,
-            "domain_tag": identity.domain_tag,
-            "namespace": identity.namespace,
-            "domain": domain,
-            "model": resolved.model.id,
-            "latency_ms": latency_ms,
-            "tokens_in": response.tokens_in,
-            "tokens_out": response.tokens_out,
-            "status": "ok",
-            "substituted": resolved.substituted,
-            "preferred_model": resolved.preferred_model,
-        }
-        self.telemetry.record(
+        return PreparedPrompt(
+            started=started,
             request_id=request_id,
-            event="done",
-            capability="prompt.run",
+            resolved=resolved,
+            domain=domain,
             identity=identity,
-            payload={"response": response.text},
-            domain=domain,
-            model=resolved.model.id,
-            latency_ms=latency_ms,
-            tokens_in=response.tokens_in,
-            tokens_out=response.tokens_out,
-            status="ok",
-        )
-        return PromptRunResult(
-            response=response.text,
-            model=resolved.model.id,
-            domain=domain,
             params=params,
-            trace=trace,
+            adapter=adapter,
+            req=req,
+        )
+
+    def _record_error(self, prepared: PreparedPrompt, payload: dict[str, Any], error_type: str) -> None:
+        self.telemetry.record(
+            request_id=prepared.request_id,
+            event="error",
+            capability="prompt.run",
+            identity=prepared.identity,
+            payload=payload,
+            domain=prepared.domain,
+            model=prepared.resolved.model.id,
+            latency_ms=_latency_ms(prepared.started),
+            status="error",
+            error_type=error_type,
         )
 
     def _adapter_for(self, model: ModelConfig) -> ModelAdapter:

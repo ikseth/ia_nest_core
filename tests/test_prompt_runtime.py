@@ -6,6 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from ianest_core.adapters import FakeAdapter, ModelRequest, run_blocking
+from ianest_core.adapters.base import Event
 from ianest_core.config import load_config
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.identity import Identity
@@ -27,8 +28,8 @@ def test_run_blocking_collects_fake_d2_flow() -> None:
 
 
 def test_prompt_runtime_propagates_identity_to_trace(tmp_path) -> None:
-    csv_path = tmp_path / "trace.csv"
-    jsonl_path = tmp_path / "trace.jsonl"
+    csv_path = tmp_path / "stream_trace.csv"
+    jsonl_path = tmp_path / "stream_trace.jsonl"
     config = replace(
         load_config(Path("eval/fixtures/config.yaml")),
         telemetry=TelemetryConfig(csv_path=str(csv_path), jsonl_path=str(jsonl_path), strict_mode=False),
@@ -96,3 +97,24 @@ def test_telemetry_non_serializable_payload_is_best_effort(tmp_path) -> None:
     )
 
     assert writer.errors
+
+    csv_path = tmp_path / "stream_trace.csv"
+    jsonl_path = tmp_path / "stream_trace.jsonl"
+    config = replace(
+        load_config(Path("eval/fixtures/config.yaml")),
+        telemetry=TelemetryConfig(csv_path=str(csv_path), jsonl_path=str(jsonl_path), strict_mode=False),
+    )
+    runtime = PromptRuntime(config)
+    runtime._adapter_for = lambda model: ErrorAdapter()  # type: ignore[method-assign]
+
+    events = list(runtime.stream(prompt="hola", domain_id="general", request_id="stream-error"))
+
+    assert events[-1].type == "error"
+    csv_text = csv_path.read_text(encoding="utf-8")
+    assert ";error;" in csv_text
+    assert ";done;" not in csv_text
+
+
+class ErrorAdapter:
+    def stream(self, req: ModelRequest):
+        yield Event("error", {"type": "AdapterError", "message": "boom"})

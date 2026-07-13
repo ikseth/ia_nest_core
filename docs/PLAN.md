@@ -56,7 +56,7 @@ Criterio de salida:
 Se parte en dos cortes para respetar "piezas pequenas". Cada corte tiene
 criterio de salida propio.
 
-### Fase 6a: vertical minimo de inferencia (actual)
+### Fase 6a: vertical minimo de inferencia (completada)
 
 Objetivo: el corte end-to-end mas fino posible (senal #1 de
 `VISION_FUNCIONAL.md`: "responde por CLI con modelos locales").
@@ -75,7 +75,7 @@ Criterio de salida:
 - La pista de conformance de la bateria pasa contra adaptador fake, con
   veredicto reproducible.
 
-### Fase 6b: ruteo, resiliencia y runner de evaluacion
+### Fase 6b: ruteo, resiliencia y runner de evaluacion (completada)
 
 Objetivo: completar el core minimo operable (senal #2: "enruta dominios").
 
@@ -91,7 +91,7 @@ Criterio de salida:
 - El runner ejecuta la bateria completa: conformance reproducible + smoke con
   umbrales.
 
-## Fase 7: Interfaces MCP y REST minimas
+## Fase 7: Interfaces MCP y REST minimas (actual)
 
 Objetivo: exponer las capacidades del vertical por MCP y REST sin logica
 distinta a la CLI (regla de paridad de `CORE_CONTRACT.md`). MCP usa el SDK

@@ -127,7 +127,7 @@ Criterio de salida:
 - Casos de conformance deterministas (FakeAdapter) para los cortes.
 - Paridad CLI/REST/MCP; pytest en verde; core minimo instalable sin extras.
 
-## Fase 9: Scripts de instalacion y deteccion de runtime/GPU (actual)
+## Fase 9: Scripts de instalacion y deteccion de runtime/GPU (completada)
 
 Objetivo: cerrar el punto de `ALCANCE_CORE.md` y del checklist "core cerrado".
 
@@ -143,6 +143,16 @@ Criterio de salida:
 - Instalacion reproducible desde cero, documentada y verificada.
 - `runtime.health` refleja la deteccion de runtime/GPU.
 - Scripts con cabecera y sin secretos.
+
+## Validacion en laboratorio (previa a fase 10) (actual)
+
+Estado: actual. Con el checklist "core cerrado" completo, antes de la fase 10
+se despliega y prueba el core en el host de laboratorio (backend real con
+GPU): instalacion, smoke real (pista smoke de la bateria contra el backend
+OpenAI-compatible) y los fix/ajustes que surjan. La fase 10 queda en espera
+hasta superar esta validacion.
+
+Detalles concretos del host: fuera del repo (`local/`, no versionado).
 
 ## Fase 10: Plan de repos/modulos externos
 

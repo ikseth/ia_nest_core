@@ -30,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
             return _eval_run(args)
         if args.command == "runtime" and args.runtime_command == "health":
             return _runtime_health(args)
+        if args.command == "runtime" and args.runtime_command == "detect":
+            return _runtime_detect(args)
     except CoreError as exc:
         return _emit_error(exc, json_output=getattr(args, "json", False))
     parser.print_help()
@@ -112,6 +114,8 @@ def _build_parser() -> argparse.ArgumentParser:
     runtime_subparsers = runtime_parser.add_subparsers(dest="runtime_command")
     health_parser = runtime_subparsers.add_parser("health")
     health_parser.add_argument("--json", action="store_true")
+    detect_parser = runtime_subparsers.add_parser("detect")
+    detect_parser.add_argument("--json", action="store_true")
     return parser
 
 
@@ -218,6 +222,16 @@ def _runtime_health(args: argparse.Namespace) -> int:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
         print(f"{result['status']}\t{result['mcp']['protocol_version']}")
+    return 0
+
+
+def _runtime_detect(args: argparse.Namespace) -> int:
+    result = service.detect_runtime(config_path=args.config)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        gpu = "gpu" if result["gpu"]["available"] else "no_gpu"
+        print(f"{result['status']}\t{gpu}\tpython {result['runtime']['python']}")
     return 0
 
 

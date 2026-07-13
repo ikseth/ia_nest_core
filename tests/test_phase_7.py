@@ -81,8 +81,19 @@ def test_runtime_health_declares_mcp_default_protocol() -> None:
 
     assert result["status"] == "ok"
     assert result["process"]["ok"] is True
+    assert result["runtime"]["python"]
+    assert result["runtime"]["platform"]
     assert result["mcp"]["protocol_version"] == expected
     assert result["backend"]["available_models"] == 2
+
+
+def test_runtime_detect_reports_local_gpu_best_effort() -> None:
+    result = service.detect_runtime(config_path=CONFIG)
+
+    assert result["status"] == "ok"
+    assert "available" in result["gpu"]
+    assert "gpus" in result["gpu"]
+    assert result["backend"]["scope"] == "configured_models"
 
 
 @pytest.mark.skipif(importlib.util.find_spec("starlette") is None, reason="REST extra not installed")

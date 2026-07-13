@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -138,15 +140,21 @@ def run_eval(
 
 
 def health(*, config_path: str | Path, availability: AvailabilityProvider | None = None) -> dict[str, Any]:
+    return detect_runtime(config_path=config_path, availability=availability)
+
+
+def detect_runtime(*, config_path: str | Path, availability: AvailabilityProvider | None = None) -> dict[str, Any]:
     config = load_config(config_path)
     registry = ModelRegistry(config, availability=availability)
     models = registry.model_records()
     return {
         "status": "ok",
-        "process": {"ok": True, "pid": os.getpid(), "python": platform.python_version()},
+        "process": {"ok": True, "pid": os.getpid()},
+        "runtime": _runtime_status(),
         "backend": {
             "models": models,
             "available_models": sum(1 for model in models if model["available"]),
+            "scope": "configured_models",
         },
         "gpu": _gpu_status(),
         "mcp": {"protocol_version": _mcp_protocol_version()},
@@ -159,8 +167,40 @@ def sse_encode(event: dict[str, Any]) -> str:
 
 
 def _gpu_status() -> dict[str, Any]:
-    dev_path = Path("/dev/nvidia0")
-    return {"available": dev_path.exists(), "detail": "local best_effort"}
+    executable = shutil.which("nvidia-smi")
+    if executable is None:
+        return {"available": False, "detail": "nvidia-smi not found", "gpus": []}
+    command = [
+        executable,
+        "--query-gpu=name,memory.total",
+        "--format=csv,noheader,nounits",
+    ]
+    try:
+        completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        return {"available": False, "detail": str(exc), "gpus": []}
+    gpus = [_parse_gpu_line(line) for line in completed.stdout.splitlines() if line.strip()]
+    return {"available": bool(gpus), "detail": "nvidia-smi", "gpus": gpus}
+
+
+def _runtime_status() -> dict[str, str]:
+    return {
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "implementation": platform.python_implementation(),
+    }
+
+
+def _parse_gpu_line(line: str) -> dict[str, Any]:
+    parts = [part.strip() for part in line.split(",", maxsplit=1)]
+    name = parts[0] if parts else ""
+    memory_total_mb = None
+    if len(parts) > 1:
+        try:
+            memory_total_mb = int(parts[1])
+        except ValueError:
+            memory_total_mb = None
+    return {"name": name, "memory_total_mb": memory_total_mb}
 
 
 def _mcp_protocol_version() -> str:

@@ -1,0 +1,314 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import tempfile
+import time
+from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+import yaml
+
+from ianest_core.config import load_config, load_config_from_dict, validate_config_dict
+from ianest_core.config.schema import TelemetryConfig
+from ianest_core.errors import CoreError
+from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
+from ianest_core.runtime import DomainRuntime, PromptRuntime
+
+EVAL_SCHEMA_VERSION = "1"
+
+
+def run_eval(
+    *,
+    battery_dir: str | Path = "eval/battery",
+    track: str = "conformance",
+    config_path: str | Path | None = None,
+) -> dict[str, Any]:
+    cases = _load_cases(Path(battery_dir), track)
+    results = [_run_case(case, config_path=config_path) for case in cases]
+    totals = _totals(results)
+    conformance_digest = _conformance_digest(results)
+    return {
+        "run_id": str(uuid4()),
+        "ts": datetime.now(UTC).isoformat(),
+        "schema_version": EVAL_SCHEMA_VERSION,
+        "totals": totals,
+        "conformance_digest": conformance_digest,
+        "verdict": "pass" if _verdict_pass(results, totals) else "fail",
+        "cases": results,
+    }
+
+
+def _load_cases(battery_dir: Path, track: str) -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
+    for path in sorted(battery_dir.glob("*.yaml")):
+        with path.open("r", encoding="utf-8") as handle:
+            for case in yaml.safe_load(handle) or []:
+                if case.get("track") == track:
+                    cases.append(case)
+    return cases
+
+
+def _run_case(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    started = time.monotonic()
+    try:
+        result = _execute_case(case, config_path=config_path)
+    except CoreError as exc:
+        return _case_error(case, started, exc)
+    except Exception as exc:
+        return _case_error(case, started, CoreError("EvalError", str(exc), None))
+    result["latency_ms"] = _latency_ms(started)
+    return result
+
+
+def _execute_case(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    capability = case.get("capability", "")
+    if capability == "domain.route":
+        return _execute_domain_route(case, config_path=config_path)
+    if capability == "prompt.run":
+        return _execute_prompt_run(case, config_path=config_path)
+    if capability == "model.list":
+        return _execute_model_list(case, config_path=config_path)
+    if capability == "config.validate":
+        return _execute_config_validate(case)
+    raise CoreError("EvalError", f"unsupported capability {capability}", "capability")
+
+
+def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    config = _case_config(case, config_path=config_path)
+    runtime = DomainRuntime(config, availability=_case_availability(case))
+    route = runtime.route(
+        prompt=case["input"].get("prompt", ""),
+        identity_override=case["input"].get("identity", {}),
+        request_id=case["id"],
+    )
+    assertions = _assertions(
+        {
+            "domain": route.domain,
+            "model": route.model,
+        },
+        case.get("expect", {}),
+    )
+    return _case_result(case, assertions, domain=route.domain, model=route.model)
+
+
+def _execute_prompt_run(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    config = _case_config(case, config_path=config_path)
+    runtime = PromptRuntime(config, availability=_case_availability(case))
+    try:
+        result = runtime.run(
+            prompt=case["input"].get("prompt", ""),
+            model_id=case["input"].get("model"),
+            domain_id=case["input"].get("domain"),
+            identity_override=case["input"].get("identity", {}),
+            request_id=case["id"],
+        )
+    except CoreError as exc:
+        expected = case.get("expect", {})
+        if expected.get("error_type") == exc.type:
+            return _case_result(
+                case,
+                [{"name": "error_type", "expected": expected["error_type"], "actual": exc.type, "ok": True}],
+                status="pass",
+                error={"type": exc.type, "message": exc.message},
+            )
+        raise
+
+    if case.get("track") == "smoke":
+        metrics = {
+            "latency_ms": result.trace["latency_ms"],
+            "tokens_in": result.trace["tokens_in"],
+            "tokens_out": result.trace["tokens_out"],
+            "chars": len(result.response),
+        }
+        thresholds_met = _thresholds_met(metrics, case.get("thresholds", {}))
+        return _smoke_result(case, metrics, thresholds_met, domain=result.domain, model=result.model)
+
+    expected = case.get("expect", {})
+    actual = {
+        "domain": result.domain,
+        "model": result.model,
+        "trace_substitution": bool(result.trace.get("substituted")),
+    }
+    trace_fields = expected.get("trace_fields", {})
+    for key in trace_fields:
+        actual[key] = result.trace.get(key)
+    assertions = _assertions(actual, {**expected, **trace_fields})
+    return _case_result(case, assertions, domain=result.domain, model=result.model)
+
+
+def _execute_model_list(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    config = _case_config(case, config_path=config_path)
+    registry = ModelRegistry(config, availability=_case_availability(case))
+    records = registry.model_records()
+    assertions = _assertions({"status": "ok"}, case.get("expect", {}))
+    return _case_result(case, assertions, domain="", model=records[0]["id"] if records else "")
+
+
+def _execute_config_validate(case: dict[str, Any]) -> dict[str, Any]:
+    raw = case["input"].get("config_inline", {})
+    expected = case.get("expect", {})
+    try:
+        validate_config_dict(raw)
+    except CoreError as exc:
+        actual = {"error_type": exc.type, "error_field": exc.field}
+        assertions = _assertions(actual, expected)
+        return _case_result(
+            case,
+            assertions,
+            status="pass" if all(item["ok"] for item in assertions) else "fail",
+            error={"type": exc.type, "message": exc.message},
+        )
+    config = load_config_from_dict(raw)
+    assertions = _assertions({"status": "ok", "models": len(config.models)}, expected)
+    return _case_result(case, assertions)
+
+
+def _case_config(case: dict[str, Any], *, config_path: str | Path | None):
+    fixture = case.get("fixture")
+    if not fixture and config_path is None:
+        return load_config_from_dict(case["input"].get("config_inline", {}))
+    config = load_config(fixture or config_path)
+    tmp_path = Path(tempfile.mkdtemp(prefix="ianest_eval_"))
+    csv_path = tmp_path / f"{case['id']}.csv"
+    jsonl_path = tmp_path / f"{case['id']}.jsonl"
+    config = replace(
+        config,
+        telemetry=TelemetryConfig(csv_path=str(csv_path), jsonl_path=str(jsonl_path), strict_mode=False),
+    )
+    return config
+
+
+def _case_availability(case: dict[str, Any]) -> StaticAvailabilityProvider:
+    unavailable = set(case.get("world", {}).get("unavailable_models", []))
+    return StaticAvailabilityProvider(unavailable_models=unavailable)
+
+
+def _assertions(actual: dict[str, Any], expected: dict[str, Any]) -> list[dict[str, Any]]:
+    assertions = []
+    for name, expected_value in expected.items():
+        if name == "trace_fields":
+            continue
+        actual_value = actual.get(name)
+        assertions.append(
+            {
+                "name": name,
+                "expected": expected_value,
+                "actual": actual_value,
+                "ok": actual_value == expected_value,
+            }
+        )
+    return assertions
+
+
+def _case_result(
+    case: dict[str, Any],
+    assertions: list[dict[str, Any]],
+    *,
+    domain: str = "",
+    model: str = "",
+    status: str | None = None,
+    error: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    result = {
+        "case_id": case["id"],
+        "track": case.get("track", ""),
+        "status": status or ("pass" if all(item["ok"] for item in assertions) else "fail"),
+        "capability": case.get("capability", ""),
+        "domain": domain,
+        "model": model,
+        "latency_ms": 0,
+        "assertions": assertions,
+    }
+    if error is not None:
+        result["error"] = error
+    return result
+
+
+def _smoke_result(
+    case: dict[str, Any],
+    metrics: dict[str, Any],
+    thresholds_met: bool,
+    *,
+    domain: str,
+    model: str,
+) -> dict[str, Any]:
+    return {
+        "case_id": case["id"],
+        "track": case.get("track", ""),
+        "status": "pass" if thresholds_met else "fail",
+        "capability": case.get("capability", ""),
+        "domain": domain,
+        "model": model,
+        "latency_ms": metrics["latency_ms"],
+        "metrics": metrics,
+        "thresholds_met": thresholds_met,
+    }
+
+
+def _case_error(case: dict[str, Any], started: float, exc: CoreError) -> dict[str, Any]:
+    return {
+        "case_id": case["id"],
+        "track": case.get("track", ""),
+        "status": "error",
+        "capability": case.get("capability", ""),
+        "domain": "",
+        "model": "",
+        "latency_ms": _latency_ms(started),
+        "assertions": [],
+        "error": {"type": exc.type, "message": exc.message},
+    }
+
+
+def _totals(results: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    totals = {"conformance": {"pass": 0, "fail": 0}, "smoke": {"pass": 0, "fail": 0}}
+    for result in results:
+        track = result["track"]
+        if track not in totals:
+            continue
+        key = "pass" if result["status"] == "pass" else "fail"
+        totals[track][key] += 1
+    return totals
+
+
+def _thresholds_met(metrics: dict[str, Any], thresholds: dict[str, Any]) -> bool:
+    if "latency_ms_max" in thresholds and metrics["latency_ms"] > thresholds["latency_ms_max"]:
+        return False
+    if thresholds.get("must_be_nonempty") and metrics["chars"] == 0:
+        return False
+    if "min_chars" in thresholds and metrics["chars"] < thresholds["min_chars"]:
+        return False
+    return True
+
+
+def _conformance_digest(results: list[dict[str, Any]]) -> str:
+    deterministic = []
+    for result in results:
+        if result["track"] != "conformance":
+            continue
+        deterministic.append(
+            {
+                "case_id": result["case_id"],
+                "status": result["status"],
+                "capability": result["capability"],
+                "domain": result["domain"],
+                "model": result["model"],
+                "assertions": result.get("assertions", []),
+                "error": result.get("error"),
+            }
+        )
+    payload = json.dumps(deterministic, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _verdict_pass(results: list[dict[str, Any]], totals: dict[str, dict[str, int]]) -> bool:
+    if totals["conformance"]["fail"] != 0:
+        return False
+    return all(result["status"] == "pass" for result in results)
+
+
+def _latency_ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)

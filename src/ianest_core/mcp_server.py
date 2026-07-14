@@ -1,18 +1,26 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from typing import Any
 
 from ianest_core import service
+from ianest_core.dotenv import load_dotenv
 
 
-def create_server(config_path: str | Path = "config/core.yaml"):
+def create_server(
+    config_path: str | Path = "config/core.yaml",
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8090,
+):
+    load_dotenv()
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("MCP extra not installed; install ianest-core[interfaces]") from exc
 
-    server = FastMCP("ia_nest_core")
+    server = FastMCP("ia_nest_core", host=host, port=port)
 
     @server.tool(name="prompt.run", structured_output=True)
     def prompt_run(prompt: str, model: str | None = None, domain: str | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:
@@ -66,8 +74,15 @@ def create_server(config_path: str | Path = "config/core.yaml"):
     return server
 
 
-def main() -> None:
-    create_server().run()
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="ianest-mcp")
+    parser.add_argument("--config", default="config/core.yaml", help="ruta de configuracion YAML")
+    parser.add_argument("--transport", choices=["stdio", "sse"], default="stdio")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8090)
+    args = parser.parse_args(argv)
+
+    create_server(args.config, host=args.host, port=args.port).run(transport=args.transport)
 
 
 if __name__ == "__main__":

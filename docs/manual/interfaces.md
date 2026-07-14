@@ -30,11 +30,32 @@ Ejemplo:
       -H 'Content-Type: application/json' \
       -d '{"prompt":"Hola","domain":"general"}'
 
-## MCP (SDK oficial, stdio)
+## MCP (SDK oficial)
+
+Por defecto **stdio** (lo lanza el cliente MCP):
 
     python -m ianest_core.mcp_server
 
-Arranca un servidor MCP por stdio. Un cliente MCP puede invocar las
-herramientas `prompt.run`, `domain.route`, `model.list`, `domain.list`,
+O como **servicio de red por SSE**:
+
+    python -m ianest_core.mcp_server --transport sse --host 127.0.0.1 --port 8090
+
+Herramientas: `prompt.run`, `domain.route`, `model.list`, `domain.list`,
 `config.validate`, `eval.run`, `runtime.health` (con salida estructurada). La
 version de protocolo se declara en `runtime.health`.
+
+## Como servicio (systemd, Linux)
+
+El instalador puede generar unidades systemd para arrancar REST y MCP-SSE de
+forma persistente:
+
+    bash install.sh --service                              # puertos por defecto: REST 8000, MCP 8090
+    bash install.sh --service --rest-port 8000 --mcp-port 8090
+
+Genera `ianest-rest.service` e `ianest-mcp.service` (con `EnvironmentFile=.env`
+y `Restart=on-failure`). Como root los escribe en `/etc/systemd/system` y hace
+`daemon-reload`, pero **no los habilita ni arranca** (lo decides tu):
+
+    sudo systemctl enable --now ianest-rest.service ianest-mcp.service
+
+Sin root, los genera en `dist/systemd/` e indica como instalarlos.

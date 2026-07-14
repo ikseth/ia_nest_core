@@ -1,0 +1,41 @@
+# Config de ejemplo del core. Copiar a config/core.yaml y ajustar.
+# El endpoint y las credenciales van por variable de entorno (.env), NO aqui.
+# Ver ADR 0013 (backend) y ADR 0014 (esquema de configuracion).
+
+models:
+  - id: local_llama
+    provider: ollama
+    adapter: openai_compatible
+    endpoint: ${OPENAI_COMPAT_BASE_URL}
+    model_name: llama3.1:8b
+    capabilities: [chat]
+    profile: default
+
+domains:
+  - id: general
+    description: "Dominio general por defecto"
+    preferred_model: local_llama
+    fallback_models: []
+    profile: default
+    routing_rules:
+      keywords: []
+    status: active
+
+profiles:
+  - id: default
+    temperature: 0.2
+    max_tokens: 512
+    top_p: 1.0
+    max_iterations: 4
+    max_time_s: 60
+    max_context_tokens: 4096
+
+identity_defaults:
+  user_id: local
+  service: local_cli
+
+telemetry:
+  csv_path: local/telemetry/core.csv
+  jsonl_path: local/telemetry/core.jsonl
+  rotation: size
+  strict_mode: false

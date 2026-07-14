@@ -6,6 +6,9 @@ declarativa e interfaz MCP.
 Este repositorio nace como extraccion conceptual de IA_NEST, no como migracion
 directa del codigo existente.
 
+Para instalar y usar el core, ver el manual de usuario en
+[docs/manual/](docs/manual/).
+
 ## Orden de lectura
 
 1. `IA_NEST_CORE_CONTEXT.md`

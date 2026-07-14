@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from ianest_core import service
+from ianest_core.dotenv import load_dotenv
 from ianest_core.errors import CoreError
 
 
 def create_app(config_path: str | Path = "config/core.yaml"):
+    load_dotenv()
     try:
         from starlette.applications import Starlette
         from starlette.requests import Request

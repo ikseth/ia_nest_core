@@ -144,17 +144,19 @@ Criterio de salida:
 - `runtime.health` refleja la deteccion de runtime/GPU.
 - Scripts con cabecera y sin secretos.
 
-## Validacion en laboratorio (previa a fase 10) (actual)
+## Validacion en laboratorio (previa a fase 10) (superada)
 
-Estado: actual. Con el checklist "core cerrado" completo, antes de la fase 10
-se despliega y prueba el core en el host de laboratorio (backend real con
-GPU): instalacion, smoke real (pista smoke de la bateria contra el backend
-OpenAI-compatible) y los fix/ajustes que surjan. La fase 10 queda en espera
-hasta superar esta validacion.
+Estado: superada 2026-07-14. Core validado end-to-end en hardware real (host
+de laboratorio con RTX 3060, Ollama): install.sh, deteccion GPU,
+config.validate, prompt.run, reasoning.run, ruteo por dominio (con criterio
+anti-sesgo y fallback occidental), eval smoke, y las tres interfaces
+(CLI/REST/MCP). 3 fixes menores aplicados y verificados: auto-carga de .env,
+domain.route expone substituted/preferred_model, y system prompt por perfil
+(ADR 0025, resuelve modelos que respondian en otro idioma).
 
-Detalles concretos del host: fuera del repo (`local/`, no versionado).
+Registro detallado y detalles del host: en `local/lab/` (no versionado).
 
-## Fase 10: Plan de repos/modulos externos
+## Fase 10: Plan de repos/modulos externos (actual)
 
 Objetivo: documentar las fronteras de handoff hacia los repos externos:
 `MemoryPort` -> `ia_nest_core_extended`; conciencia ->

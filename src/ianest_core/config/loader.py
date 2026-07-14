@@ -69,8 +69,9 @@ def _load_domain(raw: dict[str, Any]) -> DomainConfig:
 def _load_profile(raw: dict[str, Any]) -> ProfileConfig:
     raw_params = dict(raw)
     profile_id = str(raw_params.pop("id", ""))
+    system = str(raw_params.pop("system", ""))
     extra = dict(raw_params.pop("extra", {}))
-    return ProfileConfig(id=profile_id, params=raw_params, extra=extra)
+    return ProfileConfig(id=profile_id, params=raw_params, extra=extra, system=system)
 
 
 def _load_telemetry(raw: dict[str, Any] | None) -> TelemetryConfig | None:

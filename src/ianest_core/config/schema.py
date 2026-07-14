@@ -31,6 +31,7 @@ class ProfileConfig:
     id: str
     params: dict[str, Any]
     extra: dict[str, Any] = field(default_factory=dict)
+    system: str = ""
 
 
 @dataclass(frozen=True)
@@ -48,4 +49,3 @@ class CoreConfig:
     profiles: list[ProfileConfig]
     identity_defaults: dict[str, str]
     telemetry: TelemetryConfig | None
-

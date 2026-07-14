@@ -212,7 +212,8 @@ class PromptRuntime:
         params = dict(resolved.profile.params)
         extra = dict(resolved.profile.extra)
         adapter = self._adapter_for(resolved.model)
-        req = ModelRequest(messages=[{"role": "user", "content": prompt}], params=params, extra=extra)
+        messages = _messages_with_system(prompt, resolved.profile.system)
+        req = ModelRequest(messages=messages, params=params, extra=extra)
 
         self.memory.read_context(identity)
         self.telemetry.record(
@@ -285,3 +286,11 @@ class PromptRuntime:
 
 def _latency_ms(started: float) -> int:
     return int((time.monotonic() - started) * 1000)
+
+
+def _messages_with_system(prompt: str, system: str) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    return messages

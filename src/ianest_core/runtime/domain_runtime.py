@@ -16,6 +16,8 @@ from ianest_core.telemetry import TelemetryWriter
 class DomainRouteResult:
     domain: str
     model: str
+    substituted: bool
+    preferred_model: str
     confidence: float
     reason: str
     alternatives: list[dict[str, str | float]]
@@ -25,6 +27,8 @@ class DomainRouteResult:
         return {
             "domain": self.domain,
             "model": self.model,
+            "substituted": self.substituted,
+            "preferred_model": self.preferred_model,
             "confidence": self.confidence,
             "reason": self.reason,
             "alternatives": self.alternatives,
@@ -87,6 +91,8 @@ class DomainRuntime:
         return DomainRouteResult(
             domain=route.domain,
             model=route.model,
+            substituted=route.substituted,
+            preferred_model=route.preferred_model,
             confidence=route.confidence,
             reason=route.reason,
             alternatives=route.alternatives,

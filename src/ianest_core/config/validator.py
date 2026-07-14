@@ -51,6 +51,8 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
 
     for profile in profiles:
         _require_fields(profile, PROFILE_FIELDS)
+        if "system" in profile and not isinstance(profile["system"], str):
+            raise ConfigValidationError("system must be a string", "system")
 
     model_ids = _unique_ids(models, "model")
     domain_ids = _unique_ids(domains, "domain")

@@ -175,7 +175,9 @@ def _iteration_request(prompt: str, current_output: str, iteration: int, prepare
             "Critique and refine the current draft. Return only JSON with keys output and done. "
             f"Prompt: {prompt}\nCurrent draft: {current_output}"
         )
-    return ModelRequest(messages=[{"role": "user", "content": content}], params=prepared.params, extra=prepared.req.extra)
+    messages = [message for message in prepared.req.messages if message.get("role") == "system"]
+    messages.append({"role": "user", "content": content})
+    return ModelRequest(messages=messages, params=prepared.params, extra=prepared.req.extra)
 
 
 def _parse_reasoning_response(text: str) -> dict[str, Any]:

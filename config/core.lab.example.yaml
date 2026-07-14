@@ -1,0 +1,104 @@
+# Config de laboratorio de ejemplo: roster multi-modelo con enrutado por dominio.
+# Copiar a config/core.yaml. Endpoint y credenciales por env var (.env), NO aqui.
+#
+# Criterio de modelos: los dominios sensibles a sesgo (general, humanidades)
+# usan modelos occidentales, incluso en el fallback; los dominios tecnicos
+# pueden usar otros. Ver docs/DESPLIEGUE.md.
+
+models:
+  - id: mistral_nemo
+    provider: mistral
+    adapter: openai_compatible
+    endpoint: ${OPENAI_COMPAT_BASE_URL}
+    model_name: mistral-nemo:latest
+    capabilities: [chat]
+    profile: default
+  - id: mistral_7b
+    provider: mistral
+    adapter: openai_compatible
+    endpoint: ${OPENAI_COMPAT_BASE_URL}
+    model_name: mistral:7b
+    capabilities: [chat]
+    profile: default
+  - id: qwen_tech
+    provider: qwen
+    adapter: openai_compatible
+    endpoint: ${OPENAI_COMPAT_BASE_URL}
+    model_name: qwen2.5:7b
+    capabilities: [chat]
+    profile: default
+  - id: deepseek_reason
+    provider: deepseek
+    adapter: openai_compatible
+    endpoint: ${OPENAI_COMPAT_BASE_URL}
+    model_name: deepseek-r1:8b
+    capabilities: [chat]
+    profile: default
+
+domains:
+  - id: general
+    description: "Dominio general por defecto (sesgo-sensible: modelo occidental)"
+    preferred_model: mistral_nemo
+    fallback_models: [mistral_7b]
+    profile: default
+    routing_rules: { keywords: [] }
+    status: active
+  - id: humanidades
+    description: "Filosofia, etica, historia, politica (sesgo-sensible: occidental)"
+    preferred_model: mistral_nemo
+    fallback_models: [mistral_7b]
+    profile: default
+    routing_rules:
+      keywords: [filosofia, filosofico, etica, moral, historia, politica, religion]
+    status: active
+  - id: matematicas
+    description: "Matematica y calculo"
+    preferred_model: qwen_tech
+    fallback_models: [deepseek_reason]
+    profile: default
+    routing_rules:
+      keywords: [matematica, matematicas, ecuacion, integral, derivada, algebra, calcula, demuestra]
+    status: active
+  - id: codigo
+    description: "Programacion y codigo"
+    preferred_model: qwen_tech
+    fallback_models: [deepseek_reason]
+    profile: default
+    routing_rules:
+      keywords: [codigo, programa, funcion, python, script, bug, compila]
+    status: active
+  - id: linux
+    description: "Administracion Linux / sistemas"
+    preferred_model: qwen_tech
+    fallback_models: [deepseek_reason]
+    profile: default
+    routing_rules:
+      keywords: [linux, bash, systemd, kernel, permisos, sudo, comando, shell]
+    status: active
+  - id: razonamiento
+    description: "Razonamiento paso a paso / logica"
+    preferred_model: deepseek_reason
+    fallback_models: [qwen_tech]
+    profile: default
+    routing_rules:
+      keywords: [razona, razonamiento, deduce, logica]
+    status: active
+
+profiles:
+  - id: default
+    temperature: 0.2
+    max_tokens: 512
+    top_p: 1.0
+    max_iterations: 4
+    max_time_s: 60
+    max_context_tokens: 4096
+
+identity_defaults:
+  user_id: local
+  service: local_cli
+
+telemetry:
+  csv_path: local/telemetry/core.csv
+  jsonl_path: local/telemetry/core.jsonl
+  rotation: size
+  strict_mode: false

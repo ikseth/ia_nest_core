@@ -9,3 +9,7 @@ build/
 # Contexto local no versionado (detalles de red/hardware, endpoints, secretos)
 /local/
 
+# Temporales del harness y artefactos de build
+.claude/
+*.egg-info/
+

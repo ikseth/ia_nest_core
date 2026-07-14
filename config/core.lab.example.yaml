@@ -92,6 +92,7 @@ profiles:
     max_iterations: 4
     max_time_s: 60
     max_context_tokens: 4096
+    system: "Responde siempre en espanol, de forma clara y concisa."
 
 identity_defaults:
   user_id: local

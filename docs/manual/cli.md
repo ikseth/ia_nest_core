@@ -20,12 +20,19 @@ Sin activar el venv puedes usarlo igual con `.venv/bin/ianest ...` o
 NO funciona `ianest --prompt "..."` suelto: le falta el grupo y la accion.
 Lo correcto es `ianest ... prompt run --prompt "..."`.
 
-Antes de usar la CLI necesitas un `config/core.yaml` (los `*.example.yaml` son
-plantillas): `cp config/core.example.yaml config/core.yaml` y define `.env`.
-Ver [configuracion.md](configuracion.md) e [instalacion.md](instalacion.md).
+Antes de usar la CLI necesitas un `config/core.yaml` y `.env`: la forma rapida
+es `ianest init` (ver abajo). Ver tambien [configuracion.md](configuracion.md)
+e [instalacion.md](instalacion.md).
 
 Todos los comandos aceptan `--config RUTA` (por defecto `config/core.yaml`) y
 `--json` (salida en JSON).
+
+## Inicializar (crear config)
+
+    ianest init --endpoint http://localhost:11434/v1 --template lab
+
+Crea `config/core.yaml` y `.env`, y valida. Es la excepcion a "dos palabras":
+`init` es un comando de una sola palabra.
 
 ## Inferencia
 

@@ -26,17 +26,24 @@ Opciones de `install.sh`:
 
 (Sin `--interfaces`, un par de tests de interfaz se saltan; es normal.)
 
-## Variable de entorno del backend
+## Configuracion inicial
 
-El endpoint del backend va por variable de entorno, NO en el YAML. Copia la
-plantilla y rellenala:
+La forma rapida: `ianest init` crea `config/core.yaml` y `.env` por ti, y
+valida:
 
-    cp .env.example .env
-    # en .env:  OPENAI_COMPAT_BASE_URL=http://localhost:11434/v1
+    ianest init --endpoint http://localhost:11434/v1 --template lab
+    # --template minimal (un modelo) | lab (roster multi-modelo)
+    # sin --endpoint lo pregunta (default http://localhost:11434/v1)
+    # --force sobrescribe si ya existen
 
-La CLI y las interfaces REST/MCP cargan `.env` del directorio actual
-automaticamente. Arranca siempre desde la raiz del repo, donde estan `.env` y
-`config/core.yaml`.
+A mano (alternativa): copia una plantilla y crea el `.env`:
+
+    cp config/core.example.yaml config/core.yaml     # o config/core.lab.example.yaml
+    echo 'OPENAI_COMPAT_BASE_URL=http://localhost:11434/v1' > .env
+
+El endpoint va por variable de entorno, NUNCA en el YAML. La CLI y las
+interfaces cargan `.env` del directorio actual automaticamente; arranca
+siempre desde la raiz del repo.
 
 ## Instalar como servicio (systemd, Linux)
 

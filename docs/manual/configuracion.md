@@ -1,5 +1,8 @@
 # Configuracion
 
+La forma rapida de crear la configuracion es `ianest init` (ver
+[cli.md](cli.md)); esta pagina describe el formato para editarla a mano.
+
 La configuracion es un YAML declarativo. Parte de un ejemplo y validalo:
 
     cp config/core.example.yaml config/core.yaml         # minimo (un modelo)

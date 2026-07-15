@@ -35,6 +35,8 @@ def main(argv: list[str] | None = None) -> int:
             return _domain_list(args)
         if args.command == "model" and args.model_command == "list":
             return _model_list(args)
+        if args.command == "model" and args.model_command == "pull":
+            return _model_pull(args)
         if args.command == "config" and args.config_command == "validate":
             return _config_validate(args)
         if args.command == "eval" and args.eval_command == "run":
@@ -113,6 +115,9 @@ def _build_parser() -> argparse.ArgumentParser:
     model_subparsers = model_parser.add_subparsers(dest="model_command")
     model_list_parser = model_subparsers.add_parser("list")
     model_list_parser.add_argument("--json", action="store_true")
+    model_pull_parser = model_subparsers.add_parser("pull")
+    model_pull_parser.add_argument("models", nargs="*")
+    model_pull_parser.add_argument("--json", action="store_true")
 
     config_parser = subparsers.add_parser("config")
     config_subparsers = config_parser.add_subparsers(dest="config_command")
@@ -241,6 +246,18 @@ def _model_list(args: argparse.Namespace) -> int:
     else:
         for record in result["models"]:
             print(f"{record['id']}\t{record['provider']}\t{record['available']}\t{record['profile']}")
+    return 0
+
+
+def _model_pull(args: argparse.Namespace) -> int:
+    result = service.pull_models(config_path=args.config, model_references=args.models)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        for model_name in result["pulled"]:
+            print(f"pulled\t{model_name}")
+        for model_name in result["present"]:
+            print(f"present\t{model_name}")
     return 0
 
 

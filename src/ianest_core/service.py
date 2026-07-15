@@ -6,10 +6,13 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from ianest_core.config import load_config, load_config_data, validate_config_dict
+from ianest_core.config.schema import ModelConfig
 from ianest_core.evaluation import run_eval as run_eval_core
+from ianest_core.errors import CoreError
+from ianest_core.provisioning import Provisioner, provisioner_for
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
 from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime
 
@@ -114,6 +117,56 @@ def route_domain(
 def list_models(*, config_path: str | Path, availability: AvailabilityProvider | None = None) -> dict[str, Any]:
     config = load_config(config_path)
     return {"models": ModelRegistry(config, availability=availability).model_records()}
+
+
+def pull_models(
+    *,
+    config_path: str | Path,
+    model_references: list[str] | None = None,
+    provisioner_factory: Callable[[ModelConfig], Provisioner | None] | None = None,
+) -> dict[str, list[str]]:
+    config = load_config(config_path)
+    models = _selected_models(config.models, model_references or [])
+    factory = provisioner_factory or provisioner_for
+    pulled: list[str] = []
+    present: list[str] = []
+
+    for model in models:
+        provisioner = factory(model)
+        if provisioner is None:
+            raise CoreError(
+                "ProvisioningError",
+                f"provisioning is not supported for provider '{model.provider}'",
+                "provider",
+            )
+        if model.model_name in provisioner.list_local():
+            present.append(model.model_name)
+            continue
+        provisioner.pull(model.model_name)
+        pulled.append(model.model_name)
+
+    return {"pulled": pulled, "present": present}
+
+
+def _selected_models(models: list[ModelConfig], references: list[str]) -> list[ModelConfig]:
+    if not references:
+        return models
+
+    selected: list[ModelConfig] = []
+    selected_ids: set[str] = set()
+    for reference in references:
+        matches = [model for model in models if model.id == reference or model.model_name == reference]
+        if not matches:
+            raise CoreError(
+                "ProvisioningError",
+                f"modelo no declarado en la config; declaralo primero: '{reference}'",
+                "model",
+            )
+        for model in matches:
+            if model.id not in selected_ids:
+                selected.append(model)
+                selected_ids.add(model.id)
+    return selected
 
 
 def list_domains(*, config_path: str | Path, availability: AvailabilityProvider | None = None) -> dict[str, Any]:

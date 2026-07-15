@@ -168,6 +168,14 @@ Criterio de salida (cumplido):
 - Checklist "Core cerrado significa" de `IA_NEST_CORE_CONTEXT.md` cumplido
   (fase 9) y validado en laboratorio.
 
+## Mejoras posteriores al cierre
+
+El core quedo cerrado tras la fase 10. Mejoras acordadas despues, cada una con
+su ADR:
+
+- Provisioning de modelos (ADR 0029): `ianest model pull` descarga los modelos
+  declarados que falten (capacidad opcional, backend-especifica).
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

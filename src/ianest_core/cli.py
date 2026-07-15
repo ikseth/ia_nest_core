@@ -3,10 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from ianest_core.errors import CoreError
 from ianest_core import service
 from ianest_core.dotenv import load_dotenv
+
+DEFAULT_ENDPOINT = "http://localhost:11434/v1"
+TEMPLATE_FILES = {
+    "minimal": "core.example.yaml",
+    "lab": "core.lab.example.yaml",
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -14,6 +21,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "init":
+            return _init(args)
         if args.command == "prompt" and args.prompt_command == "run":
             return _prompt_run(args)
         if args.command == "reasoning" and args.reasoning_command == "run":
@@ -44,6 +53,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ianest")
     parser.add_argument("--config", default="config/core.yaml", help="ruta de configuracion YAML")
     subparsers = parser.add_subparsers(dest="command")
+
+    init_parser = subparsers.add_parser("init")
+    init_parser.add_argument("--endpoint")
+    init_parser.add_argument("--template", choices=sorted(TEMPLATE_FILES), default="minimal")
+    init_parser.add_argument("--force", action="store_true")
 
     prompt_parser = subparsers.add_parser("prompt")
     prompt_subparsers = prompt_parser.add_subparsers(dest="prompt_command")
@@ -119,6 +133,36 @@ def _build_parser() -> argparse.ArgumentParser:
     detect_parser = runtime_subparsers.add_parser("detect")
     detect_parser.add_argument("--json", action="store_true")
     return parser
+
+
+def _init(args: argparse.Namespace) -> int:
+    config_path = Path("config/core.yaml")
+    env_path = Path(".env")
+    existing_paths = [path for path in (config_path, env_path) if path.exists()]
+    if existing_paths and not args.force:
+        paths = ", ".join(str(path) for path in existing_paths)
+        raise CoreError("ConfigError", f"files already exist: {paths}; use --force to overwrite", "config")
+
+    endpoint = args.endpoint or _prompt_endpoint()
+    template_path = _template_path(args.template)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(template_path.read_text(encoding="utf-8"), encoding="utf-8")
+    env_path.write_text(f"OPENAI_COMPAT_BASE_URL={endpoint}\n", encoding="utf-8")
+    load_dotenv(env_path)
+    service.validate_config(config_path=config_path)
+    print(f"created {config_path}")
+    print(f"created {env_path}")
+    print("ok")
+    return 0
+
+
+def _prompt_endpoint() -> str:
+    endpoint = input(f"OpenAI-compatible endpoint [{DEFAULT_ENDPOINT}]: ").strip()
+    return endpoint or DEFAULT_ENDPOINT
+
+
+def _template_path(template: str) -> Path:
+    return Path(__file__).resolve().parents[2] / "config" / TEMPLATE_FILES[template]
 
 
 def _prompt_run(args: argparse.Namespace) -> int:

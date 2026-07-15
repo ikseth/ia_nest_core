@@ -26,6 +26,11 @@ class ConfigValidationError(CoreError):
         super().__init__("ConfigValidationError", message, field)
 
 
+class ConfigError(CoreError):
+    def __init__(self, message: str, field: str | None = None) -> None:
+        super().__init__("ConfigError", message, field)
+
+
 class AdapterError(CoreError):
     def __init__(self, message: str, field: str | None = None) -> None:
         super().__init__("AdapterError", message, field)
@@ -34,4 +39,3 @@ class AdapterError(CoreError):
 class RoutingError(CoreError):
     def __init__(self, message: str, field: str | None = None) -> None:
         super().__init__("RoutingError", message, field)
-

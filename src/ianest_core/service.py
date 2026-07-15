@@ -8,9 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Iterator
 
-import yaml
-
-from ianest_core.config import load_config, validate_config_dict
+from ianest_core.config import load_config, load_config_data, validate_config_dict
 from ianest_core.evaluation import run_eval as run_eval_core
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
 from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime
@@ -124,9 +122,7 @@ def list_domains(*, config_path: str | Path, availability: AvailabilityProvider 
 
 
 def validate_config(*, config_path: str | Path) -> dict[str, str]:
-    with Path(config_path).open("r", encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle) or {}
-    validate_config_dict(raw)
+    validate_config_dict(load_config_data(config_path))
     return {"status": "ok"}
 
 

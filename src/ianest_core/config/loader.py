@@ -14,14 +14,25 @@ from ianest_core.config.schema import (
     ProfileConfig,
     TelemetryConfig,
 )
+from ianest_core.errors import ConfigError
 
 ENV_PATTERN = re.compile(r"^\$\{([A-Z0-9_]+)\}$")
 
 
 def load_config(path: str | Path) -> CoreConfig:
-    with Path(path).open("r", encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle) or {}
-    return load_config_from_dict(raw)
+    return load_config_from_dict(load_config_data(path))
+
+
+def load_config_data(path: str | Path) -> dict[str, Any]:
+    config_path = Path(path)
+    try:
+        with config_path.open("r", encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle) or {}
+    except FileNotFoundError as exc:
+        raise ConfigError(f"configuration file not found: {config_path}", "config") from exc
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"invalid YAML in configuration '{config_path}': {exc}", "config") from exc
+    return raw
 
 
 def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:

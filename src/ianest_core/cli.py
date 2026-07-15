@@ -148,7 +148,7 @@ def _init(args: argparse.Namespace) -> int:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(template_path.read_text(encoding="utf-8"), encoding="utf-8")
     env_path.write_text(f"OPENAI_COMPAT_BASE_URL={endpoint}\n", encoding="utf-8")
-    load_dotenv(env_path)
+    load_dotenv(env_path, override=True)
     service.validate_config(config_path=config_path)
     print(f"created {config_path}")
     print(f"created {env_path}")

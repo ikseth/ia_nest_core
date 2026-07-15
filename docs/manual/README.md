@@ -10,6 +10,7 @@ engorda una existente.
 - [configuracion.md](configuracion.md) - modelos, dominios y perfiles.
 - [cli.md](cli.md) - comandos de la CLI (referencia rapida).
 - [interfaces.md](interfaces.md) - arrancar y usar REST y MCP.
+- [backend-gpu.md](backend-gpu.md) - desplegar el backend (Ollama) con GPU.
 
 Para desplegar en un host con GPU, ver tambien [../DESPLIEGUE.md](../DESPLIEGUE.md).
 

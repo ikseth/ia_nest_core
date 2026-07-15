@@ -1,0 +1,23 @@
+# Referencia de despliegue del backend Ollama con GPU.
+# NO forma parte del core (el core es agnostico al backend, ADR 0028).
+# Requiere en el host: driver NVIDIA + NVIDIA Container Toolkit.
+#   docker compose -f deploy/ollama.compose.yaml up -d
+services:
+  ollama:
+    image: ollama/ollama:0.12.2
+    container_name: ia_nest_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama_models:

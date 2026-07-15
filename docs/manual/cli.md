@@ -1,5 +1,14 @@
 # CLI (referencia rapida)
 
+`ianest` es el comando de la CLI, instalado DENTRO del entorno virtual (no es
+un fichero del repo). Activa el venv y estara disponible en el PATH:
+
+    source .venv/bin/activate
+    ianest --help
+
+Sin activar el venv puedes usarlo igual con `.venv/bin/ianest ...` o
+`python -m ianest_core.cli ...`.
+
 Todos los comandos aceptan `--config RUTA` (por defecto `config/core.yaml`) y
 `--json` (salida en JSON).
 

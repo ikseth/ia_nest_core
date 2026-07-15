@@ -3,13 +3,12 @@
 Requieren los extras: `bash install.sh --interfaces`. Ambas exponen las mismas
 capacidades que la CLI (paridad), sin logica propia.
 
-Antes de arrancar, exporta el endpoint (los servidores NO auto-cargan `.env`):
+Ambos servidores cargan `.env` del directorio actual automaticamente y usan
+`config/core.yaml` por defecto: arrancalos desde la raiz del repo (donde estan
+`.env` y `config/core.yaml`).
 
-    export OPENAI_COMPAT_BASE_URL=http://localhost:11434/v1
-    # o: source .env
-
-Ambos servidores usan `config/core.yaml` por defecto; arrancalos desde la raiz
-del repo.
+Para arrancarlos como servicio persistente (systemd), ver
+[instalacion.md](instalacion.md).
 
 ## REST (Starlette + uvicorn)
 
@@ -43,19 +42,3 @@ O como **servicio de red por SSE**:
 Herramientas: `prompt.run`, `domain.route`, `model.list`, `domain.list`,
 `config.validate`, `eval.run`, `runtime.health` (con salida estructurada). La
 version de protocolo se declara en `runtime.health`.
-
-## Como servicio (systemd, Linux)
-
-El instalador puede generar unidades systemd para arrancar REST y MCP-SSE de
-forma persistente:
-
-    bash install.sh --service                              # puertos por defecto: REST 8000, MCP 8090
-    bash install.sh --service --rest-port 8000 --mcp-port 8090
-
-Genera `ianest-rest.service` e `ianest-mcp.service` (con `EnvironmentFile=.env`
-y `Restart=on-failure`). Como root los escribe en `/etc/systemd/system` y hace
-`daemon-reload`, pero **no los habilita ni arranca** (lo decides tu):
-
-    sudo systemctl enable --now ianest-rest.service ianest-mcp.service
-
-Sin root, los genera en `dist/systemd/` e indica como instalarlos.

@@ -156,16 +156,17 @@ domain.route expone substituted/preferred_model, y system prompt por perfil
 
 Registro detallado y detalles del host: en `local/lab/` (no versionado).
 
-## Fase 10: Plan de repos/modulos externos (actual)
+## Fase 10: Plan de repos/modulos externos (completada)
 
-Objetivo: documentar las fronteras de handoff hacia los repos externos:
-`MemoryPort` -> `ia_nest_core_extended`; conciencia ->
-`ia_nest_core_conscience`; integraciones -> `ia_nest_external_*`; agentes ->
-`ia_nest_agents`.
+Estado: completada 2026-07-15. Fronteras de handoff hacia las capas externas
+documentadas en `docs/FRONTERAS.md` (memoria->extended; conciencia/modelo de
+control->conscience; integraciones->external_*; agentes->agents; monitorizacion
+->ops). Concerns futuros registrados en `docs/CAPAS_FUTURAS.md`.
 
-Criterio de salida:
-- Contratos de frontera documentados y versionados.
-- Checklist "Core cerrado significa" de `IA_NEST_CORE_CONTEXT.md` cumplido.
+Criterio de salida (cumplido):
+- Contratos de frontera documentados y versionados (`docs/FRONTERAS.md`).
+- Checklist "Core cerrado significa" de `IA_NEST_CORE_CONTEXT.md` cumplido
+  (fase 9) y validado en laboratorio.
 
 ## Fuera de este plan
 

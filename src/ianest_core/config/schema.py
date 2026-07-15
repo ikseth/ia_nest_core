@@ -7,7 +7,7 @@ from typing import Any
 @dataclass(frozen=True)
 class ModelConfig:
     id: str
-    provider: str
+    provider: str  # backend/runtime que sirve el modelo: fake | ollama | ... (ADR 0029)
     adapter: str
     endpoint: str
     model_name: str

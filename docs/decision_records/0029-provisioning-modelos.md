@@ -13,8 +13,12 @@ del backend, sin acoplar la inferencia:
 - `OllamaProvisioner`: usa la API NATIVA de Ollama (`<base>/api/tags`,
   `<base>/api/pull`), derivando `<base>` del `endpoint` del modelo (quitando
   el sufijo `/v1`). Funciona por HTTP (Ollama local, en Docker o remoto).
-- El core selecciona el provisioner por el `provider` del modelo; si el backend
-  no tiene provisioner, la operacion informa "no soportado" (no rompe nada).
+- El core selecciona el provisioner por el `provider` del modelo. Regla fijada
+  aqui: `provider` nombra el BACKEND/runtime que sirve el modelo (`fake`,
+  `ollama`, ...), NO la familia del modelo -esa vive en `model_name`
+  (`qwen2.5:7b`, `mistral-nemo:latest`)-. Es coherente con la logica previa que
+  ya trata `provider == "fake"` como backend de pruebas. Si el backend no tiene
+  provisioner, la operacion informa "no soportado" (no rompe nada).
 - Comando CLI `ianest model pull [MODEL...]`: sin argumentos, descarga los
   modelos DECLARADOS en la config que falten; con argumentos, descarga esos.
 

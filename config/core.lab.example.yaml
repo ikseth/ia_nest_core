@@ -7,28 +7,28 @@
 
 models:
   - id: mistral_nemo
-    provider: mistral
+    provider: ollama
     adapter: openai_compatible
     endpoint: ${OPENAI_COMPAT_BASE_URL}
     model_name: mistral-nemo:latest
     capabilities: [chat]
     profile: default
   - id: mistral_7b
-    provider: mistral
+    provider: ollama
     adapter: openai_compatible
     endpoint: ${OPENAI_COMPAT_BASE_URL}
     model_name: mistral:7b
     capabilities: [chat]
     profile: default
   - id: qwen_tech
-    provider: qwen
+    provider: ollama
     adapter: openai_compatible
     endpoint: ${OPENAI_COMPAT_BASE_URL}
     model_name: qwen2.5:7b
     capabilities: [chat]
     profile: default
   - id: deepseek_reason
-    provider: deepseek
+    provider: ollama
     adapter: openai_compatible
     endpoint: ${OPENAI_COMPAT_BASE_URL}
     model_name: deepseek-r1:8b

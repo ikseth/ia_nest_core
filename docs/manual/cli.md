@@ -9,6 +9,17 @@ un fichero del repo). Activa el venv y estara disponible en el PATH:
 Sin activar el venv puedes usarlo igual con `.venv/bin/ianest ...` o
 `python -m ianest_core.cli ...`.
 
+## Estructura de un comando
+
+    ianest [--config RUTA] GRUPO ACCION [opciones]
+
+`GRUPO` y `ACCION` son obligatorios (dos palabras). Ejemplos: `prompt run`,
+`reasoning run`, `domain route`, `domain list`, `model list`,
+`config validate`, `eval run`, `runtime detect`, `runtime health`.
+
+NO funciona `ianest --prompt "..."` suelto: le falta el grupo y la accion.
+Lo correcto es `ianest ... prompt run --prompt "..."`.
+
 Todos los comandos aceptan `--config RUTA` (por defecto `config/core.yaml`) y
 `--json` (salida en JSON).
 

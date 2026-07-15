@@ -8,14 +8,37 @@ en `IA_NEST_CORE_CONTEXT.md` y los concerns identificados en `CAPAS_FUTURAS.md`.
 Principio: el core expone una costura estable; la capa externa implementa la
 capacidad. El core no absorbe la logica de la capa (`ALCANCE_CORE.md`).
 
+## Registro de capas
+
+Indice y grafo de dependencias (ADR 0032). El core hospeda este registro; el
+contrato de cada capa vive en su repo. "Depende de" se fija por version SemVer.
+
+| Capa (repo) | Responsabilidad | Costura con el core | Depende de | Estado |
+|---|---|---|---|---|
+| `ia_nest_core` | Core de orquestacion | - | - | v0.1.0 |
+| `ia_nest_core_extended` | Enriquecimiento: RAG, memoria, datos web | `MemoryPort` + enriquecimiento (ADR 0011/0031) | core | primera capa (en diseno) |
+| `ia_nest_web` | GUI web (gestion + usuarios) | Contratos publicos | core, extended, conscience | prevista |
+| `ia_nest_core_conscience` | Control/verificacion; memoria sobre los modelos | Contratos publicos | core, extended (memoria) | prevista |
+| `ia_nest_core_ops` | Monitorizacion/ops: estado y alertas | `runtime.health` + telemetria | core | prevista |
+| `ia_nest_external_*` | Integraciones que ACTUAN | `tool_contracts` (ADR 0007, diferido) | core | diferida |
+| `ia_nest_agents` | Agentes que consumen el core | Contratos publicos | core (+ capas que use) | prevista |
+
 ## Capas y fronteras
 
-### ia_nest_core_extended (RAG, web, memoria)
+### ia_nest_core_extended (enriquecimiento: RAG, memoria, datos web)
+Enriquecimiento de contexto: solo lectura, costura tipo `Port`, NO
+`tool_contracts` (ADR 0031).
 - Memoria: frontera `MemoryPort` (ADR 0011), con `NullMemoryAdapter` por
   defecto en el core. La estrategia real (niveles, consolidacion) vive aqui.
-- RAG y busqueda web: el core no los conoce; se ofrecen como herramientas
-  externas (`tool_contracts`) o como enriquecimiento previo al prompt, siempre
-  desde esta capa.
+- RAG y datos web: enriquecen el prompt con conocimiento acotado (RAG) y datos
+  actuales (web). El core no los conoce; la capa recupera y enriquece antes de
+  la inferencia. No son herramientas (ADR 0031).
+
+### ia_nest_web (GUI web)
+- Frontera: los contratos publicos del core (CLI/REST/MCP) y, cuando existan,
+  los contratos de las capas que exponga (enriquecimiento, conscience). Es la
+  interfaz de gestion y de usuario; no vive en el core. Depende de esas capas
+  por version (ADR 0032).
 
 ### ia_nest_core_conscience (control / verificacion / conciencia)
 - Frontera: consume el core por sus contratos publicos (CLI/REST/MCP,
@@ -38,10 +61,11 @@ capacidad. El core no absorbe la logica de la capa (`ALCANCE_CORE.md`).
 
 ## tool_contracts (frontera generica de herramientas)
 
-`tool_contracts` (ADR 0007) es la frontera hacia herramientas externas
-(integraciones, RAG, etc.): denegar por defecto, scopes explicitos,
-confirmacion humana en lo destructivo. Se planificara cuando exista una
-herramienta concreta que lo justifique (ADR 0022).
+`tool_contracts` (ADR 0007) es la frontera hacia herramientas que ACTUAN
+(integraciones con efecto): denegar por defecto, scopes explicitos, confirmacion
+humana en lo destructivo. RAG, memoria y datos web NO son herramientas: son
+enriquecimiento (ADR 0031). Se planificara cuando exista una herramienta
+concreta que lo justifique (ADR 0022).
 
 ## Regla para nuevas capacidades
 

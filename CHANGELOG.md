@@ -5,6 +5,16 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+### Cambiado
+- Doctrina de fronteras: RAG, memoria y datos web se conectan por enriquecimiento
+  (solo lectura), no por `tool_contracts` (ADR 0031). `tool_contracts` queda
+  acotado a integraciones que actuan.
+- Registro de capas y politica de dependencias entre capas: cada capa versiona su
+  contrato y fija las versiones de las que depende; el core hospeda el indice
+  (ADR 0032, `docs/FRONTERAS.md`).
+- Nuevas capas en el mapa de repos: `ia_nest_web` (GUI) y `ia_nest_core_ops`
+  (monitorizacion), separadas de enriquecimiento y de control/verificacion.
+
 ## [v0.1.0] - 2026-07-15
 
 Primer cierre del core: completo (fases 1-10 de `docs/PLAN.md`) y validado en

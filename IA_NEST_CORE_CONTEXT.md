@@ -87,8 +87,16 @@ Solo se acepta si:
 ## Mapa de repos previsto
 
 - `ia_nest_core`: core basico.
-- `ia_nest_core_extended`: RAG, web y extensiones del core.
-- `ia_nest_core_conscience`: capa de consciencia.
+- `ia_nest_core_extended`: enriquecimiento de contexto (RAG, memoria, datos web).
+- `ia_nest_web`: GUI web (interfaz de gestion y de usuario).
+- `ia_nest_core_conscience`: control/verificacion (memoria sobre los modelos).
+- `ia_nest_core_ops`: monitorizacion/ops (estado en vivo y alertas).
 - `ia_nest_module_*`: modulos propios.
-- `ia_nest_external_*`: integraciones con aplicaciones externas.
+- `ia_nest_external_*`: integraciones que actuan sobre apps externas (tool_contracts).
 - `ia_nest_agents` o `ia_nest_agent_*`: agentes que usan IA_NEST.
+
+Enriquecimiento vs herramientas: RAG, memoria y datos web ENRIQUECEN el prompt
+(solo lectura, costura tipo Port); las integraciones que ACTUAN usan
+`tool_contracts` (ADR 0007). Son costuras distintas (ADR 0031). Dependencias
+entre capas: cada capa versiona su contrato y fija las versiones de las que
+depende; el core solo hospeda el indice (ADR 0032, `docs/FRONTERAS.md`).

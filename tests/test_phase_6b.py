@@ -99,9 +99,10 @@ def test_eval_conformance_digest_is_stable() -> None:
     first = run_eval(track="conformance")
     second = run_eval(track="conformance")
 
-    assert first["totals"]["conformance"] == {"pass": 10, "fail": 0}
-    assert second["totals"]["conformance"] == {"pass": 10, "fail": 0}
+    assert first["totals"]["conformance"] == {"pass": 22, "fail": 0}
+    assert second["totals"]["conformance"] == {"pass": 22, "fail": 0}
     assert first["conformance_digest"] == second["conformance_digest"]
+    assert first["conformance_digest"] == "b56a729f388debe107357bc4fb015548271debb2de8671d207c9537fecc4c075"
 
 
 def test_telemetry_rotates_by_size(tmp_path) -> None:

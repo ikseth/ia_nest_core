@@ -17,7 +17,7 @@ from ianest_core.config.schema import TelemetryConfig
 from ianest_core.errors import CoreError
 from ianest_core.adapters import ScriptedFakeAdapter
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
-from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime
+from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime, TaskRuntime
 
 EVAL_SCHEMA_VERSION = "1"
 
@@ -45,7 +45,7 @@ def run_eval(
 
 def _load_cases(battery_dir: Path, track: str) -> list[dict[str, Any]]:
     cases: list[dict[str, Any]] = []
-    for path in sorted(battery_dir.glob("*.yaml")):
+    for path in sorted(battery_dir.rglob("*.yaml")):
         with path.open("r", encoding="utf-8") as handle:
             for case in yaml.safe_load(handle) or []:
                 if case.get("track") == track:
@@ -73,6 +73,8 @@ def _execute_case(case: dict[str, Any], *, config_path: str | Path | None) -> di
         return _execute_prompt_run(case, config_path=config_path)
     if capability == "reasoning.run":
         return _execute_reasoning_run(case, config_path=config_path)
+    if capability == "task.run":
+        return _execute_task_run(case, config_path=config_path)
     if capability == "model.list":
         return _execute_model_list(case, config_path=config_path)
     if capability == "config.validate":
@@ -161,6 +163,91 @@ def _execute_reasoning_run(case: dict[str, Any], *, config_path: str | Path | No
     }
     assertions = _assertions(actual, case.get("expect", {}))
     return _case_result(case, assertions, domain=result.domain, model=result.model)
+
+
+def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    config = _case_config(case, config_path=config_path)
+    adapters = _task_adapters(case)
+    script = case.get("world", {}).get("script", {})
+    runtime = TaskRuntime(
+        config,
+        availability=_case_availability(case),
+        adapter_factory=adapters.get,
+        simulated=dict(script.get("simulated", {})),
+    )
+    expected = case.get("expect", {})
+    try:
+        result = runtime.run(
+            prompt=case["input"].get("prompt", ""),
+            identity_override=case["input"].get("identity", {}),
+            request_id=case["id"],
+        )
+    except CoreError as exc:
+        if expected.get("error_type") == exc.type:
+            assertion = {"name": "error_type", "expected": exc.type, "actual": exc.type, "ok": True}
+            return _case_result(case, [assertion], status="pass", error={"type": exc.type, "message": exc.message})
+        raise
+
+    actual: dict[str, Any] = {
+        "stop_reason": result.stop_reason,
+        "response": result.response,
+        "checkpoints": result.checkpoints,
+        "subtasks": _subtask_expectation(result.subtasks, expected.get("subtasks", [])),
+        "checkpoint_counts": {
+            name: result.checkpoints.count(name) for name in expected.get("checkpoint_counts", {})
+        },
+    }
+    trace_events = _read_trace_events(config)
+    subtask_events = [
+        event for event in trace_events
+        if event.get("event") == "done" and "subtask_index" in event.get("payload", {})
+    ]
+    fields = expected.get("subtask_trace_fields", {})
+    actual["subtask_trace_fields"] = {
+        field: subtask_events[0].get(field) if subtask_events else None for field in fields
+    }
+    actual["subtask_traces_share_task_id"] = bool(subtask_events) and len(
+        {event["payload"].get("task_id") for event in subtask_events}
+    ) == 1
+    actual["subtask_traces_link_parent"] = bool(subtask_events) and all(
+        event["payload"].get("parent_request_id") == case["id"] for event in subtask_events
+    )
+    assertions = _assertions(actual, expected)
+    model = result.subtasks[0]["model"] if result.subtasks else ""
+    domain = result.subtasks[0]["domain"] if result.subtasks else ""
+    return _case_result(case, assertions, domain=domain, model=model)
+
+
+def _task_adapters(case: dict[str, Any]) -> dict[str, ScriptedFakeAdapter]:
+    script = case.get("world", {}).get("script", {})
+    planner_responses: list[str] = []
+    decisions = iter(script.get("evaluate_decisions", []))
+    for plan in script.get("plans", []):
+        planner_responses.append(json.dumps(plan, ensure_ascii=False))
+        try:
+            planner_responses.append(str(next(decisions)))
+        except StopIteration:
+            pass
+    planner_responses.extend(str(decision) for decision in decisions)
+    responses = dict(script.get("responses", {}))
+    adapters = {
+        model: ScriptedFakeAdapter(model, [str(response)]) for model, response in responses.items()
+    }
+    adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
+    return adapters
+
+
+def _subtask_expectation(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{key: item.get(key) for key in expected_item} for item, expected_item in zip(actual, expected)]
+
+
+def _read_trace_events(config: Any) -> list[dict[str, Any]]:
+    if config.telemetry is None or not config.telemetry.jsonl_path:
+        return []
+    path = Path(config.telemetry.jsonl_path)
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 def _execute_model_list(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:

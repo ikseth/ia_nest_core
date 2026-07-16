@@ -277,6 +277,27 @@
     subtask_traces_share_task_id: true
     subtask_traces_link_parent: true
 
+- id: task_subtask_unknown_hint
+  track: conformance
+  description: "Un domain_hint NO declarado se ignora (pista consultiva): la subtarea se enruta por el router y queda domain_hint_ignored en el arbol. Enmienda aprobada 2026-07-16."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea con pista inventada"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "razona esta parte", domain_hint: "Filosofía" }
+      responses:
+        fake_reason: "R"
+        fake_combiner: "C"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    subtasks:
+      - { domain: razonamiento, model: fake_reason, domain_hint_ignored: "Filosofía" }
+
 - id: task_smoke_complex
   track: smoke
   description: "Tarea compleja real (razonar + codificar): el plan descompone y el combinado responde ambas partes."

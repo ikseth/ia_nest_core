@@ -56,9 +56,10 @@ fijan el criterio de aceptacion de `task.run` (ADR 0036) ANTES de implementarlo
 `eval/battery/*.yaml` (no recursivo); en la fase v0.2-3 el runner lo incorpora
 y el `conformance_digest` se recalcula (cambio declarado, ADR 0017).
 
-Digest de conformidad declarado tras incorporar los 12 casos v0.2 (22 casos
-de conformidad totales):
-`b56a729f388debe107357bc4fb015548271debb2de8671d207c9537fecc4c075`.
+Digest de conformidad declarado tras incorporar los 13 casos v0.2 (23 casos
+de conformidad totales; incluye la enmienda aprobada `task_subtask_unknown_hint`,
+2026-07-16):
+`1d405c95660947206a0be19a6f8ef8ecf92874a7718f3dd10348ab0fb040263b`.
 Los dos casos `smoke` v0.2 quedan excluidos de esta ejecucion y del digest.
 
 Scripting determinista adicional en `world.script` (lo realiza

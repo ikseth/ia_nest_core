@@ -25,6 +25,8 @@ Todo script no trivial debe incluir cabecera:
 
 - Documentos cortos.
 - Una decision por ADR.
+- Las correcciones y mejoras pequenas usan una ficha breve en `docs/fixes/`;
+  las decisiones estructurales usan ADR.
 - Separar alcance, arquitectura, plan y estado.
 - No mezclar ideas futuras con trabajo aprobado.
 
@@ -34,4 +36,3 @@ Todo script no trivial debe incluir cabecera:
 - Preguntar antes de inferir decisiones criticas.
 - No ampliar alcance por conveniencia.
 - Preferir cambios pequenos y verificables.
-

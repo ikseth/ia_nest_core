@@ -1,7 +1,7 @@
 # Versionado
 
 Estado: activo
-Version del documento: 1.0 - 2026-07-15
+Version del documento: 1.1 - 2026-07-16
 
 Regla unica para el usuario, Codex y Claude Code. Toda propuesta que se mergee
 declara su impacto de version y actualiza el CHANGELOG. El objetivo es que
@@ -59,6 +59,34 @@ usuario (con su ADR), no automatica.
    - fijar `version` en `pyproject.toml` a `X.Y.Z`;
    - commit y tag anotado `vX.Y.Z` sobre `main`;
    - `git push origin main --tags`.
+
+## Registro de correcciones y mejoras pequenas
+
+`docs/fixes/` conserva el contexto operativo de cambios que necesitan mas
+detalle que una linea de `CHANGELOG.md`, pero no introducen una decision
+estructural que justifique un ADR.
+
+Se crea una ficha cuando el cambio cumple al menos una de estas condiciones:
+
+- cambia comportamiento observable o toca contrato publico de forma compatible;
+- incorpora una capacidad pequena;
+- corrige un bug cuya causa y criterios de aceptacion conviene conservar;
+- afecta a varios archivos o necesita pruebas especificas;
+- debe poder ser retomado por otro agente sin reconstruir la conversacion.
+
+No se exige ficha para erratas, formato o cambios mecanicos sin comportamiento
+observable. Si el cambio altera arquitectura, alcance, fronteras o una decision
+normativa, corresponde un ADR, no una ficha de fix.
+
+Las fichas se agrupan por linea `MAJOR.MINOR` (`docs/fixes/v0.1/`,
+`docs/fixes/v0.2/`, `docs/fixes/v1.0/`) y se numeran correlativamente dentro de
+cada linea. Deben indicar como minimo: estado, tipo, impacto de version, version
+objetivo, problema, cambio, criterios de aceptacion, archivos previstos y
+resultado. Los estados son `propuesta`, `implementada` o `descartada`.
+
+La ficha complementa, no sustituye, al `CHANGELOG.md`: si el cambio toca
+contrato publico, la entrada de `[No publicado]` enlaza su ficha. Crear o editar
+el mecanismo documental no cambia por si mismo la version del producto.
 
 ## Colaboracion multi-IA
 

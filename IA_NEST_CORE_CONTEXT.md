@@ -1,8 +1,8 @@
 # IA_NEST Core Context
 
 Estado: validado
-Version: 0.2 - 2026-07-10
-Revisado por: Claude Code, en colaboracion con el usuario
+Version: 0.3 - 2026-07-16
+Revisado por: Claude Code y Codex, en colaboracion con el usuario
 
 ## Mision
 
@@ -58,6 +58,8 @@ Cada punto se considera cumplido cuando la capacidad correspondiente de
 - Preguntar antes de inferir decisiones criticas o de alto impacto.
 - Mantener documentos pequenos y normativos.
 - Registrar decisiones estructurales en `docs/decision_records/`.
+- Registrar correcciones y mejoras pequenas en `docs/fixes/`, segun
+  `docs/VERSIONADO.md`; reservar los ADR para decisiones estructurales.
 - Incluir cabecera humana/IA en scripts no triviales.
 
 ## Colaboracion entre varias IA

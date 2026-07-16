@@ -279,42 +279,17 @@ contratos.
 
 ## Frontera de memoria
 
-Estado: validado (ADR 0011), informada por revision de la cantera ia_nest.
-El core minimo NO implementa memoria: solo define el punto de conexion y una
-implementacion nula por defecto. La estrategia real vive en un modulo
-externo (previsiblemente `ia_nest_core_extended` o dedicado) y se enchufa
-por esta costura.
+Estado: validado (ADR 0035, supersede parcialmente ADR 0011).
+El core NO implementa memoria ni define un punto de conexion para ella. La
+estrategia y la ejecucion de memoria viven en `ia_nest_core_extended`, que
+enriquece el prompt antes de llamar al core y realiza el write-back con la
+respuesta. El runtime del core no conoce la memoria.
 
-### Por que existe la costura y no la memoria
-
-D6 obliga a responder: lo que se compacta o cae del contexto de trabajo,
-a donde va. La respuesta es: a memoria. Si el core se disena sin ese punto
-de conexion, anadir memoria despues exige redisenar reasoning_loop y
-prompt_runtime. La costura elimina esa deuda sin violar el no-objetivo (no
-hay memoria avanzada en el core; la implementacion por defecto no recuerda
-nada).
-
-### Contrato MemoryPort (minimo)
-
-Patron puertos-y-adaptadores: `MemoryPort` es la interfaz de frontera hacia
-memoria externa; el core no contiene logica de memoria. Nombre elegido para
-que quede explicito que es una salida del core, no una capacidad interna.
-
-- `read_context(identity, hints) -> MemoryContext`: devuelve items con
-  `tier`, contenido y procedencia. El core no interpreta la semantica de
-  tier; la transporta.
-- `write(identity, tier, record)`: registra un evento. En reasoning_loop, lo
-  evacuado por compactacion (D6) se ofrece aqui como candidato.
-- Implementacion por defecto: `NullMemoryAdapter` (read vacio, write no-op).
-- `read_context` y `write` son capacidades distintas (minimo privilegio,
-  coherente con D5).
-
-### Lo que la costura debe transportar (clave anti-deuda)
+### Identidad de segmentacion (clave aportada por el core)
 
 La identidad de segmentacion debe viajar en el contexto de request/traza
-DESDE YA, aunque la memoria sea nula. Si no, enchufar memoria despues obliga
-a re-hilar identidad por todo el core. Campos heredados de la cantera
-(ia_nest MEM-002):
+para que extended pueda usarla como clave de memoria sin re-hilar identidad
+por el core. Campos:
 
 - `user_id`
 - `service` (ha, nextcloud, linux, chat, global...)
@@ -325,31 +300,13 @@ a re-hilar identidad por todo el core. Campos heredados de la cantera
 Estos campos deben incluirse tambien en las trazas de telemetria (D8), para
 que traza y memoria compartan identidad.
 
-### Lo que la costura NO incluye (vive tras el provider)
+### Responsabilidades de extended
 
 - Niveles concretos (immediate/short/medium/long/historical/principles).
 - Pipeline de consolidacion por hitos.
 - Doble conciencia (pertenece a `ia_nest_core_conscience`, no al core).
 - Recuperacion semantica / RAG (pertenece a `ia_nest_core_extended`).
 - Esquema SQL o motor de almacenamiento.
-
-El core solo emite senales de hito (milestone) como evento; el adaptador
-externo decide si consolida. El `NullMemoryAdapter` las ignora.
-
-### Lecciones de la cantera que la costura debe respetar
-
-De `ia_nest/docs/desarrollo/core/CORE_MEM_REVIEW_2026-02-19.md` (fallos de
-implementacion previa, no de estrategia):
-
-1. Tiers realmente distintos: en ia_nest `immediate` y `short` quedaron
-   aliased (mismo conjunto) por leer con los mismos filtros; duplicacion de
-   contexto. `tier` y `namespace` son parte de la identidad de lectura, no
-   opcionales.
-2. Separar lectura y escritura: en ia_nest leer contexto exigia scope de
-   escritura. La costura los separa.
-3. Consistencia de `namespace` entre escritura y lectura: en ia_nest el tier
-   `medium` desaparecia por escribirse en un namespace y leerse en otro. La
-   costura trata `namespace` como campo explicito.
 
 ## Correspondencia con el contrato
 
@@ -367,5 +324,6 @@ implementacion previa, no de estrategia):
 - La version MCP concreta (D4) se fija al implementar la interfaz MCP.
 - El esquema de `config.validate` esta fijado en el ADR 0014; su pagina de
   detalle puede escribirse al implementar.
-- La estrategia interna de memoria (niveles, consolidacion): fuera del core;
-  solo se define la costura (ver "Frontera de memoria").
+- La estrategia y ejecucion de memoria (niveles, consolidacion): viven en
+  `ia_nest_core_extended`; el core solo aporta la identidad como clave (ver
+  "Frontera de memoria").

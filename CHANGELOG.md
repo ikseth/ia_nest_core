@@ -10,6 +10,10 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   de `ianest` ([ficha 0001](docs/fixes/v0.1/0001-ayuda-cli-jerarquica.md)).
 
 ### Cambiado
+- Retirada la costura interna de memoria (`MemoryPort`, adaptador nulo y lectura
+  de contexto); `ia_nest_core_extended` asume estrategia y ejecucion, mientras
+  el core conserva la identidad de segmentacion como clave (ADR 0035). Impacto:
+  patch.
 - Doctrina de fronteras: RAG, memoria y datos web se conectan por enriquecimiento
   (solo lectura), no por `tool_contracts` (ADR 0031). `tool_contracts` queda
   acotado a integraciones que actuan.

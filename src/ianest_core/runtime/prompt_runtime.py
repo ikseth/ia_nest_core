@@ -16,7 +16,6 @@ from ianest_core.config.schema import CoreConfig, ModelConfig
 from ianest_core.domain_router import DomainRouter
 from ianest_core.errors import CoreError
 from ianest_core.identity import Identity
-from ianest_core.memory import MemoryPort, NullMemoryAdapter
 from ianest_core.registry import AvailabilityProvider, ModelRegistry, ResolvedModel
 from ianest_core.telemetry import TelemetryWriter
 
@@ -57,14 +56,12 @@ class PromptRuntime:
         self,
         config: CoreConfig,
         telemetry: TelemetryWriter | None = None,
-        memory: MemoryPort | None = None,
         availability: AvailabilityProvider | None = None,
     ) -> None:
         self.config = config
         self.registry = ModelRegistry(config, availability=availability)
         self.router = DomainRouter(self.registry)
         self.telemetry = telemetry or TelemetryWriter(config.telemetry)
-        self.memory = memory or NullMemoryAdapter()
 
     def run(
         self,
@@ -215,7 +212,6 @@ class PromptRuntime:
         messages = _messages_with_system(prompt, resolved.profile.system)
         req = ModelRequest(messages=messages, params=params, extra=extra)
 
-        self.memory.read_context(identity)
         self.telemetry.record(
             request_id=request_id,
             event="request_start",

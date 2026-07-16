@@ -10,7 +10,6 @@ from ianest_core.adapters.base import Event
 from ianest_core.config import load_config
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.identity import Identity
-from ianest_core.memory import NullMemoryAdapter
 from ianest_core.runtime import PromptRuntime
 from ianest_core.telemetry import TRACE_CSV_FIELDS, TelemetryWriter
 
@@ -69,14 +68,6 @@ def test_prompt_runtime_propagates_identity_to_trace(tmp_path) -> None:
     done_json = [event for event in events if event["event"] == "done"][0]
     assert done_json["payload"]["response"] == result.response
     assert done_json["user_id"] == "u42"
-
-
-def test_null_memory_write_is_noop() -> None:
-    adapter = NullMemoryAdapter()
-    identity = Identity(user_id="u1", service="local_cli")
-
-    assert adapter.read_context(identity, hints={"domain": "general"}) == {}
-    assert adapter.write(identity, "short_term", {"text": "x"}) is None
 
 
 def test_telemetry_non_serializable_payload_is_best_effort(tmp_path) -> None:

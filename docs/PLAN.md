@@ -176,13 +176,58 @@ su ADR:
 - Provisioning de modelos (ADR 0029): `ianest model pull` descarga los modelos
   declarados que falten (capacidad opcional, backend-especifica).
 
-## Linea v0.2 (prevista, sin abrir)
+## Linea v0.2 (abierta 2026-07-16)
 
-Orquestacion multi-modelo de tareas con puntos de supervision incorporados
-(ADR 0034): descomponer, fan-out a varios modelos, combinar, iterar. Incluye
-las costuras que conscience necesitara (checkpoints de supervision, quiesce),
-cada una con su ADR de detalle. Se abrira con su propio plan de fases y
-criterios de salida; no se abre sin decision explicita del usuario.
+Objetivo: orquestacion multi-modelo de tareas con supervision incorporada
+(ADR 0034). Version objetivo: v0.2.0 (MINOR por decision del usuario,
+ADR 0034). Misma disciplina que v0.1: fases con criterio de salida falsable,
+diseno y bateria ANTES de implementar. Leccion de MemoryPort aplicada: los
+checkpoints se disenan como eventos/cortes que el propio core consume desde el
+dia uno, no como puertos a la espera de un consumidor futuro.
+
+### Fase v0.2-0: limpieza de MemoryPort (en curso)
+
+Retirar la costura muerta (ADR 0035): puerto, adaptador nulo y llamada
+`read_context`; la identidad de segmentacion SE CONSERVA (clave de la memoria
+de extended).
+
+Criterio de salida: pytest verde con y sin extras; docs alineados
+(ARCHITECTURE, frontera de memoria); CHANGELOG actualizado.
+
+### Fase v0.2-1: contrato de orquestacion
+
+Disenar `task.run`: descomposicion, fan-out multi-modelo, combinacion,
+iteracion; checkpoints observables (flujo D2) y cortes tipados; config
+declarativa (planner, combiner, limites). ADRs de detalle + actualizacion de
+`CORE_CONTRACT.md`.
+
+Criterio de salida: contrato reconciliado por el usuario (con revision ciega
+de Codex si aplica) y registrado.
+
+### Fase v0.2-2: bateria de evaluacion v0.2
+
+Casos de conformance deterministas para orquestacion (ScriptedFakeAdapter
+multi-modelo: plan, fan-out, combinacion, cada corte tipado) y smoke con
+umbrales.
+
+Criterio de salida: bateria escrita y congelada antes de implementar.
+
+### Fase v0.2-3: implementacion minima y validacion
+
+Vertical minimo de `task.run` con paridad CLI/REST/MCP y telemetria por
+subtarea (task_id + vinculo al request padre).
+
+Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
+core minimo instalable sin extras.
+
+### Fase v0.2-4: quiesce administrativo (decidir al llegar)
+
+`runtime pause/resume` como capacidad administrativa (util para mantenimiento;
+requerida por el modo sueno de conscience, ADR 0034). Se confirma o difiere al
+cerrar la fase v0.2-3.
+
+En paralelo (fuera de este plan): tras cerrar v0.2-1, sembrar la definicion de
+`ia_nest_core_extended` contra el contrato ya fijado.
 
 ## Fuera de este plan
 

@@ -1,0 +1,305 @@
+# Bateria de task.run (linea v0.2, ADR 0036). CRITERIO DE ACEPTACION escrito
+# ANTES de implementar (fase v0.2-2 del PLAN). Se integra en eval.run en la
+# fase v0.2-3; hasta entonces el runner no carga este archivo.
+#
+# Scripting determinista (world.script), realizado por ScriptedFakeAdapter en
+# la implementacion:
+# - plans: lista de planes que el fake planner devuelve en orden (uno por
+#   re-planificacion). Cada plan es una lista de subtareas
+#   {prompt, domain_hint (opcional), depends_on (opcional)}.
+# - responses: respuesta fija por modelo fake worker/combiner.
+# - evaluate_decisions: decision del EVALUATE por iteracion, en orden:
+#   done | rerun | replan.
+# - simulated: agotamiento simulado {elapsed_s | context_tokens} para cortes
+#   de tiempo/contexto sin depender del reloj real.
+
+- id: task_happy_path
+  track: conformance
+  description: "PLAN de 2 subtareas independientes, fan-out, COMBINE y task_done en la primera iteracion."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "analiza el problema y propon una funcion"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "razona el enfoque", domain_hint: razonamiento }
+          - { prompt: "escribe la funcion", domain_hint: codigo }
+      responses:
+        fake_reason: "ENFOQUE_OK"
+        fake_code: "FUNCION_OK"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    subtasks:
+      - { domain: razonamiento, model: fake_reason }
+      - { domain: codigo, model: fake_code }
+
+- id: task_checkpoint_sequence
+  track: conformance
+  description: "El flujo emite los checkpoints D2 en orden (anclajes de conscience, ADR 0034/0036)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "analiza el problema y propon una funcion"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "razona el enfoque", domain_hint: razonamiento }
+          - { prompt: "escribe la funcion", domain_hint: codigo }
+      responses:
+        fake_reason: "ENFOQUE_OK"
+        fake_code: "FUNCION_OK"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    checkpoints:
+      - task_received
+      - plan_ready
+      - subtask_done
+      - subtask_done
+      - combine_ready
+      - iteration_end
+      - task_done
+
+- id: task_subtask_routing
+  track: conformance
+  description: "Subtarea con domain_hint usa ese dominio; subtarea sin hint pasa por el router (keywords)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea mixta"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "parte con hint", domain_hint: codigo }
+          - { prompt: "razona esta parte sin hint" }
+      responses:
+        fake_code: "A"
+        fake_reason: "B"
+        fake_combiner: "AB"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    subtasks:
+      - { domain: codigo, model: fake_code }
+      - { domain: razonamiento, model: fake_reason }
+
+- id: task_subtask_fallback
+  track: conformance
+  description: "Una subtarea cuyo preferido no esta disponible usa el fallback del dominio (ADR 0005) y registra la sustitucion."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea con fallback"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    unavailable_models: [fake_code]
+    script:
+      plans:
+        - - { prompt: "escribe la funcion", domain_hint: codigo }
+      responses:
+        fake_general: "FUNCION_FALLBACK"
+        fake_combiner: "FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    subtasks:
+      - { domain: codigo, model: fake_general, substituted: true }
+
+- id: task_subtask_unavailable_error
+  track: conformance
+  description: "Si una subtarea agota preferido y fallbacks, la tarea corta con error tipado ModelUnavailable (v0.2 minimo: sin tolerancia parcial; el arbol registra la subtarea fallida)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea imposible"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    unavailable_models: [fake_reason]
+    script:
+      plans:
+        - - { prompt: "razona", domain_hint: razonamiento }
+  expect:
+    error_type: ModelUnavailable
+
+- id: task_stop_max_subtasks
+  track: conformance
+  description: "Un plan con mas subtareas que max_subtasks corta con stop tipado (no se trunca en silencio)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea enorme"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "s1" }
+          - { prompt: "s2" }
+          - { prompt: "s3" }
+          - { prompt: "s4" }
+          - { prompt: "s5" }
+  expect:
+    stop_reason: max_subtasks
+
+- id: task_stop_max_iterations
+  track: conformance
+  description: "EVALUATE pide rerun mas alla de max_iterations (2): corta con max_iterations y devuelve el mejor combinado."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea insaciable"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "s1", domain_hint: general }
+      responses:
+        fake_general: "PARCIAL"
+        fake_combiner: "COMBINADO_PARCIAL"
+      evaluate_decisions: [rerun, rerun]
+  expect:
+    stop_reason: max_iterations
+    response: "COMBINADO_PARCIAL"
+
+- id: task_replan_then_done
+  track: conformance
+  description: "EVALUATE pide una re-planificacion (dentro de max_replans=1); el segundo plan completa. plan_ready aparece dos veces."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea con replanteo"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "enfoque fallido", domain_hint: general }
+        - - { prompt: "enfoque corregido", domain_hint: razonamiento }
+      responses:
+        fake_general: "MALO"
+        fake_reason: "BUENO"
+        fake_combiner: "FINAL_CORREGIDO"
+      evaluate_decisions: [replan, done]
+  expect:
+    stop_reason: task_done
+    response: "FINAL_CORREGIDO"
+    checkpoint_counts:
+      plan_ready: 2
+
+- id: task_stop_max_replans
+  track: conformance
+  description: "EVALUATE pide re-planificar mas alla de max_replans (1): corta con stop tipado max_replans (enmienda ADR 0036)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea indecisa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "v1", domain_hint: general }
+        - - { prompt: "v2", domain_hint: general }
+      responses:
+        fake_general: "X"
+        fake_combiner: "COMBINADO_X"
+      evaluate_decisions: [replan, replan]
+  expect:
+    stop_reason: max_replans
+
+- id: task_stop_max_time
+  track: conformance
+  description: "Agotamiento de tiempo simulado (sin reloj real): corta con max_time."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea lenta"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "s1", domain_hint: general }
+      responses:
+        fake_general: "R"
+        fake_combiner: "C"
+      evaluate_decisions: [rerun]
+      simulated: { elapsed_s: 31 }
+  expect:
+    stop_reason: max_time
+
+- id: task_stop_max_context
+  track: conformance
+  description: "Presupuesto de contexto agotado (simulado): corta con max_context_tokens."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea gigante"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      plans:
+        - - { prompt: "s1", domain_hint: general }
+      responses:
+        fake_general: "R"
+        fake_combiner: "C"
+      evaluate_decisions: [rerun]
+      simulated: { context_tokens: 5000 }
+  expect:
+    stop_reason: max_context_tokens
+
+- id: task_identity_and_tree_in_trace
+  track: conformance
+  description: "Cada subtarea traza con la identidad del request, task_id comun y vinculo al request padre (ADR 0036)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "analiza el problema y propon una funcion"
+    identity: { user_id: u42, service: local_cli, session_id: s7 }
+  world:
+    script:
+      plans:
+        - - { prompt: "razona", domain_hint: razonamiento }
+          - { prompt: "codifica", domain_hint: codigo }
+      responses:
+        fake_reason: "A"
+        fake_code: "B"
+        fake_combiner: "AB"
+      evaluate_decisions: [done]
+  expect:
+    subtask_trace_fields:
+      user_id: u42
+      service: local_cli
+      session_id: s7
+    subtask_traces_share_task_id: true
+    subtask_traces_link_parent: true
+
+- id: task_smoke_complex
+  track: smoke
+  description: "Tarea compleja real (razonar + codificar): el plan descompone y el combinado responde ambas partes."
+  capability: task.run
+  input:
+    prompt: "Explica que es una criba de Eratostenes y escribe una funcion en Python que la implemente."
+    identity: { user_id: local, service: local_cli }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 200
+    must_contain: [def]
+    latency_ms_max: 180000
+    stop_reason: task_done
+
+- id: task_smoke_simple
+  track: smoke
+  description: "Tarea simple: el plan puede ser de una sola subtarea y completar rapido."
+  capability: task.run
+  input:
+    prompt: "Resume en tres lineas que es un sistema operativo."
+    identity: { user_id: local, service: local_cli }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 60
+    latency_ms_max: 60000
+    stop_reason: task_done

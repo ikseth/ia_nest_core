@@ -1,0 +1,100 @@
+# Fixture de configuracion para la pista conformance de task.run (ADR 0036).
+# Modelos y dominios FAKE, autocontenidos: no tocan red ni GPU.
+# El planner y el combiner son modelos fake dedicados; los workers se enrutan
+# por dominio como en una config real.
+
+models:
+  - id: fake_planner
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://planner
+    model_name: fake-planner
+    capabilities: [chat]
+    profile: default
+  - id: fake_combiner
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://combiner
+    model_name: fake-combiner
+    capabilities: [chat]
+    profile: default
+  - id: fake_code
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://code
+    model_name: fake-code
+    capabilities: [chat]
+    profile: default
+  - id: fake_reason
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://reason
+    model_name: fake-reason
+    capabilities: [chat]
+    profile: default
+  - id: fake_general
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://general
+    model_name: fake-general
+    capabilities: [chat]
+    profile: default
+
+domains:
+  - id: codigo
+    description: "Programacion (fixture)"
+    preferred_model: fake_code
+    fallback_models: [fake_general]
+    profile: default
+    routing_rules:
+      keywords: [codigo, funcion, script]
+    status: active
+  - id: razonamiento
+    description: "Razonamiento paso a paso (fixture)"
+    preferred_model: fake_reason
+    fallback_models: []
+    profile: default
+    routing_rules:
+      keywords: [razona, deduce]
+    status: active
+  - id: general
+    description: "Dominio general por defecto (fixture)"
+    preferred_model: fake_general
+    fallback_models: []
+    profile: default
+    routing_rules:
+      keywords: []
+    status: active
+
+profiles:
+  - id: default
+    temperature: 0.2
+    max_tokens: 512
+    top_p: 1.0
+    max_iterations: 4
+    max_time_s: 30
+    max_context_tokens: 4096
+
+orchestration:
+  planner:
+    model: fake_planner
+    profile: default
+  combiner:
+    model: fake_combiner
+    profile: default
+  max_subtasks: 4
+  max_iterations: 2
+  max_replans: 1
+  max_time_s: 30
+  max_context_tokens: 4096
+  max_parallel: 2
+
+identity_defaults:
+  user_id: local
+  service: local_cli
+
+telemetry:
+  csv_path: local/telemetry/eval.csv
+  jsonl_path: local/telemetry/eval.jsonl
+  rotation: size
+  strict_mode: false

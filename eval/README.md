@@ -48,6 +48,29 @@ Solo `smoke`:
 - `eval/battery/conformance.yaml`: casos deterministas.
 - `eval/battery/smoke.yaml`: casos de calidad contra backend real (seed).
 
+## Bateria v0.2: task.run (orquestacion)
+
+`eval/battery/orchestration.yaml` + `eval/fixtures/orchestration.yaml` fijan el
+criterio de aceptacion de `task.run` (ADR 0036) ANTES de implementarlo (fase
+v0.2-2). El runner NO carga este archivo hasta la fase v0.2-3.
+
+Scripting determinista adicional en `world.script` (lo realiza
+`ScriptedFakeAdapter` en la implementacion):
+
+- `plans`: planes que devuelve el fake planner, en orden (uno por
+  re-planificacion); cada plan es una lista de subtareas
+  `{prompt, domain_hint?, depends_on?}`.
+- `responses`: respuesta fija por modelo fake (workers y combiner).
+- `evaluate_decisions`: decision de EVALUATE por iteracion (`done | rerun |
+  replan`).
+- `simulated`: agotamiento simulado (`elapsed_s`, `context_tokens`) para los
+  cortes de tiempo/contexto sin reloj real.
+
+Asserts nuevos en `expect`: `stop_reason`, `subtasks` (arbol: dominio/modelo/
+sustitucion por subtarea), `checkpoints` (secuencia ordenada),
+`checkpoint_counts`, `subtask_trace_fields`, `subtask_traces_share_task_id`,
+`subtask_traces_link_parent`.
+
 ## Convenciones
 
 Claves en ingles snake_case (ADR 0016). El esquema de config sigue el ADR

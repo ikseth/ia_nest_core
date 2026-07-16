@@ -29,7 +29,9 @@ consumidor): `task_received`, `plan_ready`, `subtask_done` (por subtarea),
 los puntos de anclaje quedan definidos aqui.
 
 **Cortes tipados** (patron de `reasoning.run`): `task_done | max_subtasks |
-max_iterations | max_time | max_context_tokens | error`.
+max_iterations | max_replans | max_time | max_context_tokens | error`.
+(`max_replans` anadido al escribir la bateria, fase v0.2-2: la config lo
+limitaba pero no tenia corte declarado.)
 
 **Config declarativa:** nueva seccion `orchestration` (ADR 0016): `planner` y
 `combiner` se declaran por referencia a un modelo O a un dominio, con perfil

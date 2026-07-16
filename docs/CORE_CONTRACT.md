@@ -136,8 +136,8 @@ Debe tener:
 
 - checkpoints observables del flujo D2: `task_received`, `plan_ready`,
   `subtask_done`, `combine_ready`, `iteration_end`, `task_done`,
-- cortes tipados: `task_done | max_subtasks | max_iterations | max_time |
-  max_context_tokens | error`,
+- cortes tipados: `task_done | max_subtasks | max_iterations | max_replans |
+  max_time | max_context_tokens | error`,
 - limites configurables (seccion `orchestration` de la config; incluye
   re-planificaciones y tope de paralelismo),
 - identidad propagada a cada subtarea,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from ianest_core.adapters import (
@@ -49,6 +49,7 @@ class PreparedPrompt:
     adapter: ModelAdapter
     req: ModelRequest
     capability: str
+    trace_payload: dict[str, Any]
 
 
 class PromptRuntime:
@@ -57,11 +58,13 @@ class PromptRuntime:
         config: CoreConfig,
         telemetry: TelemetryWriter | None = None,
         availability: AvailabilityProvider | None = None,
+        adapter_factory: Callable[[ModelConfig], ModelAdapter | None] | None = None,
     ) -> None:
         self.config = config
         self.registry = ModelRegistry(config, availability=availability)
         self.router = DomainRouter(self.registry)
         self.telemetry = telemetry or TelemetryWriter(config.telemetry)
+        self.adapter_factory = adapter_factory
 
     def run(
         self,
@@ -71,6 +74,8 @@ class PromptRuntime:
         domain_id: str | None = None,
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
+        trace_payload: dict[str, Any] | None = None,
+        profile_id: str | None = None,
     ) -> PromptRunResult:
         prepared = self._prepare(
             prompt=prompt,
@@ -79,6 +84,8 @@ class PromptRuntime:
             identity_override=identity_override,
             request_id=request_id,
             capability="prompt.run",
+            trace_payload=trace_payload,
+            profile_id=profile_id,
         )
 
         try:
@@ -110,7 +117,7 @@ class PromptRuntime:
             event="done",
             capability="prompt.run",
             identity=prepared.identity,
-            payload={"response": response.text},
+            payload={"response": response.text, **prepared.trace_payload},
             domain=prepared.domain,
             model=prepared.resolved.model.id,
             latency_ms=latency_ms,
@@ -192,6 +199,8 @@ class PromptRuntime:
         identity_override: dict[str, str] | None,
         request_id: str | None,
         capability: str = "prompt.run",
+        trace_payload: dict[str, Any] | None = None,
+        profile_id: str | None = None,
     ) -> PreparedPrompt:
         started = time.monotonic()
         request_id = request_id or str(uuid4())
@@ -206,6 +215,14 @@ class PromptRuntime:
         if domain and not identity_data.get("domain_tag"):
             identity_data["domain_tag"] = domain
         identity = Identity.from_defaults(self.config.identity_defaults, identity_data)
+        if profile_id is not None:
+            resolved = ResolvedModel(
+                model=resolved.model,
+                domain=resolved.domain,
+                profile=self.registry.profile(profile_id),
+                substituted=resolved.substituted,
+                preferred_model=resolved.preferred_model,
+            )
         params = dict(resolved.profile.params)
         extra = dict(resolved.profile.extra)
         adapter = self._adapter_for(resolved.model)
@@ -217,7 +234,7 @@ class PromptRuntime:
             event="request_start",
             capability=capability,
             identity=identity,
-            payload={"prompt": prompt},
+            payload={"prompt": prompt, **(trace_payload or {})},
             domain=domain,
             model=resolved.model.id,
         )
@@ -258,6 +275,7 @@ class PromptRuntime:
             adapter=adapter,
             req=req,
             capability=capability,
+            trace_payload=dict(trace_payload or {}),
         )
 
     def _record_error(self, prepared: PreparedPrompt, payload: dict[str, Any], error_type: str) -> None:
@@ -275,6 +293,10 @@ class PromptRuntime:
         )
 
     def _adapter_for(self, model: ModelConfig) -> ModelAdapter:
+        if self.adapter_factory is not None:
+            adapter = self.adapter_factory(model)
+            if adapter is not None:
+                return adapter
         if model.provider == "fake" or model.endpoint.startswith("fake://"):
             return FakeAdapter(model=model.id)
         return OpenAICompatibleAdapter(endpoint=model.endpoint, model_name=model.model_name)

@@ -88,6 +88,9 @@ class ModelRegistry:
             for domain in self.list_domains()
         ]
 
+    def profile(self, profile_id: str) -> ProfileConfig:
+        return self._require_profile(profile_id)
+
     def _require_model(self, model_id: str) -> ModelConfig:
         model = self._models.get(model_id)
         if model is None:

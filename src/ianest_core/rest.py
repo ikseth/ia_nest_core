@@ -73,6 +73,19 @@ def create_app(config_path: str | Path = "config/core.yaml"):
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
+    async def task_run(request: Request):
+        payload = await request.json()
+
+        def events():
+            for event in service.stream_task(
+                config_path=config_path,
+                prompt=payload["prompt"],
+                identity=payload.get("identity", {}),
+            ):
+                yield service.sse_encode(event)
+
+        return StreamingResponse(events(), media_type="text/event-stream")
+
     async def domain_route(request: Request):
         payload = await request.json()
         return _json(
@@ -114,6 +127,7 @@ def create_app(config_path: str | Path = "config/core.yaml"):
         Route("/prompt/stream", prompt_stream, methods=["POST"]),
         Route("/reasoning/run", reasoning_run, methods=["POST"]),
         Route("/reasoning/stream", reasoning_stream, methods=["POST"]),
+        Route("/task/run", task_run, methods=["POST"]),
         Route("/domain/route", domain_route, methods=["POST"]),
         Route("/model/list", model_list, methods=["GET"]),
         Route("/domain/list", domain_list, methods=["GET"]),

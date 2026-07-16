@@ -6,6 +6,9 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Implementacion de `task.run`: orquestacion PLAN/ROUTE/FAN-OUT/COMBINE/EVALUATE,
+  checkpoints observables, limites tipados, telemetria enlazada por subtarea y
+  paridad CLI/REST(SSE)/MCP (ADR 0036). Impacto: minor; objetivo: v0.2.0.
 - Contrato de `task.run` (orquestacion multi-modelo con checkpoints observables
   y cortes tipados) fijado en `CORE_CONTRACT.md` (ADR 0036); implementacion en
   fases v0.2-2/3. Impacto: minor (version objetivo v0.2.0).

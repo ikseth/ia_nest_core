@@ -29,6 +29,8 @@ def main(argv: list[str] | None = None) -> int:
             return _reasoning_run(args)
         if args.command == "reasoning" and args.reasoning_command == "stream":
             return _reasoning_stream(args)
+        if args.command == "task" and args.task_command == "run":
+            return _task_run(args)
         if args.command == "domain" and args.domain_command == "route":
             return _domain_route(args)
         if args.command == "domain" and args.domain_command == "list":
@@ -130,6 +132,19 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_inference_arguments(reasoning_stream_parser)
     _add_json_argument(reasoning_stream_parser, "cada evento como JSONL")
     _add_identity_arguments(reasoning_stream_parser)
+
+    task_parser = _group_parser(
+        subparsers, "task", "orquesta tareas multi-modelo",
+        "Planifica, enruta, ejecuta, combina y evalua una tarea compleja.",
+    )
+    task_subparsers = _action_subparsers(task_parser, "task_command")
+    task_run_parser = task_subparsers.add_parser(
+        "run", help="ejecuta una tarea y muestra sus checkpoints",
+        description="Ejecuta task.run y muestra los checkpoints mientras progresa.",
+    )
+    task_run_parser.add_argument("--prompt", required=True, metavar="TEXTO", help="tarea que se desea ejecutar")
+    _add_json_argument(task_run_parser, "cada checkpoint como JSONL")
+    _add_identity_arguments(task_run_parser)
 
     domain_parser = _group_parser(
         subparsers, "domain", "consulta y enruta dominios", "Consulta los dominios declarados o enruta un prompt."
@@ -321,6 +336,21 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
         else:
             print(f"{event['type']}\t{event['data']}")
+    return 0
+
+
+def _task_run(args: argparse.Namespace) -> int:
+    for event in service.stream_task(
+        config_path=args.config,
+        prompt=args.prompt,
+        identity=_identity_override(args),
+    ):
+        if args.json:
+            print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+        elif event["type"] == "task_done":
+            print(event["data"]["response"])
+        else:
+            print(event["type"])
     return 0
 
 

@@ -14,7 +14,7 @@ from ianest_core.evaluation import run_eval as run_eval_core
 from ianest_core.errors import CoreError
 from ianest_core.provisioning import Provisioner, provisioner_for
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
-from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime
+from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime, TaskRuntime
 
 MCP_PROTOCOL_VERSION_FALLBACK = "2025-03-26"
 
@@ -94,6 +94,32 @@ def stream_reasoning(
         domain_id=domain,
         identity_override=identity or {},
     ):
+        yield {"type": event.type, "data": event.data}
+
+
+def run_task(
+    *,
+    config_path: str | Path,
+    prompt: str,
+    identity: dict[str, str] | None = None,
+    availability: AvailabilityProvider | None = None,
+) -> dict[str, Any]:
+    config = load_config(config_path)
+    return TaskRuntime(config, availability=availability).run(
+        prompt=prompt, identity_override=identity or {}
+    ).to_dict()
+
+
+def stream_task(
+    *,
+    config_path: str | Path,
+    prompt: str,
+    identity: dict[str, str] | None = None,
+    availability: AvailabilityProvider | None = None,
+) -> Iterator[dict[str, Any]]:
+    config = load_config(config_path)
+    runtime = TaskRuntime(config, availability=availability)
+    for event in runtime.stream(prompt=prompt, identity_override=identity or {}):
         yield {"type": event.type, "data": event.data}
 
 

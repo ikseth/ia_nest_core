@@ -50,9 +50,11 @@ Solo `smoke`:
 
 ## Bateria v0.2: task.run (orquestacion)
 
-`eval/battery/orchestration.yaml` + `eval/fixtures/orchestration.yaml` fijan el
-criterio de aceptacion de `task.run` (ADR 0036) ANTES de implementarlo (fase
-v0.2-2). El runner NO carga este archivo hasta la fase v0.2-3.
+`eval/battery/v0.2/orchestration.yaml` + `eval/fixtures/orchestration.yaml`
+fijan el criterio de aceptacion de `task.run` (ADR 0036) ANTES de implementarlo
+(fase v0.2-2). Vive en el subdirectorio `v0.2/` porque el runner solo carga
+`eval/battery/*.yaml` (no recursivo); en la fase v0.2-3 el runner lo incorpora
+y el `conformance_digest` se recalcula (cambio declarado, ADR 0017).
 
 Scripting determinista adicional en `world.script` (lo realiza
 `ScriptedFakeAdapter` en la implementacion):

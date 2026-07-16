@@ -20,9 +20,10 @@ El core debe exponer las mismas capacidades por:
 ## Contexto de identidad del request
 
 Las capacidades que participan en sesion, razonamiento o trazabilidad de
-usuario (`prompt.run`, `reasoning.run`, `domain.route`) transportan un
-contexto de identidad, aunque la memoria del core sea nula por defecto (ver
-ADR 0011 y "Frontera de memoria" en `ARCHITECTURE.md`). Las capacidades
+usuario (`prompt.run`, `reasoning.run`, `task.run`, `domain.route`)
+transportan un contexto de identidad. El core no implementa memoria (ADR 0035):
+la identidad es la clave que `ia_nest_core_extended` usa para indexar la suya
+(ver "Frontera de memoria" en `ARCHITECTURE.md`). Las capacidades
 administrativas o de introspeccion (`runtime.health`, `model.list`,
 `domain.list`, `config.validate`) NO lo requieren.
 
@@ -123,6 +124,32 @@ Debe tener:
 - limite de tiempo,
 - salida observable,
 - capacidad de desactivar pasos no necesarios.
+
+### `task.run` (linea v0.2: contrato fijado, implementacion en curso)
+
+Ejecuta una tarea compleja orquestando los modelos del roster (ADR 0036):
+descompone en subtareas (PLAN), enruta cada una (ROUTE, precedencia ADR 0019),
+ejecuta en fan-out (paralelo si independientes), combina (COMBINE) y evalua e
+itera dentro de limites (EVALUATE, con re-ejecucion o re-planificacion).
+
+Debe tener:
+
+- checkpoints observables del flujo D2: `task_received`, `plan_ready`,
+  `subtask_done`, `combine_ready`, `iteration_end`, `task_done`,
+- cortes tipados: `task_done | max_subtasks | max_iterations | max_time |
+  max_context_tokens | error`,
+- limites configurables (seccion `orchestration` de la config; incluye
+  re-planificaciones y tope de paralelismo),
+- identidad propagada a cada subtarea,
+- telemetria por subtarea con `task_id` y vinculo al request padre.
+
+Debe devolver:
+
+- respuesta combinada final,
+- motivo de corte,
+- arbol de subtareas (modelo y dominio usados por cada una),
+- parametros efectivos,
+- trazabilidad.
 
 ### `config.validate`
 

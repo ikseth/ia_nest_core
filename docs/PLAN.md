@@ -224,11 +224,13 @@ subtarea (task_id + vinculo al request padre).
 Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
 core minimo instalable sin extras.
 
-### Fase v0.2-4: quiesce administrativo (decidir al llegar)
+### Fase v0.2-4: quiesce administrativo (diferida 2026-07-16)
 
 `runtime pause/resume` como capacidad administrativa (util para mantenimiento;
-requerida por el modo sueno de conscience, ADR 0034). Se confirma o difiere al
-cerrar la fase v0.2-3.
+requerida por el modo sueno de conscience, ADR 0034). Decision del usuario al
+cerrar v0.2-3: DIFERIDA hasta sembrar conscience (leccion de MemoryPort: sin
+consumidor real, no se construye). La linea v0.2 se publica como v0.2.0 sin
+quiesce.
 
 En paralelo (fuera de este plan): tras cerrar v0.2-1, sembrar la definicion de
 `ia_nest_core_extended` contra el contrato ya fijado.

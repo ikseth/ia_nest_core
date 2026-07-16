@@ -5,6 +5,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.2.0] - 2026-07-16
+
+Orquestacion multi-modelo (linea v0.2 del PLAN, fases v0.2-0 a v0.2-3) y
+doctrina del ente. Validado en laboratorio: conformance 23/23 con digest
+declarado y smoke 3/3 con modelos reales. Quiesce (fase v0.2-4) diferido hasta
+sembrar conscience.
+
 ### Anadido
 - Implementacion de `task.run`: orquestacion PLAN/ROUTE/FAN-OUT/COMBINE/EVALUATE,
   checkpoints observables, limites tipados, telemetria enlazada por subtarea y
@@ -14,6 +21,11 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   fases v0.2-2/3. Impacto: minor (version objetivo v0.2.0).
 - Ayuda CLI jerarquica y descriptiva para todos los grupos, acciones y opciones
   de `ianest` ([ficha 0001](docs/fixes/v0.1/0001-ayuda-cli-jerarquica.md)).
+- Bateria de evaluacion v0.2: 13 casos conformance (incl. enmienda
+  `task_subtask_unknown_hint`: domain_hint consultivo) + 2 smoke; digest
+  declarado `1d405c95...`. Robustecimientos surgidos del smoke real: parseo
+  tolerante de plan/decision y hint de dominio consultivo con
+  `domain_hint_ignored` en el arbol.
 
 ### Cambiado
 - Retirada la costura interna de memoria (`MemoryPort`, adaptador nulo y lectura
@@ -63,5 +75,6 @@ laboratorio sobre hardware real (RTX 3060 + Ollama).
 - Manual de usuario modular (`docs/manual/`), fronteras hacia capas externas
   (`docs/FRONTERAS.md`) y 30 ADRs.
 
-[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.1.0...HEAD
+[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.2.0...HEAD
+[v0.2.0]: https://github.com/ikseth/ia_nest_core/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/ikseth/ia_nest_core/releases/tag/v0.1.0

@@ -4,6 +4,7 @@ import json
 import re
 import string
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator
@@ -147,9 +148,11 @@ class TaskRuntime:
         yield self._checkpoint("task_done", checkpoints, identity, parent_request_id, task_id, payload)
 
     def _plan(self, prompt: str, identity: dict[str, str], parent: str, task_id: str) -> list[dict[str, Any]]:
+        domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
             "Decompose the task. Return only a JSON list of objects with prompt and optional "
-            f"domain_hint and depends_on. Task: {prompt}"
+            "domain_hint and depends_on. If domain_hint is used, it must be one of: "
+            f"{domain_ids}. Task: {prompt}"
         )
         result = self._run_target(self.settings.planner, instruction, identity, parent, task_id, "planner")
         plan = _parse_plan(result.response)
@@ -173,13 +176,17 @@ class TaskRuntime:
 
     def _run_subtask(self, index: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str) -> dict[str, Any]:
         domain_hint = item.get("domain_hint")
+        domain_id = self._resolve_domain_hint(domain_hint)
+        ignored_hint = domain_hint if domain_hint and domain_id is None else None
         request_id = str(uuid4())
         trace_payload = {"task_id": task_id, "parent_request_id": parent, "subtask_index": index}
+        if ignored_hint is not None:
+            trace_payload["domain_hint_ignored"] = ignored_hint
         result = self._run_prompt(
-            prompt=str(item["prompt"]), domain_id=str(domain_hint) if domain_hint else None,
+            prompt=str(item["prompt"]), domain_id=domain_id,
             identity=identity, request_id=request_id, trace_payload=trace_payload,
         )
-        return {
+        record = {
             "index": index,
             "prompt": item["prompt"],
             "response": result.response,
@@ -190,6 +197,18 @@ class TaskRuntime:
             "task_id": task_id,
             "parent_request_id": parent,
         }
+        if ignored_hint is not None:
+            record["domain_hint_ignored"] = ignored_hint
+        return record
+
+    def _resolve_domain_hint(self, value: Any) -> str | None:
+        if not isinstance(value, str) or not value.strip():
+            return None
+        normalized = _normalize_domain_hint(value)
+        for domain in self.config.domains:
+            if _normalize_domain_hint(domain.id) == normalized:
+                return domain.id
+        return None
 
     def _combine(self, prompt: str, results: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str) -> str:
         content = f"Combine the subtask results into one answer. Task: {prompt}\nResults: {json.dumps(results, ensure_ascii=False)}"
@@ -271,6 +290,11 @@ def _parse_plan(text: str) -> Any:
             return value
         except json.JSONDecodeError as exc:
             raise CoreError("PlanParseError", "planner returned invalid JSON", "plan") from exc
+
+
+def _normalize_domain_hint(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.strip().lower())
+    return "".join(character for character in decomposed if not unicodedata.combining(character))
 
 
 def _parse_evaluation_decision(text: str) -> str:

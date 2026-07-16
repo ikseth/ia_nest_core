@@ -18,6 +18,11 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   (ADR 0032, `docs/FRONTERAS.md`).
 - Nuevas capas en el mapa de repos: `ia_nest_web` (GUI) y `ia_nest_core_ops`
   (monitorizacion), separadas de enriquecimiento y de control/verificacion.
+- Doctrina de identidad: el ente IA_NEST = core + extended + conscience + GUI;
+  el exterior (agents, external, ops, otras entidades) consume contratos
+  (ADR 0033). Orquestacion multi-modelo como linea v0.2 del core y conscience
+  como supervisor dual live/sueno que sedimenta comportamiento (ADR 0034).
+  Enriquecimiento decidido en la capa (via 2, `docs/FRONTERAS.md`).
 
 ## [v0.1.0] - 2026-07-15
 

@@ -88,14 +88,24 @@ Solo se acepta si:
 
 ## Mapa de repos previsto
 
-- `ia_nest_core`: core basico.
-- `ia_nest_core_extended`: enriquecimiento de contexto (RAG, memoria, datos web).
-- `ia_nest_web`: GUI web (interfaz de gestion y de usuario).
-- `ia_nest_core_conscience`: control/verificacion (memoria sobre los modelos).
-- `ia_nest_core_ops`: monitorizacion/ops (estado en vivo y alertas).
-- `ia_nest_module_*`: modulos propios.
-- `ia_nest_external_*`: integraciones que actuan sobre apps externas (tool_contracts).
+El ente IA_NEST: pack basico con identidad propia simulada (ADR 0033).
+
+- `ia_nest_core`: el motor. Enruta, infiere, itera; orquestacion multi-modelo
+  como evolucion (linea v0.2, ADR 0034).
+- `ia_nest_core_extended`: la memoria/conocimiento. Enriquecimiento de contexto
+  (RAG, memoria, datos web).
+- `ia_nest_core_conscience`: la mente supervisora. Control etico/de
+  personalidad, dual live/sueno; sedimenta comportamiento (ADR 0034).
+- `ia_nest_web`: la cara. GUI web de gestion y de usuario.
+
+Exterior: se conecta al ente por sus contratos publicos (ADR 0033).
+
 - `ia_nest_agents` o `ia_nest_agent_*`: agentes que usan IA_NEST.
+- `ia_nest_external_*`: integraciones que actuan sobre apps externas (tool_contracts).
+- `ia_nest_module_*`: modulos propios.
+- `ia_nest_core_ops`: monitorizacion/ops (observa el ente: estado y alertas).
+- Otras entidades IA_NEST: comunicacion entidad-a-entidad (futuro,
+  `docs/CAPAS_FUTURAS.md`).
 
 Enriquecimiento vs herramientas: RAG, memoria y datos web ENRIQUECEN el prompt
 (solo lectura, costura tipo Port); las integraciones que ACTUAN usan

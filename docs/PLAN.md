@@ -176,6 +176,14 @@ su ADR:
 - Provisioning de modelos (ADR 0029): `ianest model pull` descarga los modelos
   declarados que falten (capacidad opcional, backend-especifica).
 
+## Linea v0.2 (prevista, sin abrir)
+
+Orquestacion multi-modelo de tareas con puntos de supervision incorporados
+(ADR 0034): descomponer, fan-out a varios modelos, combinar, iterar. Incluye
+las costuras que conscience necesitara (checkpoints de supervision, quiesce),
+cada una con su ADR de detalle. Se abrira con su propio plan de fases y
+criterios de salida; no se abre sin decision explicita del usuario.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

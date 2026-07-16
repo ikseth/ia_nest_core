@@ -18,17 +18,31 @@ contenedor y Ollama cayo a CPU; ver ADR 0028 y `docs/manual/backend-gpu.md`).
   continua. Eso es ops/observabilidad, propio de una capa externa (p.ej.
   `ia_nest_core_ops` o un modulo de monitorizacion).
 
-## Modelo de control / verificacion de respuesta (conciencia)
+## Conscience: supervisor etico/de personalidad (dual live/sueno)
 
-Traducir y verificar la respuesta con un modelo de control (idea del usuario;
-ver ADR 0025, alternativa descartada para el core). Pertenece a
-`ia_nest_core_conscience`.
+Definida en ADR 0034. Supervisor que puede bloquear/replantear en caliente
+(modo live, sobre checkpoints del orquestador v0.2) y que en modo sueno hace
+quiesce del core y revisa la telemetria del dia (JSONL/CSV) para aprender y
+generar nuevas tramas de memoria. Sedimenta sus resoluciones (debates eticos y
+de personalidad) como memoria de comportamiento en `extended`. Incluye el
+modelo de control/verificacion de respuesta (ADR 0025, alternativa descartada
+para el core). Pertenece a `ia_nest_core_conscience`.
+
+Necesitara del core (linea v0.2, cada una con su ADR): checkpoints de
+supervision en el orquestador y capacidad administrativa de quiesce.
 
 ## Memoria avanzada
 
-Estrategia de memoria (niveles, consolidacion). El core solo define la costura
-(`MemoryPort`, ADR 0011). La estrategia real -> `ia_nest_core_extended` o repo
-dedicado.
+Estrategia de memoria (niveles, consolidacion, memoria de comportamiento de
+conscience). Via 2 (ADR 0031/0034): la estrategia Y la ejecucion viven en
+`ia_nest_core_extended`; el core aporta la identidad de segmentacion como
+clave. `MemoryPort` (ADR 0011) queda superado; retirada pendiente junto al
+cambio de codigo.
+
+## Comunicacion entidad-a-entidad
+
+Varios entes IA_NEST comunicandose entre si (ADR 0033). Frontera futura del
+ente; sin diseno asignado. Se registra para no perderla.
 
 ## Otros (mapa de repos)
 

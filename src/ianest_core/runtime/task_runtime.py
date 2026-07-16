@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import string
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -150,10 +152,7 @@ class TaskRuntime:
             f"domain_hint and depends_on. Task: {prompt}"
         )
         result = self._run_target(self.settings.planner, instruction, identity, parent, task_id, "planner")
-        try:
-            plan = json.loads(result.response)
-        except json.JSONDecodeError as exc:
-            raise CoreError("PlanParseError", "planner returned invalid JSON", "plan") from exc
+        plan = _parse_plan(result.response)
         if not isinstance(plan, list) or not all(self._valid_subtask(item) for item in plan):
             raise CoreError("PlanParseError", "planner returned an invalid plan", "plan")
         return [dict(item) for item in plan]
@@ -201,10 +200,10 @@ class TaskRuntime:
             "Evaluate the combined answer. Return only one word: done, rerun, or replan. "
             f"Task: {prompt}\nAnswer: {response}"
         )
-        decision = self._run_target(self.settings.planner, content, identity, parent, task_id, "evaluator").response.strip().lower()
-        if decision not in {"done", "rerun", "replan"}:
-            raise CoreError("EvaluationDecisionError", "evaluator returned an invalid decision", "decision")
-        return decision
+        response_text = self._run_target(
+            self.settings.planner, content, identity, parent, task_id, "evaluator"
+        ).response
+        return _parse_evaluation_decision(response_text)
 
     def _run_target(self, target: OrchestrationTargetConfig, prompt: str, identity: dict[str, str], parent: str, task_id: str, role: str) -> PromptRunResult:
         return self._run_prompt(
@@ -256,3 +255,31 @@ class TaskRuntime:
         if value in (None, []):
             return set()
         raise CoreError("PlanDependencyError", "depends_on must contain subtask indexes", "depends_on")
+
+
+def _parse_plan(text: str) -> Any:
+    without_fences = re.sub(r"```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+    without_fences = without_fences.replace("```", "").strip()
+    try:
+        return json.loads(without_fences)
+    except json.JSONDecodeError as first_error:
+        start = without_fences.find("[")
+        if start < 0:
+            raise CoreError("PlanParseError", "planner returned invalid JSON", "plan") from first_error
+        try:
+            value, _ = json.JSONDecoder().raw_decode(without_fences[start:])
+            return value
+        except json.JSONDecodeError as exc:
+            raise CoreError("PlanParseError", "planner returned invalid JSON", "plan") from exc
+
+
+def _parse_evaluation_decision(text: str) -> str:
+    normalized = text.lower().strip().strip(string.whitespace + string.punctuation)
+    decisions = {"done", "rerun", "replan"}
+    if normalized in decisions:
+        return normalized
+    matches = re.findall(r"\b(?:done|rerun|replan)\b", text.lower())
+    unique = set(matches)
+    if len(unique) == 1:
+        return unique.pop()
+    raise CoreError("EvaluationDecisionError", "evaluator returned an invalid decision", "decision")

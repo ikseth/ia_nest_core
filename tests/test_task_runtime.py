@@ -11,6 +11,23 @@ from ianest_core.config.schema import TelemetryConfig
 from ianest_core.errors import CoreError, ModelUnavailable
 from ianest_core.registry import StaticAvailabilityProvider
 from ianest_core.runtime import TaskRuntime
+from ianest_core.runtime.task_runtime import _parse_evaluation_decision, _parse_plan
+
+
+def test_plan_parser_accepts_markdown_fences() -> None:
+    assert _parse_plan('```json\n[{"prompt": "s1"}]\n```') == [{"prompt": "s1"}]
+
+
+def test_plan_parser_accepts_surrounding_prose() -> None:
+    assert _parse_plan('Este es el plan: [{"prompt": "s1"}] Espero que ayude.') == [{"prompt": "s1"}]
+
+
+def test_evaluation_parser_accepts_punctuation() -> None:
+    assert _parse_evaluation_decision("done.") == "done"
+
+
+def test_evaluation_parser_accepts_surrounding_prose() -> None:
+    assert _parse_evaluation_decision("La respuesta es: done") == "done"
 
 
 def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:

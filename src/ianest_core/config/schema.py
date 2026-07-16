@@ -43,9 +43,29 @@ class TelemetryConfig:
 
 
 @dataclass(frozen=True)
+class OrchestrationTargetConfig:
+    model: str | None
+    domain: str | None
+    profile: str
+
+
+@dataclass(frozen=True)
+class OrchestrationConfig:
+    planner: OrchestrationTargetConfig
+    combiner: OrchestrationTargetConfig
+    max_subtasks: int = 4
+    max_iterations: int = 2
+    max_replans: int = 1
+    max_time_s: float = 30
+    max_context_tokens: int = 4096
+    max_parallel: int = 2
+
+
+@dataclass(frozen=True)
 class CoreConfig:
     models: list[ModelConfig]
     domains: list[DomainConfig]
     profiles: list[ProfileConfig]
     identity_defaults: dict[str, str]
     telemetry: TelemetryConfig | None
+    orchestration: OrchestrationConfig | None = None

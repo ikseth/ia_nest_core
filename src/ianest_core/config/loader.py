@@ -11,6 +11,8 @@ from ianest_core.config.schema import (
     CoreConfig,
     DomainConfig,
     ModelConfig,
+    OrchestrationConfig,
+    OrchestrationTargetConfig,
     ProfileConfig,
     TelemetryConfig,
 )
@@ -41,7 +43,8 @@ def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:
     profiles = [_load_profile(item) for item in raw.get("profiles", [])]
     telemetry = _load_telemetry(raw.get("telemetry"))
     identity_defaults = dict(raw.get("identity_defaults", {}))
-    return CoreConfig(models, domains, profiles, identity_defaults, telemetry)
+    orchestration = _load_orchestration(raw.get("orchestration"))
+    return CoreConfig(models, domains, profiles, identity_defaults, telemetry, orchestration)
 
 
 def _resolve_env(value: Any) -> Any:
@@ -93,4 +96,27 @@ def _load_telemetry(raw: dict[str, Any] | None) -> TelemetryConfig | None:
         jsonl_path=str(raw.get("jsonl_path", "")),
         rotation=str(raw.get("rotation", "size")),
         strict_mode=bool(raw.get("strict_mode", False)),
+    )
+
+
+def _load_orchestration(raw: dict[str, Any] | None) -> OrchestrationConfig | None:
+    if raw is None:
+        return None
+    return OrchestrationConfig(
+        planner=_load_orchestration_target(raw.get("planner", {})),
+        combiner=_load_orchestration_target(raw.get("combiner", {})),
+        max_subtasks=int(raw.get("max_subtasks", 4)),
+        max_iterations=int(raw.get("max_iterations", 2)),
+        max_replans=int(raw.get("max_replans", 1)),
+        max_time_s=float(raw.get("max_time_s", 30)),
+        max_context_tokens=int(raw.get("max_context_tokens", 4096)),
+        max_parallel=int(raw.get("max_parallel", 2)),
+    )
+
+
+def _load_orchestration_target(raw: dict[str, Any]) -> OrchestrationTargetConfig:
+    return OrchestrationTargetConfig(
+        model=str(raw["model"]) if raw.get("model") else None,
+        domain=str(raw["domain"]) if raw.get("domain") else None,
+        profile=str(raw.get("profile", "")),
     )

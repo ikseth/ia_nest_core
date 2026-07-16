@@ -19,6 +19,14 @@ DOMAIN_FIELDS = [
     "status",
 ]
 PROFILE_FIELDS = ["id"]
+ORCHESTRATION_LIMITS = {
+    "max_subtasks": int,
+    "max_iterations": int,
+    "max_replans": int,
+    "max_time_s": (int, float),
+    "max_context_tokens": int,
+    "max_parallel": int,
+}
 
 
 def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
@@ -71,7 +79,41 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
             if fallback_model not in model_ids:
                 raise ConfigValidationError("fallback_model does not exist", "fallback_models")
 
+    orchestration = raw.get("orchestration")
+    if orchestration is not None:
+        _validate_orchestration(orchestration, model_ids, domain_ids, profile_ids)
+
     return {"models": model_ids, "domains": domain_ids, "profiles": profile_ids}
+
+
+def _validate_orchestration(
+    raw: Any,
+    model_ids: set[str],
+    domain_ids: set[str],
+    profile_ids: set[str],
+) -> None:
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("orchestration must be a mapping", "orchestration")
+    for name in ("planner", "combiner"):
+        target = raw.get(name)
+        if not isinstance(target, dict):
+            raise ConfigValidationError("missing orchestration target", name)
+        model = target.get("model")
+        domain = target.get("domain")
+        if bool(model) == bool(domain):
+            raise ConfigValidationError("target requires exactly one of model or domain", name)
+        if model and model not in model_ids:
+            raise ConfigValidationError("orchestration model does not exist", f"{name}.model")
+        if domain and domain not in domain_ids:
+            raise ConfigValidationError("orchestration domain does not exist", f"{name}.domain")
+        if target.get("profile") not in profile_ids:
+            raise ConfigValidationError("orchestration profile does not exist", f"{name}.profile")
+    for field, expected_type in ORCHESTRATION_LIMITS.items():
+        if field not in raw:
+            continue
+        value = raw[field]
+        if isinstance(value, bool) or not isinstance(value, expected_type) or value <= 0:
+            raise ConfigValidationError("orchestration limit must be positive", field)
 
 
 def _require_section(raw: dict[str, Any], field: str, expected_type: type) -> None:

@@ -185,7 +185,7 @@ diseno y bateria ANTES de implementar. Leccion de MemoryPort aplicada: los
 checkpoints se disenan como eventos/cortes que el propio core consume desde el
 dia uno, no como puertos a la espera de un consumidor futuro.
 
-### Fase v0.2-0: limpieza de MemoryPort (en curso)
+### Fase v0.2-0: limpieza de MemoryPort (completada 2026-07-16)
 
 Retirar la costura muerta (ADR 0035): puerto, adaptador nulo y llamada
 `read_context`; la identidad de segmentacion SE CONSERVA (clave de la memoria
@@ -194,7 +194,7 @@ de extended).
 Criterio de salida: pytest verde con y sin extras; docs alineados
 (ARCHITECTURE, frontera de memoria); CHANGELOG actualizado.
 
-### Fase v0.2-1: contrato de orquestacion
+### Fase v0.2-1: contrato de orquestacion (completada 2026-07-16)
 
 Disenar `task.run`: descomposicion, fan-out multi-modelo, combinacion,
 iteracion; checkpoints observables (flujo D2) y cortes tipados; config
@@ -204,7 +204,7 @@ declarativa (planner, combiner, limites). ADRs de detalle + actualizacion de
 Criterio de salida: contrato reconciliado por el usuario (con revision ciega
 de Codex si aplica) y registrado.
 
-### Fase v0.2-2: bateria de evaluacion v0.2
+### Fase v0.2-2: bateria de evaluacion v0.2 (completada 2026-07-16; enmienda task_subtask_unknown_hint aprobada)
 
 Casos de conformance deterministas para orquestacion (ScriptedFakeAdapter
 multi-modelo: plan, fan-out, combinacion, cada corte tipado) y smoke con
@@ -212,7 +212,11 @@ umbrales.
 
 Criterio de salida: bateria escrita y congelada antes de implementar.
 
-### Fase v0.2-3: implementacion minima y validacion
+### Fase v0.2-3: implementacion minima y validacion (completada 2026-07-16)
+
+Validada en laboratorio: conformance 23/23 (digest declarado) y smoke 3/3 con
+modelos reales (orquestacion completa en ~37s). Dos robustecimientos surgidos
+del smoke real: parseo tolerante de plan/decision y domain_hint consultivo.
 
 Vertical minimo de `task.run` con paridad CLI/REST/MCP y telemetria por
 subtarea (task_id + vinculo al request padre).

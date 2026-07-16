@@ -9,6 +9,17 @@ un fichero del repo). Activa el venv y estara disponible en el PATH:
 Sin activar el venv puedes usarlo igual con `.venv/bin/ianest ...` o
 `python -m ianest_core.cli ...`.
 
+## Ayuda por niveles
+
+La ayuda es jerarquica para mantener cada pantalla pequena y relevante:
+
+    ianest --help                    # indice de grupos
+    ianest reasoning --help          # acciones del grupo
+    ianest reasoning stream --help   # detalle de una accion y sus opciones
+
+El mismo patron funciona con todos los grupos. Consultar `--help` no carga la
+configuracion ni contacta con el backend.
+
 ## Estructura de un comando
 
     ianest [--config RUTA] GRUPO ACCION [opciones]
@@ -24,8 +35,9 @@ Antes de usar la CLI necesitas un `config/core.yaml` y `.env`: la forma rapida
 es `ianest init` (ver abajo). Ver tambien [configuracion.md](configuracion.md)
 e [instalacion.md](instalacion.md).
 
-Todos los comandos aceptan `--config RUTA` (por defecto `config/core.yaml`) y
-`--json` (salida en JSON).
+`--config RUTA` es una opcion global, se escribe antes del grupo y usa
+`config/core.yaml` por defecto. Las acciones operativas aceptan `--json` para
+obtener salida estructurada; `init` no produce salida JSON.
 
 ## Inicializar (crear config)
 

@@ -5,6 +5,14 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+### Cambiado
+- Doctrina del ente: dos funciones nerviosas (ADR 0037). `ia_nest_core_ops`
+  se reconcilia como `ia_nest_core_pulse` -sistema nervioso autonomo: observa
+  la telemetria de todos y regula parametros tecnicos dentro de los techos del
+  core, subordinado a conscience-, y pasa al pack basico del ente. conscience
+  queda como sistema nervioso voluntario (puro, psicologico). Frontera con la
+  GUI (presentacion) y prerrequisito `finish_reason` en el core registrados.
+
 ## [v0.2.0] - 2026-07-16
 
 Orquestacion multi-modelo (linea v0.2 del PLAN, fases v0.2-0 a v0.2-3) y

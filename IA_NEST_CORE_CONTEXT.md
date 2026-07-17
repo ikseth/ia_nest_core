@@ -94,21 +94,27 @@ El ente IA_NEST: pack basico con identidad propia simulada (ADR 0033).
   como evolucion (linea v0.2, ADR 0034).
 - `ia_nest_core_extended`: la memoria/conocimiento. Enriquecimiento de contexto
   (RAG, memoria, datos web).
-- `ia_nest_core_conscience`: la mente supervisora. Control etico/de
-  personalidad, dual live/sueno; sedimenta comportamiento (ADR 0034).
-- `ia_nest_web`: la cara. GUI web de gestion y de usuario.
+- `ia_nest_core_conscience`: la mente voluntaria (sistema nervioso voluntario).
+  Control etico/de personalidad, dual live/sueno; sedimenta comportamiento
+  (ADR 0034).
+- `ia_nest_core_pulse`: la mente involuntaria (sistema nervioso autonomo).
+  Motor de monitorizacion que observa la telemetria de todos y regula
+  parametros tecnicos dentro de los techos del core, subordinado a conscience
+  (ADR 0037). CPU/RAM, sin GPU.
+- `ia_nest_web`: la cara. GUI web de gestion y de usuario (presentacion).
 
 Exterior: se conecta al ente por sus contratos publicos (ADR 0033).
 
 - `ia_nest_agents` o `ia_nest_agent_*`: agentes que usan IA_NEST.
 - `ia_nest_external_*`: integraciones que actuan sobre apps externas (tool_contracts).
 - `ia_nest_module_*`: modulos propios.
-- `ia_nest_core_ops`: monitorizacion/ops (observa el ente: estado y alertas).
 - Otras entidades IA_NEST: comunicacion entidad-a-entidad (futuro,
   `docs/CAPAS_FUTURAS.md`).
 
-Enriquecimiento vs herramientas: RAG, memoria y datos web ENRIQUECEN el prompt
-(solo lectura, costura tipo Port); las integraciones que ACTUAN usan
-`tool_contracts` (ADR 0007). Son costuras distintas (ADR 0031). Dependencias
-entre capas: cada capa versiona su contrato y fija las versiones de las que
-depende; el core solo hospeda el indice (ADR 0032, `docs/FRONTERAS.md`).
+Dos funciones nerviosas (ADR 0037): conscience = voluntario (delibera, GPU);
+pulse = autonomo/involuntario (regula por reflejo, CPU). Enriquecimiento vs
+herramientas: RAG, memoria y datos web ENRIQUECEN el prompt (solo lectura,
+costura tipo Port); las integraciones que ACTUAN usan `tool_contracts`
+(ADR 0007). Son costuras distintas (ADR 0031). Dependencias entre capas: cada
+capa versiona su contrato y fija las versiones de las que depende; el core solo
+hospeda el indice (ADR 0032, `docs/FRONTERAS.md`).

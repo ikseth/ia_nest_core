@@ -5,18 +5,32 @@ anti-entropia) y que se resolveran en capas o repos externos. Se documentan
 aqui para no perderlas y para alimentar la fase 10 (fronteras hacia repos
 externos). Ver el mapa de repos en `IA_NEST_CORE_CONTEXT.md`.
 
-## Monitorizacion / watcher del backend
+## pulse: sistema nervioso autonomo del ente (monitorizacion + regulacion)
 
-Un elemento que vigile de forma continua el estado del backend (Ollama) y su
-uso de GPU (p.ej. detectar que un `systemctl daemon-reload` tiro la GPU del
-contenedor y Ollama cayo a CPU; ver ADR 0028 y `docs/manual/backend-gpu.md`).
+Definido en ADR 0037. Motor de monitorizacion headless (CPU/RAM) que observa la
+telemetria de todos los componentes y REGULA parametros tecnicos dentro de los
+techos del core, subordinado a conscience. Sub-modos: homeostasis continua y
+(futuro) respuesta por disparadores.
 
-- Lo que SI hara el core: exponer el **dato** (readiness: GPU presente en el
-  host vs backend usando la GPU) en `runtime health`/`detect`. Es observabilidad
-  puntual, dentro del core.
-- Lo que NO hara el core: un **watcher** que monitorice/alerte/actue de forma
-  continua. Eso es ops/observabilidad, propio de una capa externa (p.ej.
-  `ia_nest_core_ops` o un modulo de monitorizacion).
+- Lo que SI hara el core: exponer el **dato** (readiness GPU en `runtime
+  health`/`detect`) y las **senales** que pulse necesita, entre ellas
+  `finish_reason` (truncado vs parada natural) por llamada/subtarea -senal
+  foundational, hoy inexistente (el adaptador la ignora); se implementara como
+  ficha de core-.
+- Lo que NO hara el core: el bucle de vigilancia/regulacion continuo. Eso es
+  pulse (`ia_nest_core_pulse`).
+- Primera responsabilidad de pulse (futura): presupuesto dinamico de tokens por
+  dominio a partir del historico de truncados. No se construye sin la senal ni
+  sin uso (leccion MemoryPort). Vigilancia del backend (p.ej. GPU caida tras
+  `systemctl daemon-reload`, ADR 0028) tambien cae aqui.
+
+## Voz del ente (combiner) y personalidad
+
+El combiner de `task.run` (o el modelo unico en `prompt.run`) produce la forma
+final: maqueta, traduce y da tono. Es la VOZ del ente, pero la APLICA, no la
+CONTIENE: la personalidad se sedimenta en conscience (ADR 0034) y se entrega via
+`system` prompt (ADR 0025) + enriquecimiento (extended). No hardcodear
+personalidad en el combiner.
 
 ## Conscience: supervisor etico/de personalidad (dual live/sueno)
 

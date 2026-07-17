@@ -17,11 +17,11 @@ contrato de cada capa vive en su repo. "Depende de" se fija por version SemVer.
 |---|---|---|---|---|---|
 | Ente | `ia_nest_core` | El motor: enruta, infiere, itera; orquestacion multi-modelo en linea v0.2 (ADR 0034) | - | - | v0.1.0 |
 | Ente | `ia_nest_core_extended` | La memoria/conocimiento: enriquecimiento (RAG, memoria, datos web) | Enriquecimiento sobre contratos publicos (ADR 0031) | core | primera capa (en diseno) |
-| Ente | `ia_nest_core_conscience` | La mente supervisora: control etico/personalidad, dual live/sueno (ADR 0034) | Checkpoints de supervision (v0.2) + telemetria | core, extended (memoria de comportamiento) | prevista |
-| Ente | `ia_nest_web` | La cara: GUI de gestion y de usuario | Contratos publicos | core, extended, conscience | prevista |
+| Ente | `ia_nest_core_conscience` | Mente voluntaria: control etico/personalidad, dual live/sueno (ADR 0034) | Checkpoints de supervision (v0.2) + telemetria | core, extended (memoria de comportamiento) | prevista |
+| Ente | `ia_nest_core_pulse` | Mente involuntaria (sistema nervioso autonomo): observa telemetria de todos y regula parametros dentro de techos del core (ADR 0037) | `runtime.health` + telemetria + perillas del core | core, extended, conscience | prevista |
+| Ente | `ia_nest_web` | La cara: GUI de gestion y presentacion | Contratos publicos + estado de pulse | core, extended, conscience, pulse | prevista |
 | Exterior | `ia_nest_agents` | Agentes que consumen el ente (no dirigen su pensar, ADR 0033) | Contratos publicos | core (+ capas que use) | prevista |
 | Exterior | `ia_nest_external_*` | Integraciones que ACTUAN | `tool_contracts` (ADR 0007, diferido) | core | diferida |
-| Exterior | `ia_nest_core_ops` | Monitorizacion/ops: observa el ente (estado y alertas) | `runtime.health` + telemetria | core | prevista |
 | Exterior | Otras entidades IA_NEST | Comunicacion entidad-a-entidad | Por definir | - | futura (`CAPAS_FUTURAS.md`) |
 
 ## Capas y fronteras
@@ -68,10 +68,17 @@ write-back con la respuesta. El core aporta la identidad de segmentacion
 - Zona exterior (ADR 0033): un agente usa al ente, pero NO dirige su pensar;
   la orquestacion del pensamiento es del core (ADR 0034).
 
-### Monitorizacion / ops (p.ej. ia_nest_core_ops)
-- Frontera: `runtime.health`/`runtime detect` y la telemetria (CSV/JSONL,
-  ADR 0010/0015). El core expone el ESTADO; un watcher/monitor externo lo
-  consume y actua/alerta de forma continua (ver `CAPAS_FUTURAS.md`).
+### ia_nest_core_pulse (mente involuntaria / sistema nervioso autonomo)
+- Motor de monitorizacion headless del ente (ADR 0037), CPU/RAM. Observa la
+  telemetria de todos (core, extended, conscience) y REGULA parametros tecnicos
+  dentro de los techos del core, a frecuencia fija; sub-modo futuro por
+  disparadores.
+- Frontera: `runtime.health`/`runtime detect` + telemetria (CSV/JSONL,
+  ADR 0010/0015) como entrada; las perillas del core (p.ej. limites de perfil)
+  como salida. Actua fuera de banda (evento aparte, no dentro de `task.run`;
+  preserva el determinismo).
+- Subordinado a conscience (veto voluntario sobre lo involuntario). La GUI
+  (`ia_nest_web`) presenta su estado; pulse no dibuja.
 
 ## tool_contracts (frontera generica de herramientas)
 

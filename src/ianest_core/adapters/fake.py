@@ -6,9 +6,10 @@ from ianest_core.adapters.base import Event, ModelRequest
 
 
 class FakeAdapter:
-    def __init__(self, model: str, response_text: str | None = None) -> None:
+    def __init__(self, model: str, response_text: str | None = None, finish_reason: str = "stop") -> None:
         self.model = model
         self.response_text = response_text
+        self.finish_reason = finish_reason
 
     def stream(self, req: ModelRequest) -> Iterator[Event]:
         prompt = _last_user_message(req)
@@ -26,14 +27,16 @@ class FakeAdapter:
                 "model": self.model,
                 "tokens_in": _count_tokens(prompt),
                 "tokens_out": _count_tokens(text),
+                "finish_reason": self.finish_reason,
             },
         )
 
 
 class ScriptedFakeAdapter:
-    def __init__(self, model: str, responses: list[str]) -> None:
+    def __init__(self, model: str, responses: list[str], finish_reason: str = "stop") -> None:
         self.model = model
         self.responses = responses
+        self.finish_reason = finish_reason
         self.index = 0
 
     def stream(self, req: ModelRequest) -> Iterator[Event]:
@@ -47,6 +50,7 @@ class ScriptedFakeAdapter:
                 "model": self.model,
                 "tokens_in": _count_tokens(prompt),
                 "tokens_out": _count_tokens(text),
+                "finish_reason": self.finish_reason,
             },
         )
 

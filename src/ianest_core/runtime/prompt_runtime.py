@@ -108,6 +108,7 @@ class PromptRuntime:
             "latency_ms": latency_ms,
             "tokens_in": response.tokens_in,
             "tokens_out": response.tokens_out,
+            "finish_reason": response.finish_reason,
             "status": "ok",
             "substituted": prepared.resolved.substituted,
             "preferred_model": prepared.resolved.preferred_model,
@@ -117,7 +118,7 @@ class PromptRuntime:
             event="done",
             capability="prompt.run",
             identity=prepared.identity,
-            payload={"response": response.text, **prepared.trace_payload},
+            payload={"response": response.text, "finish_reason": response.finish_reason, **prepared.trace_payload},
             domain=prepared.domain,
             model=prepared.resolved.model.id,
             latency_ms=latency_ms,
@@ -154,6 +155,7 @@ class PromptRuntime:
         text_parts: list[str] = []
         tokens_in = 0
         tokens_out = 0
+        finish_reason: Any = None
         completed = False
         for event in prepared.adapter.stream(prepared.req):
             if event.type == "token":
@@ -161,6 +163,7 @@ class PromptRuntime:
             elif event.type == "done":
                 tokens_in = int(event.data.get("tokens_in", 0) or 0)
                 tokens_out = int(event.data.get("tokens_out", 0) or 0)
+                finish_reason = event.data.get("finish_reason")
                 completed = True
             elif event.type == "error":
                 error_type = str(event.data.get("type", "AdapterError"))
@@ -181,7 +184,7 @@ class PromptRuntime:
             event="done",
             capability="prompt.run",
             identity=prepared.identity,
-            payload={"response": "".join(text_parts)},
+            payload={"response": "".join(text_parts), "finish_reason": finish_reason},
             domain=prepared.domain,
             model=prepared.resolved.model.id,
             latency_ms=latency_ms,

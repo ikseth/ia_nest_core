@@ -38,6 +38,7 @@ class OpenAICompatibleAdapter:
         text_parts: list[str] = []
         tokens_in = 0
         tokens_out = 0
+        finish_reason: Any = None
         try:
             with urlopen(request, timeout=120) as response:
                 for raw_line in response:
@@ -52,6 +53,8 @@ class OpenAICompatibleAdapter:
                     tokens_in = int(usage.get("prompt_tokens", tokens_in) or tokens_in)
                     tokens_out = int(usage.get("completion_tokens", tokens_out) or tokens_out)
                     for choice in event.get("choices", []):
+                        if choice.get("finish_reason") is not None:
+                            finish_reason = choice.get("finish_reason")
                         delta = choice.get("delta", {})
                         token = delta.get("content")
                         if token:
@@ -69,6 +72,7 @@ class OpenAICompatibleAdapter:
                 "model": self.model_name,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
+                "finish_reason": finish_reason,
             },
         )
 
@@ -89,4 +93,3 @@ def _chat_completions_url(endpoint: str) -> str:
 def _public_params(params: dict[str, Any]) -> dict[str, Any]:
     blocked = {"max_iterations", "max_time_s", "max_context_tokens"}
     return {key: value for key, value in params.items() if key not in blocked}
-

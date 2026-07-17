@@ -65,7 +65,7 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
             [json.dumps([{"prompt": "razona", "domain_hint": "razonamiento"}, {"prompt": "codifica", "domain_hint": "codigo"}]), "done"],
         ),
         "fake_reason": ScriptedFakeAdapter("fake_reason", ["A"]),
-        "fake_code": ScriptedFakeAdapter("fake_code", ["B"]),
+        "fake_code": ScriptedFakeAdapter("fake_code", ["B"], finish_reason="length"),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["AB"]),
     }
     runtime = TaskRuntime(config, adapter_factory=adapters.get)
@@ -85,12 +85,15 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     assert [(item["domain"], item["model"]) for item in result.subtasks] == [
         ("razonamiento", "fake_reason"), ("codigo", "fake_code")
     ]
+    assert [item["finish_reason"] for item in result.subtasks] == ["stop", "length"]
     events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
     subtask_done = [event for event in events if event["event"] == "done" and event["payload"].get("subtask_index") is not None]
     assert len(subtask_done) == 2
     assert {event["payload"]["task_id"] for event in subtask_done} == {result.trace["task_id"]}
     assert {event["payload"]["parent_request_id"] for event in subtask_done} == {"parent"}
     assert {event["session_id"] for event in subtask_done} == {"s7"}
+    code_done = next(event for event in subtask_done if event["payload"].get("subtask_index") == 1)
+    assert code_done["payload"]["finish_reason"] == "length"
 
 
 def test_task_runtime_requires_orchestration_config() -> None:

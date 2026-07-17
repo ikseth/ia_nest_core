@@ -5,7 +5,14 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-from ianest_core.adapters import FakeAdapter, ModelRequest, run_blocking
+from ianest_core.adapters import (
+    FakeAdapter,
+    ModelRequest,
+    OpenAICompatibleAdapter,
+    ScriptedFakeAdapter,
+    run_blocking,
+)
+from ianest_core.adapters import openai_compatible
 from ianest_core.adapters.base import Event
 from ianest_core.config import load_config
 from ianest_core.config.schema import TelemetryConfig
@@ -24,6 +31,51 @@ def test_run_blocking_collects_fake_d2_flow() -> None:
     assert response.model == "fake_a"
     assert response.tokens_in == 1
     assert response.tokens_out == 2
+    assert response.finish_reason == "stop"
+
+
+def test_openai_compatible_surfaces_last_non_null_finish_reason(monkeypatch) -> None:
+    lines = [
+        b'data: {"choices":[{"delta":{"content":"hola"},"finish_reason":null}]}\n',
+        b'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n',
+        b'data: {"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}}\n',
+        b'data: [DONE]\n',
+    ]
+    monkeypatch.setattr(openai_compatible, "urlopen", lambda request, timeout: _StreamResponse(lines))
+
+    events = list(
+        OpenAICompatibleAdapter("http://backend.test", "model-a").stream(
+            ModelRequest(messages=[{"role": "user", "content": "hola"}])
+        )
+    )
+
+    assert events[-1].type == "done"
+    assert events[-1].data["finish_reason"] == "length"
+
+
+def test_scripted_finish_reason_reaches_prompt_trace_and_jsonl(tmp_path) -> None:
+    config = replace(
+        load_config(Path("eval/fixtures/config.yaml")),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+            strict_mode=False,
+        ),
+    )
+    adapter = ScriptedFakeAdapter("fake_b", ["respuesta"], finish_reason="length")
+    runtime = PromptRuntime(config, adapter_factory=lambda model: adapter)
+
+    result = runtime.run(prompt="hola", domain_id="general", request_id="finish-reason")
+
+    assert result.trace["finish_reason"] == "length"
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    done = next(event for event in events if event["event"] == "done")
+    assert done["payload"]["finish_reason"] == "length"
+
+    with (tmp_path / "trace.csv").open("r", newline="", encoding="utf-8") as handle:
+        rows = list(csv.reader(handle, delimiter=";"))
+    assert rows
+    assert all(len(row) == 18 for row in rows)
 
 
 def test_prompt_runtime_propagates_identity_to_trace(tmp_path) -> None:
@@ -67,6 +119,7 @@ def test_prompt_runtime_propagates_identity_to_trace(tmp_path) -> None:
     events = [json.loads(line) for line in jsonl_path.read_text(encoding="utf-8").splitlines()]
     done_json = [event for event in events if event["event"] == "done"][0]
     assert done_json["payload"]["response"] == result.response
+    assert done_json["payload"]["finish_reason"] == "stop"
     assert done_json["user_id"] == "u42"
 
 
@@ -109,3 +162,14 @@ def test_telemetry_non_serializable_payload_is_best_effort(tmp_path) -> None:
 class ErrorAdapter:
     def stream(self, req: ModelRequest):
         yield Event("error", {"type": "AdapterError", "message": "boom"})
+
+
+class _StreamResponse:
+    def __init__(self, lines: list[bytes]) -> None:
+        self.lines = lines
+
+    def __enter__(self):
+        return iter(self.lines)
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        return None

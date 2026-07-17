@@ -1,6 +1,6 @@
 # 0002: exponer finish_reason (senal de truncado)
 
-Estado: propuesta
+Estado: implementada
 Tipo: mejora compatible
 Impacto de version: patch
 Version objetivo: v0.2.x
@@ -65,4 +65,18 @@ Restricciones duras:
 
 ## Resultado
 
-(pendiente)
+Implementado en `fix/v0.2-0002-finish-reason`:
+
+- El adaptador OpenAI-compatible conserva el ultimo `finish_reason` no nulo;
+  `run_blocking` lo transporta sin interpretarlo.
+- Los fakes emiten `stop` por defecto y `ScriptedFakeAdapter` permite declarar
+  otro valor, incluido `length`.
+- `prompt.run` lo incluye en la traza y en el `done` JSONL; `task.run`, en cada
+  registro de subtarea; `reasoning.run`, en cada paso.
+- El CSV mantiene las 18 columnas congeladas. El payload JSONL se construye y
+  persiste por separado, por lo que sus claves extra no llegan al writer CSV.
+- Tests: 77 passed, 4 skipped sin extras; 81 passed con extras. Instalacion
+  minima verificada sin dependencias nuevas.
+- El `conformance_digest` no cambia:
+  `1d405c95660947206a0be19a6f8ef8ecf92874a7718f3dd10348ab0fb040263b`;
+  no se modifican `tests/test_phase_6b.py` ni `eval/README.md`.

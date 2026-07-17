@@ -192,6 +192,7 @@ class TaskRuntime:
             "response": result.response,
             "domain": result.domain,
             "model": result.model,
+            "finish_reason": result.trace.get("finish_reason"),
             "substituted": bool(result.trace.get("substituted")),
             "request_id": request_id,
             "task_id": task_id,

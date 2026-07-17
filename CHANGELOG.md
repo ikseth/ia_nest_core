@@ -5,6 +5,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+### Anadido
+- `finish_reason` crudo del backend en el evento `done`, la traza y telemetria
+  JSONL de `prompt.run`, los registros de subtarea de `task.run` y los pasos de
+  `reasoning.run`; fakes deterministas con `stop` por defecto y valor
+  scriptable ([ficha 0002](docs/fixes/v0.2/0002-finish-reason.md)). Impacto:
+  patch.
+
 ### Cambiado
 - Doctrina del ente: dos funciones nerviosas (ADR 0037). `ia_nest_core_ops`
   se reconcilia como `ia_nest_core_pulse` -sistema nervioso autonomo: observa

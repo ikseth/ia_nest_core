@@ -25,6 +25,7 @@ class ModelResponse:
     model: str
     tokens_in: int
     tokens_out: int
+    finish_reason: Any = None
 
 
 class ModelAdapter(Protocol):
@@ -60,5 +61,5 @@ def run_blocking(adapter: ModelAdapter, req: ModelRequest) -> ModelResponse:
         model=str(last_done.get("model", "")),
         tokens_in=int(last_done.get("tokens_in", 0) or 0),
         tokens_out=int(last_done.get("tokens_out", 0) or 0),
+        finish_reason=last_done.get("finish_reason"),
     )
-

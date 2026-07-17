@@ -109,7 +109,12 @@ class ReasoningRuntime:
             done = bool(parsed["done"])
             tokens_in += response.tokens_in
             tokens_out += response.tokens_out
-            step = {"iteration": iteration, "output": current_output, "done": done}
+            step = {
+                "iteration": iteration,
+                "output": current_output,
+                "done": done,
+                "finish_reason": response.finish_reason,
+            }
             steps.append(step)
             self._record_step(prepared, step)
             yield Event("step", step)

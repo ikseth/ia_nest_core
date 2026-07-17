@@ -23,6 +23,7 @@ def test_reasoning_stops_on_model_done_and_emits_steps(tmp_path) -> None:
     result = runtime.run(prompt="resuelve", domain_id="general", request_id="reasoning-done-run")
 
     assert [event.type for event in events] == ["step", "step", "done"]
+    assert [event.data["finish_reason"] for event in events[:-1]] == ["stop", "stop"]
     assert events[-1].data["stop_reason"] == "model_done"
     assert result.stop_reason == "model_done"
     assert result.output == "final"

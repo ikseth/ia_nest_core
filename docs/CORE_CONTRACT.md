@@ -22,7 +22,7 @@ El core debe exponer las mismas capacidades por:
 Las capacidades que participan en sesion, razonamiento o trazabilidad de
 usuario (`prompt.run`, `reasoning.run`, `task.run`, `domain.route`)
 transportan un contexto de identidad. El core no implementa memoria (ADR 0035):
-la identidad es la clave que `ia_nest_core_extended` usa para indexar la suya
+la identidad es la clave que `ia_nest_extended` usa para indexar la suya
 (ver "Frontera de memoria" en `ARCHITECTURE.md`). Las capacidades
 administrativas o de introspeccion (`runtime.health`, `model.list`,
 `domain.list`, `config.validate`) NO lo requieren.

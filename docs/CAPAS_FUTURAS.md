@@ -49,7 +49,7 @@ supervision en el orquestador y capacidad administrativa de quiesce.
 
 Estrategia de memoria (niveles, consolidacion, memoria de comportamiento de
 conscience). Via 2 (ADR 0031/0034): la estrategia Y la ejecucion viven en
-`ia_nest_core_extended`; el core aporta la identidad de segmentacion como
+`ia_nest_extended`; el core aporta la identidad de segmentacion como
 clave. `MemoryPort` (ADR 0011) queda superado; retirada pendiente junto al
 cambio de codigo.
 
@@ -60,6 +60,6 @@ ente; sin diseno asignado. Se registra para no perderla.
 
 ## Otros (mapa de repos)
 
-- RAG, busqueda web -> `ia_nest_core_extended`.
+- RAG, busqueda web -> `ia_nest_extended`.
 - Integraciones (Home Assistant, Nextcloud) -> `ia_nest_external_*`.
 - Agentes -> `ia_nest_agents`.

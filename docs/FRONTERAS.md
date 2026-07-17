@@ -16,7 +16,7 @@ contrato de cada capa vive en su repo. "Depende de" se fija por version SemVer.
 | Zona | Capa (repo) | Responsabilidad | Costura con el core | Depende de | Estado |
 |---|---|---|---|---|---|
 | Ente | `ia_nest_core` | El motor: enruta, infiere, itera; orquestacion multi-modelo en linea v0.2 (ADR 0034) | - | - | v0.1.0 |
-| Ente | `ia_nest_core_extended` | La memoria/conocimiento: enriquecimiento (RAG, memoria, datos web) | Enriquecimiento sobre contratos publicos (ADR 0031) | core | primera capa (en diseno) |
+| Ente | `ia_nest_extended` | La memoria/conocimiento: enriquecimiento (RAG, memoria, datos web) | Enriquecimiento sobre contratos publicos (ADR 0031) | core | primera capa (en diseno) |
 | Ente | `ia_nest_core_conscience` | Mente voluntaria: control etico/personalidad, dual live/sueno (ADR 0034) | Checkpoints de supervision (v0.2) + telemetria | core, extended (memoria de comportamiento) | prevista |
 | Ente | `ia_nest_core_pulse` | Mente involuntaria (sistema nervioso autonomo): observa telemetria de todos y regula parametros dentro de techos del core (ADR 0037) | `runtime.health` + telemetria + perillas del core | core, extended, conscience | prevista |
 | Ente | `ia_nest_web` | La cara: GUI de gestion y presentacion | Contratos publicos + estado de pulse | core, extended, conscience, pulse | prevista |
@@ -26,7 +26,7 @@ contrato de cada capa vive en su repo. "Depende de" se fija por version SemVer.
 
 ## Capas y fronteras
 
-### ia_nest_core_extended (la memoria/conocimiento del ente)
+### ia_nest_extended (la memoria/conocimiento del ente)
 Enriquecimiento de contexto: solo lectura, NO `tool_contracts` (ADR 0031).
 Decidido (via 2): el enriquecimiento ocurre EN LA CAPA, encima del core. La
 capa recupera (memoria/RAG/web), arma el prompt, llama a `prompt.run` y hace el

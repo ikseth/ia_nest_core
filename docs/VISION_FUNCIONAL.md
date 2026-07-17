@@ -33,7 +33,7 @@ estables.
 
 ## Extensiones
 
-RAG y busqueda web pertenecen a `ia_nest_core_extended`.
+RAG y busqueda web pertenecen a `ia_nest_extended`.
 
 La consciencia pertenece a una capa superior, previsiblemente
 `ia_nest_core_conscience`.

@@ -233,7 +233,7 @@ consumidor real, no se construye). La linea v0.2 se publica como v0.2.0 sin
 quiesce.
 
 En paralelo (fuera de este plan): tras cerrar v0.2-1, sembrar la definicion de
-`ia_nest_core_extended` contra el contrato ya fijado.
+`ia_nest_extended` contra el contrato ya fijado.
 
 ## Fuera de este plan
 

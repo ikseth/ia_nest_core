@@ -92,7 +92,7 @@ El ente IA_NEST: pack basico con identidad propia simulada (ADR 0033).
 
 - `ia_nest_core`: el motor. Enruta, infiere, itera; orquestacion multi-modelo
   como evolucion (linea v0.2, ADR 0034).
-- `ia_nest_core_extended`: la memoria/conocimiento. Enriquecimiento de contexto
+- `ia_nest_extended`: la memoria/conocimiento. Enriquecimiento de contexto
   (RAG, memoria, datos web).
 - `ia_nest_core_conscience`: la mente voluntaria (sistema nervioso voluntario).
   Control etico/de personalidad, dual live/sueno; sedimenta comportamiento

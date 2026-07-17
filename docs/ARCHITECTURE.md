@@ -281,7 +281,7 @@ contratos.
 
 Estado: validado (ADR 0035, supersede parcialmente ADR 0011).
 El core NO implementa memoria ni define un punto de conexion para ella. La
-estrategia y la ejecucion de memoria viven en `ia_nest_core_extended`, que
+estrategia y la ejecucion de memoria viven en `ia_nest_extended`, que
 enriquece el prompt antes de llamar al core y realiza el write-back con la
 respuesta. El runtime del core no conoce la memoria.
 
@@ -305,7 +305,7 @@ que traza y memoria compartan identidad.
 - Niveles concretos (immediate/short/medium/long/historical/principles).
 - Pipeline de consolidacion por hitos.
 - Doble conciencia (pertenece a `ia_nest_core_conscience`, no al core).
-- Recuperacion semantica / RAG (pertenece a `ia_nest_core_extended`).
+- Recuperacion semantica / RAG (pertenece a `ia_nest_extended`).
 - Esquema SQL o motor de almacenamiento.
 
 ## Correspondencia con el contrato
@@ -325,5 +325,5 @@ que traza y memoria compartan identidad.
 - El esquema de `config.validate` esta fijado en el ADR 0014; su pagina de
   detalle puede escribirse al implementar.
 - La estrategia y ejecucion de memoria (niveles, consolidacion): viven en
-  `ia_nest_core_extended`; el core solo aporta la identidad como clave (ver
+  `ia_nest_extended`; el core solo aporta la identidad como clave (ver
   "Frontera de memoria").

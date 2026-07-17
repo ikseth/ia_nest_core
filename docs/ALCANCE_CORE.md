@@ -35,4 +35,4 @@ El core puede llamar herramientas externas mediante contratos, pero no debe
 absorber su logica interna.
 
 RAG y busqueda web no definen el core. Si se incorporan, sera desde
-`ia_nest_core_extended` o equivalente.
+`ia_nest_extended` o equivalente.

@@ -51,3 +51,14 @@ evaluator en cada ejecucion de `task.run`, con sincronizacion para el fan-out.
 `simulated["context_tokens"]`, que mantiene su precedencia determinista.
 La traza final expone ambos acumulados. Se anadieron 2 pruebas especificas;
 la suite completa queda verificada sin dependencias nuevas.
+
+Verificacion independiente (2026-07-23, revision Claude Code):
+
+- pytest con extras: 83 passed; sin extras (venv limpio): 79 passed,
+  4 skipped. Digest de conformance v0.2 sin cambio.
+- Smoke en laboratorio con backend real (Ollama): con limite 4096 la
+  tarea termina en task_done y la traza expone el acumulado real
+  (592 in / 206 out); con limite 120 dispara el corte
+  max_context_tokens con 690 tokens reales acumulados, corte imposible
+  antes de esta ficha. Detalle en local/lab/2026-07-23_tokens_fix.md
+  (no versionado).

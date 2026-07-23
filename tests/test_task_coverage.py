@@ -12,7 +12,7 @@ from ianest_core.errors import AdapterError, CoreError
 from ianest_core.config import load_config
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.runtime import TaskRuntime
-from ianest_core.runtime.task_runtime import _parse_covered_ids
+from ianest_core.runtime.task_runtime import _CoverageUnit, _parse_covered_ids
 
 
 class CapturingAdapter(ScriptedFakeAdapter):
@@ -127,6 +127,25 @@ def test_coverage_next_generation_contains_only_pending_units(tmp_path) -> None:
     assert "detail-4" in generator.prompts[1]
     assert all(f"detail-{index}" not in generator.prompts[1] for index in range(1, 4))
     assert "ACCEPTED-TEXT" not in generator.prompts[1]
+
+
+def test_coverage_generation_prompt_is_only_assigned_content() -> None:
+    runtime = object.__new__(TaskRuntime)
+    units = [_CoverageUnit(id="u1", prompt="solo el primer punto", depends_on=[])]
+
+    prompt = runtime._coverage_generation_prompt(
+        "responde diez puntos",
+        units,
+        ["u0"],
+    )
+    normalized = prompt.lower()
+
+    assert "context only; do not answer it as a whole" in normalized
+    assert "the only content to produce" in normalized
+    assert "do not include a preamble, conclusion" in normalized
+    assert "do not address unassigned units" in normalized
+    assert "responde diez puntos" in prompt
+    assert "solo el primer punto" in prompt
 
 
 def test_coverage_adapter_error_retries_only_affected_unit(tmp_path) -> None:

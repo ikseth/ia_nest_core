@@ -635,10 +635,13 @@ class TaskRuntime:
         targets = [{"id": unit.id, "prompt": unit.prompt} for unit in units]
         completed_text = ", ".join(completed_ids) if completed_ids else "none"
         return (
-            f"Objective: {objective}\n"
-            f"Target coverage units: {json.dumps(targets, ensure_ascii=False)}\n"
+            f"Global objective (CONTEXT ONLY; do not answer it as a whole): {objective}\n"
+            f"Assigned coverage units (the ONLY content to produce): {json.dumps(targets, ensure_ascii=False)}\n"
             f"Completed unit references: {completed_text}\n"
-            "Answer only the target units. Do not repeat completed units."
+            "Produce ONLY the content that directly fulfills the assigned coverage units. "
+            "Do not include a preamble, conclusion, transition, or meta-commentary. "
+            "Do not address unassigned units or any other part of the global objective. "
+            "Do not repeat completed units."
         )
 
     def _validate_coverage_generation(

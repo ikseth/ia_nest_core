@@ -446,9 +446,11 @@ class TaskRuntime:
     ) -> list[_CoverageUnit]:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
-            "Derive coverage units. Return only a JSON list of objects with id, prompt, "
-            "optional domain_hint and optional depends_on as a list of ids. If domain_hint "
-            f"is used, it must be one of: {domain_ids}. Task: {prompt}"
+            "Derive the coverage units of the task. Create one unit per verifiable item "
+            "(each enumerable element, requirement or part gets its own unit). Return only "
+            "a JSON list of objects with a short string id, prompt, optional domain_hint "
+            "and optional depends_on as a list of ids. If domain_hint is used, it must be "
+            f"one of: {domain_ids}. Task: {prompt}"
         )
         result = self._run_target(
             self.settings.planner,
@@ -465,14 +467,11 @@ class TaskRuntime:
 
         units: list[_CoverageUnit] = []
         ids: set[str] = set()
-        for item in raw_plan:
+        for position, item in enumerate(raw_plan, start=1):
             if not isinstance(item, dict):
                 raise CoreError("PlanParseError", "planner returned an invalid coverage unit", "plan")
-            unit_id = item.get("id")
+            unit_id = _coerce_unit_id(item.get("id")) or f"u{position}"
             unit_prompt = item.get("prompt")
-            if not isinstance(unit_id, str) or not unit_id.strip():
-                raise CoreError("PlanParseError", "coverage unit ids must be unique and non-empty", "id")
-            unit_id = unit_id.strip()
             if unit_id in ids:
                 raise CoreError("PlanParseError", "coverage unit ids must be unique and non-empty", "id")
             if not isinstance(unit_prompt, str) or not unit_prompt.strip():
@@ -480,9 +479,14 @@ class TaskRuntime:
             depends_on = item.get("depends_on", [])
             if depends_on is None:
                 depends_on = []
-            if not isinstance(depends_on, list) or not all(
-                isinstance(dependency, str) and dependency.strip() for dependency in depends_on
-            ):
+            if not isinstance(depends_on, list):
+                raise CoreError(
+                    "PlanDependencyError",
+                    "depends_on must contain coverage unit ids",
+                    "depends_on",
+                )
+            coerced_depends = [_coerce_unit_id(dependency) for dependency in depends_on]
+            if not all(coerced_depends):
                 raise CoreError(
                     "PlanDependencyError",
                     "depends_on must contain coverage unit ids",
@@ -493,7 +497,7 @@ class TaskRuntime:
                 _CoverageUnit(
                     id=unit_id,
                     prompt=unit_prompt,
-                    depends_on=[dependency.strip() for dependency in depends_on],
+                    depends_on=[dependency for dependency in coerced_depends if dependency],
                     domain_hint=item.get("domain_hint") if isinstance(item.get("domain_hint"), str) else None,
                 )
             )
@@ -1050,6 +1054,16 @@ def _parse_plan(text: str) -> Any:
             return value
         except json.JSONDecodeError as exc:
             raise CoreError("PlanParseError", "planner returned invalid JSON", "plan") from exc
+
+
+def _coerce_unit_id(value: Any) -> str | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def _parse_covered_ids(text: str) -> set[str]:

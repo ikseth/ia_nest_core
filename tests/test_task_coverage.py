@@ -366,6 +366,31 @@ def test_coverage_rejects_invalid_mode_and_missing_config(tmp_path) -> None:
     )
 
 
+def test_coverage_plan_accepts_integer_and_missing_ids(tmp_path) -> None:
+    units = [
+        {"id": 1, "prompt": "uno"},
+        {"prompt": "dos", "depends_on": [1]},
+    ]
+    result = _runtime(tmp_path, units, ["ONE", "TWO"], [["1"], ["u2"]]).run(
+        prompt="tolerancia de ids",
+        mode="coverage",
+    )
+
+    assert result.stop_reason == "task_done"
+    assert result.response == "ONETWO"
+    assert result.coverage["completed_units"] == ["1", "u2"]
+
+
+def test_coverage_plan_rejects_duplicate_ids_after_coercion(tmp_path) -> None:
+    units = [{"id": 1, "prompt": "uno"}, {"id": "1", "prompt": "repetido"}]
+
+    with pytest.raises(CoreError) as exc:
+        _runtime(tmp_path, units, ["ONE"], [["1"]]).run(prompt="duplicados", mode="coverage")
+
+    assert exc.value.type == "PlanParseError"
+    assert exc.value.field == "id"
+
+
 def _runtime(
     tmp_path,
     units,

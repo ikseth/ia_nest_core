@@ -235,9 +235,74 @@ quiesce.
 En paralelo (fuera de este plan): tras cerrar v0.2-1, sembrar la definicion de
 `ia_nest_extended` contra el contrato ya fijado.
 
+## Linea v0.3 (abierta 2026-07-23)
+
+Objetivo: completitud semantica guiada por cobertura en `task.run`
+(`mode=coverage`, ADR 0038). Version objetivo: v0.3.0 (MINOR por
+envergadura, precedente ADR 0034; decision del usuario). Misma disciplina:
+bateria congelada antes de implementar; el modo pipeline y su digest de
+conformance v0.2 permanecen intactos.
+
+Metodo de trabajo de la linea: diseno, prompts por tarea y supervision por
+Claude Code; implementacion por Codex sobre el contrato ya reconciliado
+(no aplica modo ciego: se implementa una decision registrada, no se
+propone diseno).
+
+### Fase v0.3-0: contrato y ADR (completada 2026-07-23)
+
+ADR 0038 registrado; `CORE_CONTRACT.md` (modo coverage + seleccion de
+capacidad) y CHANGELOG actualizados; ficha v0.2/0003 (contabilidad real
+de tokens) abierta como adelanto independiente.
+
+Criterio de salida (cumplido): diseno reconciliado por el usuario
+(2026-07-23) y registrado.
+
+### Fase v0.3-1: config y bateria v0.3 (completada 2026-07-23)
+
+Esquema `orchestration.coverage` (schema + validator + fixtures) y
+bateria determinista congelada como `coverage.yaml.frozen` (el runner
+hace rglob desde v0.2-3; el sufijo sustituye al "aparcar en
+subdirectorio" de v0.2-2): 11 casos conformance (ADR 0038: 1-6, 9, 10,
+11a/b/c) y los casos 3/7/8/12/13/14 como tests pytest requeridos en
+eval/README. Enmienda de reconciliacion: `max_subtasks: 12` en la
+fixture (los casos de 10 unidades eran insatisfacibles con el 4
+heredado; detectado por el implementador antes de codificar).
+
+Criterio de salida (cumplido): `config.validate` acepta/rechaza; casos
+congelados antes de tocar el runtime; digest v0.2 sin cambio.
+
+### Fase v0.3-2: implementacion minima (completada 2026-07-23)
+
+Ledger, bucle DERIVE/GENERATE/VALIDATE/ASSEMBLE, eventos `answer_chunk`
+(en orden, retencion de prefijo) y `coverage_updated` (JSONL), cortes
+`max_chunks | max_total_tokens | no_progress`, reintentos por unidad,
+ensamblado determinista y paridad CLI/REST/MCP (`--mode coverage`).
+Bateria integrada (rename `.frozen` -> `.yaml`): conformance 34/34 con
+digest recalculado y DECLARADO (ADR 0017, patron v0.2-3); el digest
+v0.2 queda como historico en eval/README.
+
+Criterio de salida (cumplido): conformance 34/34 con digest declarado;
+pipeline byte a byte intacto; pytest verde con y sin extras; core
+minimo instalable sin extras.
+
+### Fase v0.3-3: validacion en laboratorio (completada 2026-07-23)
+
+Smoke real (caso 15) en el host de laboratorio: task_done,
+coverage_complete=true, chunk_index=6 (umbral >=2), 8/8 unidades, con
+aceptacion desordenada real y orden conservado. Un robustecimiento
+surgido del smoke, registrado como ficha v0.3/0001 (DERIVE tolerante a
+ids no-string + granularidad explicita), patron v0.2-3.
+
+Criterio de salida (cumplido): smoke dentro de umbral; ficha
+registrada. El corte de v0.3.0 queda a decision del usuario en la
+reconciliacion.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).
+- `capability.route` (clasificador consultivo de capacidad: propone
+  atomica/iterativa/compleja sin ejecutar, ADR 0038): diferido hasta que
+  exista un agente consumidor real (leccion MemoryPort).
 - tool_contracts (invocacion de herramientas, ADR 0007): diferido hasta que
   exista una herramienta concreta que lo justifique (anti-entropia); sin fase
   asignada (ADR 0022).

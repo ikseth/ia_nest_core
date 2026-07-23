@@ -6,13 +6,42 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Contrato del modo de cobertura de `task.run` (`mode=coverage`: unidades
+  verificables, ledger, validacion separada, eventos `answer_chunk` y
+  `coverage_updated`, cortes `max_chunks | max_total_tokens | no_progress`)
+  y seccion de seleccion de capacidad en `CORE_CONTRACT.md` (ADR 0038);
+  implementacion en fases v0.3-1/2/3 del PLAN. Impacto: minor (version
+  objetivo v0.3.0).
+- Implementacion completa del modo coverage (fases v0.3-1/2/3): config
+  `orchestration.coverage`, bateria v0.3 congelada e integrada
+  (conformance 34/34, digest recalculado y declarado, ADR 0017), runtime
+  con ledger y salida progresiva, paridad CLI/REST/MCP (`--mode`), manual,
+  y smoke de laboratorio dentro de umbral con robustecimiento
+  ([ficha v0.3/0001](docs/fixes/v0.3/0001-derive-coverage-tolerante.md)).
+  Parte de v0.3.0.
 - `finish_reason` crudo del backend en el evento `done`, la traza y telemetria
   JSONL de `prompt.run`, los registros de subtarea de `task.run` y los pasos de
   `reasoning.run`; fakes deterministas con `stop` por defecto y valor
   scriptable ([ficha 0002](docs/fixes/v0.2/0002-finish-reason.md)). Impacto:
   patch.
 
+### Corregido
+- Los cortes por `max_context_tokens` de `task.run` evaluan el acumulado
+  real de tokens de todas las llamadas (antes solo el override
+  `simulated`, inoperante con backend real); el acumulado queda expuesto
+  en la traza ([ficha 0003](docs/fixes/v0.2/0003-contabilidad-tokens-task-run.md)).
+  Impacto: patch.
+- Modo coverage robustecido tras el smoke real: el validador devuelve solo
+  ids y el parser tolera varios formatos de salida
+  ([ficha v0.3/0002](docs/fixes/v0.3/0002-parser-cobertura-tolerante.md)); el
+  generador emite solo el contenido de sus unidades, sin preambulo ni cierre
+  ([ficha v0.3/0003](docs/fixes/v0.3/0003-generador-coverage-sin-boilerplate.md)).
+  Impacto: patch.
+
 ### Cambiado
+- Salida de la CLI: stdout lleva solo la respuesta, el progreso va a stderr
+  como linea concisa, `--json` intacto y nueva bandera `--quiet`; uniforme en
+  `prompt.run`, `reasoning.run` y `task.run` (ADR 0039). Impacto: patch.
 - Doctrina del ente: dos funciones nerviosas (ADR 0037). `ia_nest_core_ops`
   se reconcilia como `ia_nest_core_pulse` -sistema nervioso autonomo: observa
   la telemetria de todos y regula parametros tecnicos dentro de los techos del

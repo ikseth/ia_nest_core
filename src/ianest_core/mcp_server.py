@@ -43,8 +43,17 @@ def create_server(
         )
 
     @server.tool(name="task.run", structured_output=True)
-    def task_run(prompt: str, identity: dict[str, str] | None = None) -> dict[str, Any]:
-        return service.run_task(config_path=config_path, prompt=prompt, identity=identity or {})
+    def task_run(
+        prompt: str,
+        mode: str = "pipeline",
+        identity: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        return service.run_task(
+            config_path=config_path,
+            prompt=prompt,
+            mode=mode,
+            identity=identity or {},
+        )
 
     @server.tool(name="domain.route", structured_output=True)
     def domain_route(prompt: str, tags: list[str] | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:

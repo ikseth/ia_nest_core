@@ -1,6 +1,6 @@
 # Bateria de task.run mode=coverage (linea v0.3, ADR 0038). CRITERIO DE
 # ACEPTACION escrito y CONGELADO ANTES de implementar (fase v0.3-2 del PLAN).
-# El runner NO carga este archivo hasta la fase v0.3-2.
+# El runner carga este archivo desde la fase v0.3-2.
 #
 # Scripting determinista (world.script), realizado por ScriptedFakeAdapter en
 # la implementacion v0.3-2:
@@ -388,3 +388,16 @@
     pending_units: [u1]
     chunk_index: 0
     max_total_tokens: 16384
+
+- id: coverage_smoke_enumerable
+  track: smoke
+  description: "ADR 0038 caso 15: una tarea enumerable real se genera en varios fragmentos."
+  capability: task.run
+  input:
+    prompt: "Enumera los ocho planetas del sistema solar en orden desde el Sol y explica brevemente cada uno."
+    mode: coverage
+    identity: { user_id: local, service: local_cli }
+  thresholds:
+    coverage_complete: true
+    chunk_index_min: 2
+    latency_ms_max: 180000

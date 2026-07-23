@@ -56,9 +56,9 @@ fijan el criterio de aceptacion de `task.run` (ADR 0036) ANTES de implementarlo
 `eval/battery/*.yaml` (no recursivo); en la fase v0.2-3 el runner lo incorpora
 y el `conformance_digest` se recalcula (cambio declarado, ADR 0017).
 
-Digest de conformidad declarado tras incorporar los 13 casos v0.2 (23 casos
-de conformidad totales; incluye la enmienda aprobada `task_subtask_unknown_hint`,
-2026-07-16):
+Digest historico v0.2, declarado tras incorporar los 13 casos de orquestacion
+(23 casos de conformidad totales; incluye la enmienda aprobada
+`task_subtask_unknown_hint`, 2026-07-16):
 `1d405c95660947206a0be19a6f8ef8ecf92874a7718f3dd10348ab0fb040263b`.
 Los dos casos `smoke` v0.2 quedan excluidos de esta ejecucion y del digest.
 
@@ -81,14 +81,15 @@ sustitucion por subtarea), `checkpoints` (secuencia ordenada),
 
 ## Bateria v0.3 (coverage)
 
-La pista `conformance` de coverage queda congelada en
-`eval/battery/v0.3/coverage.yaml.frozen` y usa la fixture
-`eval/fixtures/orchestration_coverage.yaml`. El sufijo `.frozen` es el
-mecanismo de aparcamiento: el runner carga `*.yaml` de forma recursiva
-desde la fase v0.2-3, por lo que el subdirectorio ya no basta (precedente
-del "aparcar" de v0.2-2). La fase v0.3-2 renombra el archivo a `.yaml` al
-integrarlo. El digest v0.3 se declarara al cerrar esa fase; queda
-pendiente mientras la bateria no se ejecute.
+La pista `conformance` de coverage vive en
+`eval/battery/v0.3/coverage.yaml` y usa la fixture
+`eval/fixtures/orchestration_coverage.yaml`. Desde la fase v0.3-2 el runner
+integra sus 11 casos.
+
+Digest de conformidad v0.3 declarado tras la integracion (34 casos de
+conformidad totales):
+`5aa67516fb10c2a9b1040798262bc09231467f5bff02fe748a1f8b636ddd3475`.
+El caso `smoke` v0.3 queda excluido del digest, como los smoke v0.2.
 
 Tests pytest requeridos para los aspectos no expresables end-to-end por la
 bateria declarativa:

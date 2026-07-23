@@ -64,6 +64,14 @@ def test_prompt_help_explains_model_precedence(capsys: pytest.CaptureFixture[str
     assert "router selecciona el dominio y el modelo" in normalized
 
 
+def test_task_run_help_explains_execution_modes(capsys: pytest.CaptureFixture[str]) -> None:
+    output = _help(["task", "run"], capsys)
+    normalized = " ".join(output.split())
+    assert "--mode {pipeline,coverage}" in normalized
+    assert "por defecto: pipeline" in normalized
+    assert "unidades enumerables" in normalized
+
+
 def test_help_does_not_load_environment(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     def fail_if_called(*args: object, **kwargs: object) -> None:
         raise AssertionError("load_dotenv must not run while rendering help")

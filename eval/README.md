@@ -79,6 +79,31 @@ sustitucion por subtarea), `checkpoints` (secuencia ordenada),
 `checkpoint_counts`, `subtask_trace_fields`, `subtask_traces_share_task_id`,
 `subtask_traces_link_parent`.
 
+## Bateria v0.3 (coverage)
+
+La pista `conformance` de coverage queda congelada en
+`eval/battery/v0.3/coverage.yaml.frozen` y usa la fixture
+`eval/fixtures/orchestration_coverage.yaml`. El sufijo `.frozen` es el
+mecanismo de aparcamiento: el runner carga `*.yaml` de forma recursiva
+desde la fase v0.2-3, por lo que el subdirectorio ya no basta (precedente
+del "aparcar" de v0.2-2). La fase v0.3-2 renombra el archivo a `.yaml` al
+integrarlo. El digest v0.3 se declarara al cerrar esa fase; queda
+pendiente mientras la bateria no se ejecute.
+
+Tests pytest requeridos para los aspectos no expresables end-to-end por la
+bateria declarativa:
+
+- Caso 3: el prompt de la llamada siguiente contiene solo unidades pendientes
+  y no el texto integro aceptado.
+- Caso 7: un fallo reintenta solo la unidad afectada.
+- Caso 8: unidades independientes respetan `max_parallel`.
+- Caso 12: streaming y bloqueante producen el mismo contenido final.
+- Caso 13: la telemetria JSONL reconstruye cobertura, fragmentos y modelos.
+- Caso 14: los casos 1-13 usan solo adaptadores fake.
+
+Caso 15, smoke real: declarar y verificar `coverage_complete=true` y
+`chunk_index >= 2`, sin exigir texto exacto.
+
 ## Convenciones
 
 Claves en ingles snake_case (ADR 0016). El esquema de config sigue el ADR

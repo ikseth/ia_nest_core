@@ -6,7 +6,8 @@ import string
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any, Callable, Iterator
 from uuid import uuid4
 
@@ -39,6 +40,26 @@ class TaskResult:
             "trace": self.trace,
             "checkpoints": self.checkpoints,
         }
+
+
+@dataclass
+class _TokenUsage:
+    tokens_in: int = 0
+    tokens_out: int = 0
+    lock: Lock = field(default_factory=Lock)
+
+    def add(self, result: PromptRunResult) -> None:
+        with self.lock:
+            self.tokens_in += int(result.trace.get("tokens_in", 0) or 0)
+            self.tokens_out += int(result.trace.get("tokens_out", 0) or 0)
+
+    def snapshot(self) -> tuple[int, int]:
+        with self.lock:
+            return self.tokens_in, self.tokens_out
+
+    def total(self) -> int:
+        tokens_in, tokens_out = self.snapshot()
+        return tokens_in + tokens_out
 
 
 class TaskRuntime:
@@ -89,9 +110,10 @@ class TaskRuntime:
         response = ""
         iterations = 0
         replans = 0
+        token_usage = _TokenUsage()
 
         yield self._checkpoint("task_received", checkpoints, identity, parent_request_id, task_id, {"prompt": prompt})
-        plan = self._plan(prompt, identity_data, parent_request_id, task_id)
+        plan = self._plan(prompt, identity_data, parent_request_id, task_id, token_usage)
 
         while True:
             yield self._checkpoint("plan_ready", checkpoints, identity, parent_request_id, task_id, {"plan": plan})
@@ -100,20 +122,20 @@ class TaskRuntime:
                 break
 
             iterations += 1
-            iteration_results = self._fan_out(plan, identity_data, parent_request_id, task_id)
+            iteration_results = self._fan_out(plan, identity_data, parent_request_id, task_id, token_usage)
             subtasks.extend(iteration_results)
             for item in iteration_results:
                 yield self._checkpoint("subtask_done", checkpoints, identity, parent_request_id, task_id, item)
 
-            response = self._combine(prompt, iteration_results, identity_data, parent_request_id, task_id)
+            response = self._combine(prompt, iteration_results, identity_data, parent_request_id, task_id, token_usage)
             yield self._checkpoint("combine_ready", checkpoints, identity, parent_request_id, task_id, {"response": response})
-            decision = self._evaluate(prompt, response, identity_data, parent_request_id, task_id)
+            decision = self._evaluate(prompt, response, identity_data, parent_request_id, task_id, token_usage)
             yield self._checkpoint(
                 "iteration_end", checkpoints, identity, parent_request_id, task_id,
                 {"iteration": iterations, "decision": decision},
             )
 
-            stop_reason = self._limit_reason(started)
+            stop_reason = self._limit_reason(started, token_usage)
             if stop_reason:
                 break
             if decision == "done":
@@ -124,12 +146,13 @@ class TaskRuntime:
                     stop_reason = "max_replans"
                     break
                 replans += 1
-                plan = self._plan(prompt, identity_data, parent_request_id, task_id)
+                plan = self._plan(prompt, identity_data, parent_request_id, task_id, token_usage)
                 continue
             if iterations >= self.settings.max_iterations:
                 stop_reason = "max_iterations"
                 break
 
+        tokens_in, tokens_out = token_usage.snapshot()
         payload = {
             "response": response,
             "stop_reason": stop_reason,
@@ -141,26 +164,28 @@ class TaskRuntime:
                 "capability": "task.run",
                 **identity.to_dict(),
                 "latency_ms": int((time.monotonic() - started) * 1000),
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
                 "stop_reason": stop_reason,
             },
             "checkpoints": [*checkpoints, "task_done"],
         }
         yield self._checkpoint("task_done", checkpoints, identity, parent_request_id, task_id, payload)
 
-    def _plan(self, prompt: str, identity: dict[str, str], parent: str, task_id: str) -> list[dict[str, Any]]:
+    def _plan(self, prompt: str, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
             "Decompose the task. Return only a JSON list of objects with prompt and optional "
             "domain_hint and depends_on. If domain_hint is used, it must be one of: "
             f"{domain_ids}. Task: {prompt}"
         )
-        result = self._run_target(self.settings.planner, instruction, identity, parent, task_id, "planner")
+        result = self._run_target(self.settings.planner, instruction, identity, parent, task_id, "planner", token_usage)
         plan = _parse_plan(result.response)
         if not isinstance(plan, list) or not all(self._valid_subtask(item) for item in plan):
             raise CoreError("PlanParseError", "planner returned an invalid plan", "plan")
         return [dict(item) for item in plan]
 
-    def _fan_out(self, plan: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str) -> list[dict[str, Any]]:
+    def _fan_out(self, plan: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
         pending = set(range(len(plan)))
         completed: dict[int, dict[str, Any]] = {}
         while pending:
@@ -168,13 +193,16 @@ class TaskRuntime:
             if not ready:
                 raise CoreError("PlanDependencyError", "plan contains cyclic or invalid dependencies", "depends_on")
             with ThreadPoolExecutor(max_workers=self.settings.max_parallel) as executor:
-                futures = {index: executor.submit(self._run_subtask, index, plan[index], identity, parent, task_id) for index in ready}
+                futures = {
+                    index: executor.submit(self._run_subtask, index, plan[index], identity, parent, task_id, token_usage)
+                    for index in ready
+                }
                 for index in ready:
                     completed[index] = futures[index].result()
                     pending.remove(index)
         return [completed[index] for index in range(len(plan))]
 
-    def _run_subtask(self, index: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str) -> dict[str, Any]:
+    def _run_subtask(self, index: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
         domain_hint = item.get("domain_hint")
         domain_id = self._resolve_domain_hint(domain_hint)
         ignored_hint = domain_hint if domain_hint and domain_id is None else None
@@ -184,7 +212,7 @@ class TaskRuntime:
             trace_payload["domain_hint_ignored"] = ignored_hint
         result = self._run_prompt(
             prompt=str(item["prompt"]), domain_id=domain_id,
-            identity=identity, request_id=request_id, trace_payload=trace_payload,
+            identity=identity, request_id=request_id, trace_payload=trace_payload, token_usage=token_usage,
         )
         record = {
             "index": index,
@@ -211,33 +239,36 @@ class TaskRuntime:
                 return domain.id
         return None
 
-    def _combine(self, prompt: str, results: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str) -> str:
+    def _combine(self, prompt: str, results: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> str:
         content = f"Combine the subtask results into one answer. Task: {prompt}\nResults: {json.dumps(results, ensure_ascii=False)}"
-        return self._run_target(self.settings.combiner, content, identity, parent, task_id, "combiner").response
+        return self._run_target(self.settings.combiner, content, identity, parent, task_id, "combiner", token_usage).response
 
-    def _evaluate(self, prompt: str, response: str, identity: dict[str, str], parent: str, task_id: str) -> str:
+    def _evaluate(self, prompt: str, response: str, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> str:
         content = (
             "Evaluate the combined answer. Return only one word: done, rerun, or replan. "
             f"Task: {prompt}\nAnswer: {response}"
         )
         response_text = self._run_target(
-            self.settings.planner, content, identity, parent, task_id, "evaluator"
+            self.settings.planner, content, identity, parent, task_id, "evaluator", token_usage
         ).response
         return _parse_evaluation_decision(response_text)
 
-    def _run_target(self, target: OrchestrationTargetConfig, prompt: str, identity: dict[str, str], parent: str, task_id: str, role: str) -> PromptRunResult:
+    def _run_target(self, target: OrchestrationTargetConfig, prompt: str, identity: dict[str, str], parent: str, task_id: str, role: str, token_usage: _TokenUsage) -> PromptRunResult:
         return self._run_prompt(
             prompt=prompt, model_id=target.model, domain_id=target.domain, profile_id=target.profile,
             identity=identity, request_id=str(uuid4()),
             trace_payload={"task_id": task_id, "parent_request_id": parent, "orchestration_role": role},
+            token_usage=token_usage,
         )
 
     def _run_prompt(self, **kwargs: Any) -> PromptRunResult:
-        return self.prompt_runtime.run(
+        result = self.prompt_runtime.run(
             prompt=kwargs["prompt"], model_id=kwargs.get("model_id"), domain_id=kwargs.get("domain_id"),
             profile_id=kwargs.get("profile_id"), identity_override=kwargs["identity"],
             request_id=kwargs["request_id"], trace_payload=kwargs["trace_payload"],
         )
+        kwargs["token_usage"].add(result)
+        return result
 
     def _checkpoint(self, name: str, checkpoints: list[str], identity: Identity, parent: str, task_id: str, data: dict[str, Any]) -> Event:
         checkpoints.append(name)
@@ -247,9 +278,9 @@ class TaskRuntime:
         )
         return Event(name, data)
 
-    def _limit_reason(self, started: float) -> str | None:
+    def _limit_reason(self, started: float, token_usage: _TokenUsage) -> str | None:
         elapsed = float(self.simulated.get("elapsed_s", time.monotonic() - started))
-        context = int(self.simulated.get("context_tokens", 0))
+        context = int(self.simulated["context_tokens"]) if "context_tokens" in self.simulated else token_usage.total()
         if elapsed >= self.settings.max_time_s:
             return "max_time"
         if context >= self.settings.max_context_tokens:

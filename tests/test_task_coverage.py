@@ -383,6 +383,18 @@ def test_parse_covered_ids_tolerates_validator_formats(response, expected) -> No
     assert _parse_covered_ids(response) == expected
 
 
+def test_coverage_validator_prompt_requests_ids_only(tmp_path) -> None:
+    units = [{"id": "d1920", "prompt": "cine de 1920"}]
+    validator = CapturingAdapter("fake_validator", [json.dumps(["d1920"])])
+    runtime = _runtime(tmp_path, units, ["FRAG"], [], adapters={"fake_validator": validator})
+
+    runtime.run(prompt="obras maestras", mode="coverage")
+
+    prompt = validator.prompts[0]
+    assert "d1920" in prompt
+    assert "only a json array" in prompt.lower()
+
+
 def test_coverage_accepts_validator_dict_keyed_by_id(tmp_path) -> None:
     units = [{"id": "d1920", "prompt": "cine de 1920"}, {"id": "d1930", "prompt": "cine de 1930"}]
     validator_dict = json.dumps({"d1920": [{"film": "Nosferatu"}], "d1930": [{"film": "M"}]})

@@ -105,6 +105,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_inference_arguments(run_parser)
     _add_json_argument(run_parser, "resultado")
+    _add_quiet_argument(run_parser)
     _add_identity_arguments(run_parser)
 
     reasoning_parser = _group_parser(
@@ -122,15 +123,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_inference_arguments(reasoning_run_parser)
     _add_json_argument(reasoning_run_parser, "resultado")
+    _add_quiet_argument(reasoning_run_parser)
     _add_identity_arguments(reasoning_run_parser)
     reasoning_stream_parser = reasoning_subparsers.add_parser(
         "stream",
         help="emite los eventos del razonamiento mientras se ejecuta",
-        description="Ejecuta razonamiento iterativo y muestra cada evento del flujo.",
+        description="Ejecuta razonamiento iterativo: la salida va a stdout y el progreso por paso a stderr.",
         epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
     )
     _add_inference_arguments(reasoning_stream_parser)
     _add_json_argument(reasoning_stream_parser, "cada evento como JSONL")
+    _add_quiet_argument(reasoning_stream_parser)
     _add_identity_arguments(reasoning_stream_parser)
 
     task_parser = _group_parser(
@@ -140,7 +143,7 @@ def _build_parser() -> argparse.ArgumentParser:
     task_subparsers = _action_subparsers(task_parser, "task_command")
     task_run_parser = task_subparsers.add_parser(
         "run", help="ejecuta una tarea y muestra sus checkpoints",
-        description="Ejecuta task.run y muestra los checkpoints mientras progresa.",
+        description="Ejecuta task.run: la respuesta va a stdout y el progreso a stderr (--quiet lo silencia).",
         epilog=(
             "pipeline ejecuta el flujo multi-modelo de cinco etapas; coverage "
             "genera y valida unidades enumerables hasta completar su cobertura."
@@ -154,6 +157,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="modo de ejecucion de task.run (por defecto: %(default)s)",
     )
     _add_json_argument(task_run_parser, "cada checkpoint como JSONL")
+    _add_quiet_argument(task_run_parser)
     _add_identity_arguments(task_run_parser)
 
     domain_parser = _group_parser(
@@ -265,6 +269,14 @@ def _add_json_argument(parser: argparse.ArgumentParser, content: str) -> None:
     parser.add_argument("--json", action="store_true", help=f"emite {content} en formato JSON")
 
 
+def _add_quiet_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="suprime el progreso en stderr; no afecta a la respuesta",
+    )
+
+
 def _add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     identity = parser.add_argument_group("identidad del request")
     identity.add_argument("--user-id", metavar="ID", help="identificador de usuario; sobrescribe el valor configurado")
@@ -344,13 +356,17 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
     ):
         if args.json:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+        elif event["type"] == "done":
+            print(event["data"]["output"])
+        elif event["type"] == "token":
+            print(event["data"]["text"], end="", flush=True)
         else:
-            print(f"{event['type']}\t{event['data']}")
+            _emit_progress(_reasoning_progress(event), quiet=args.quiet)
     return 0
 
 
 def _task_run(args: argparse.Namespace) -> int:
-    streamed_answer = False
+    answer_was_streamed = False
     for event in service.stream_task(
         config_path=args.config,
         prompt=args.prompt,
@@ -361,15 +377,55 @@ def _task_run(args: argparse.Namespace) -> int:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
         elif event["type"] == "answer_chunk":
             print(event["data"]["text"], end="", flush=True)
-            streamed_answer = True
+            answer_was_streamed = True
         elif event["type"] == "task_done":
-            print("" if streamed_answer else event["data"]["response"])
+            if not answer_was_streamed:
+                print(event["data"]["response"])
         else:
-            if streamed_answer:
-                print()
-                streamed_answer = False
-            print(event["type"])
+            _emit_progress(_task_progress(event), quiet=args.quiet)
     return 0
+
+
+def _emit_progress(message: str, *, quiet: bool) -> None:
+    if not quiet:
+        print(message, file=sys.stderr)
+
+
+def _reasoning_progress(event: dict[str, object]) -> str:
+    if event["type"] == "step":
+        data = event.get("data")
+        iteration = data.get("iteration") if isinstance(data, dict) else None
+        return f"Paso {iteration} completado" if iteration is not None else "Paso completado"
+    return "Razonamiento en curso"
+
+
+def _task_progress(event: dict[str, object]) -> str:
+    event_type = event["type"]
+    data = event.get("data")
+    payload = data if isinstance(data, dict) else {}
+    if event_type == "task_received":
+        return "Tarea recibida"
+    if event_type == "plan_ready":
+        items = payload.get("units", payload.get("plan", []))
+        count = len(items) if isinstance(items, list) else 0
+        return f"Plan listo: {count} unidades"
+    if event_type == "subtask_done":
+        return "Subtarea completada"
+    if event_type == "coverage_updated":
+        completed = payload.get("completed", [])
+        pending = payload.get("pending", [])
+        failed = payload.get("failed", [])
+        completed_count = len(completed) if isinstance(completed, list) else 0
+        pending_count = len(pending) if isinstance(pending, list) else 0
+        failed_count = len(failed) if isinstance(failed, list) else 0
+        total = completed_count + pending_count + failed_count
+        return f"Cobertura actualizada: {completed_count}/{total}"
+    if event_type == "iteration_end":
+        iteration = payload.get("iteration")
+        return f"Iteracion {iteration} completada" if iteration is not None else "Iteracion completada"
+    if event_type == "combine_ready":
+        return "Respuesta preparada"
+    return "Tarea en curso"
 
 
 def _domain_route(args: argparse.Namespace) -> int:

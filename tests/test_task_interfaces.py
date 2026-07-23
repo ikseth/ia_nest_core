@@ -54,14 +54,16 @@ def test_cli_task_run_emits_checkpoints_as_jsonl(monkeypatch, capsys) -> None:
         "--config", "unused", "task", "run", "--prompt", "tarea",
         "--mode", "coverage", "--json",
     ])
-    output = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    captured = capsys.readouterr()
+    output = [json.loads(line) for line in captured.out.splitlines()]
 
     assert exit_code == 0
     assert [event["type"] for event in output] == ["task_received", "plan_ready", "task_done"]
+    assert captured.err == ""
     assert calls[0]["mode"] == "coverage"
 
 
-def test_cli_task_run_prints_answer_chunks_incrementally(monkeypatch, capsys) -> None:
+def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys) -> None:
     events = [
         {"type": "task_received", "data": {"prompt": "tarea"}},
         {"type": "answer_chunk", "data": {"text": "FIRST"}},
@@ -72,14 +74,88 @@ def test_cli_task_run_prints_answer_chunks_incrementally(monkeypatch, capsys) ->
     calls = []
     monkeypatch.setattr(service, "stream_task", lambda **kwargs: calls.append(kwargs) or iter(events))
 
-    exit_code = main(["--config", "unused", "task", "run", "--prompt", "tarea"])
-    output = capsys.readouterr().out
+    exit_code = main([
+        "--config", "unused", "task", "run", "--prompt", "tarea", "--mode", "coverage",
+    ])
+    captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert "FIRST" in output
-    assert "SECOND" in output
-    assert output.count("FIRSTSECOND") == 0
-    assert calls[0]["mode"] == "pipeline"
+    assert captured.out == "FIRSTSECOND"
+    assert "Tarea recibida" in captured.err
+    assert "Cobertura actualizada" in captured.err
+    assert "task_received" not in captured.out
+    assert "coverage_updated" not in captured.out
+    assert captured.out.count("FIRSTSECOND") == 1
+    assert calls[0]["mode"] == "coverage"
+
+
+def test_cli_task_run_quiet_suppresses_progress(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "task_received", "data": {"prompt": "tarea"}},
+        {"type": "answer_chunk", "data": {"text": "FIRST"}},
+        {"type": "coverage_updated", "data": {"completed": ["u1"], "pending": []}},
+        {"type": "task_done", "data": {"response": "FIRST"}},
+    ]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "task", "run", "--prompt", "tarea",
+        "--mode", "coverage", "--quiet",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out == "FIRST"
+    assert captured.err == ""
+
+
+def test_cli_task_pipeline_prints_final_response_once(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(EVENTS))
+
+    exit_code = main(["--config", "unused", "task", "run", "--prompt", "tarea"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out == "FINAL\n"
+    assert "Tarea recibida" in captured.err
+    assert "Plan listo" in captured.err
+
+
+def test_cli_reasoning_stream_separates_output_and_steps(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "step", "data": {"iteration": 1, "output": "draft"}},
+        {"type": "step", "data": {"iteration": 2, "output": "final"}},
+        {"type": "done", "data": {"output": "FINAL"}},
+    ]
+    monkeypatch.setattr(service, "stream_reasoning", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "reasoning", "stream", "--prompt", "tarea",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out == "FINAL\n"
+    assert "Paso 1" in captured.err
+    assert "Paso 2" in captured.err
+    assert "step" not in captured.out
+
+
+def test_cli_reasoning_stream_quiet_suppresses_steps(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "step", "data": {"iteration": 1, "output": "draft"}},
+        {"type": "done", "data": {"output": "FINAL"}},
+    ]
+    monkeypatch.setattr(service, "stream_reasoning", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "reasoning", "stream", "--prompt", "tarea", "--quiet",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out == "FINAL\n"
+    assert captured.err == ""
 
 
 @pytest.mark.skipif(importlib.util.find_spec("starlette") is None, reason="REST extra not installed")

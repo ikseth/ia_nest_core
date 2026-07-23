@@ -50,6 +50,16 @@ class OrchestrationTargetConfig:
 
 
 @dataclass(frozen=True)
+class CoverageConfig:
+    validator: OrchestrationTargetConfig
+    units_per_chunk: int = 3
+    max_chunks: int = 8
+    max_total_tokens: int = 16384
+    max_retries_per_unit: int = 2
+    max_no_progress_iterations: int = 2
+
+
+@dataclass(frozen=True)
 class OrchestrationConfig:
     planner: OrchestrationTargetConfig
     combiner: OrchestrationTargetConfig
@@ -59,6 +69,7 @@ class OrchestrationConfig:
     max_time_s: float = 30
     max_context_tokens: int = 4096
     max_parallel: int = 2
+    coverage: CoverageConfig | None = None
 
 
 @dataclass(frozen=True)

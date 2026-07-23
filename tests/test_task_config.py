@@ -24,6 +24,28 @@ def test_orchestration_config_is_optional() -> None:
     assert config.orchestration is None
 
 
+def test_orchestration_coverage_config_loads_frozen_fixture() -> None:
+    validate_config_dict(load_config_data("eval/fixtures/orchestration_coverage.yaml"))
+    config = load_config("eval/fixtures/orchestration_coverage.yaml")
+
+    assert config.orchestration is not None
+    assert config.orchestration.coverage is not None
+    assert config.orchestration.coverage.validator.model == "fake_validator"
+    assert config.orchestration.coverage.units_per_chunk == 3
+    assert config.orchestration.coverage.max_chunks == 8
+    assert config.orchestration.coverage.max_total_tokens == 16384
+    assert config.orchestration.coverage.max_retries_per_unit == 2
+    assert config.orchestration.coverage.max_no_progress_iterations == 2
+
+
+def test_orchestration_coverage_config_is_optional() -> None:
+    validate_config_dict(load_config_data("eval/fixtures/orchestration.yaml"))
+    config = load_config("eval/fixtures/orchestration.yaml")
+
+    assert config.orchestration is not None
+    assert config.orchestration.coverage is None
+
+
 @pytest.mark.parametrize(
     ("mutation", "field"),
     [
@@ -37,6 +59,23 @@ def test_orchestration_config_is_optional() -> None:
 def test_orchestration_validator_rejects_invalid_references_and_limits(mutation, field) -> None:
     raw = deepcopy(load_config_data("eval/fixtures/orchestration.yaml"))
     raw["orchestration"].update(mutation)
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_dict(raw)
+
+    assert exc.value.field == field
+
+
+@pytest.mark.parametrize(
+    ("mutation", "field"),
+    [
+        ({"validator": {"model": "missing", "profile": "default"}}, "orchestration.coverage.validator.model"),
+        ({"max_chunks": 0}, "orchestration.coverage.max_chunks"),
+    ],
+)
+def test_orchestration_coverage_validator_rejects_invalid_references_and_limits(mutation, field) -> None:
+    raw = deepcopy(load_config_data("eval/fixtures/orchestration_coverage.yaml"))
+    raw["orchestration"]["coverage"].update(mutation)
 
     with pytest.raises(ConfigValidationError) as exc:
         validate_config_dict(raw)

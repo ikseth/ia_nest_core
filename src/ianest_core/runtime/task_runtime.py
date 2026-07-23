@@ -656,8 +656,13 @@ class TaskRuntime:
             return []
 
         unit_ids = [unit.id for unit in targets]
+        example = json.dumps(unit_ids[:1] or ["id1"], ensure_ascii=False)
         content = (
-            "Validate coverage. Return only a JSON list containing the ids actually covered. "
+            "You decide which target units a fragment covers. Return ONLY a JSON array of "
+            "ids, taken exactly from this list and nothing else: "
+            f"{json.dumps(unit_ids, ensure_ascii=False)}. Include an id if and only if the "
+            "fragment addresses that unit. Do not include titles, content, explanations or "
+            f"any other text; the answer must be short. Example of a valid answer: {example}.\n"
             f"Objective: {objective}\n"
             f"Target units: {json.dumps([{'id': unit.id, 'prompt': unit.prompt} for unit in targets], ensure_ascii=False)}\n"
             f"Fragment: {generation.result.response}"
@@ -1083,14 +1088,27 @@ def _parse_covered_ids(text: str) -> set[str]:
             break
         except json.JSONDecodeError:
             continue
+    return _covered_ids_from(value)
+
+
+def _covered_ids_from(value: Any) -> set[str]:
     if isinstance(value, dict):
         for key in ("ids", "unit_ids", "completed_units", "covered"):
             if key in value:
-                value = value[key]
-                break
-    if not isinstance(value, list):
-        return set()
-    return {item for item in value if isinstance(item, str)}
+                return _covered_ids_from(value[key])
+        return {key for key in value if isinstance(key, str)}
+    if isinstance(value, list):
+        ids: set[str] = set()
+        for item in value:
+            if isinstance(item, str):
+                ids.add(item)
+            elif isinstance(item, dict):
+                for key in ("id", "unit_id"):
+                    if isinstance(item.get(key), str):
+                        ids.add(item[key])
+                        break
+        return ids
+    return set()
 
 
 def _normalize_domain_hint(value: str) -> str:

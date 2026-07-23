@@ -1083,14 +1083,27 @@ def _parse_covered_ids(text: str) -> set[str]:
             break
         except json.JSONDecodeError:
             continue
+    return _covered_ids_from(value)
+
+
+def _covered_ids_from(value: Any) -> set[str]:
     if isinstance(value, dict):
         for key in ("ids", "unit_ids", "completed_units", "covered"):
             if key in value:
-                value = value[key]
-                break
-    if not isinstance(value, list):
-        return set()
-    return {item for item in value if isinstance(item, str)}
+                return _covered_ids_from(value[key])
+        return {key for key in value if isinstance(key, str)}
+    if isinstance(value, list):
+        ids: set[str] = set()
+        for item in value:
+            if isinstance(item, str):
+                ids.add(item)
+            elif isinstance(item, dict):
+                for key in ("id", "unit_id"):
+                    if isinstance(item.get(key), str):
+                        ids.add(item[key])
+                        break
+        return ids
+    return set()
 
 
 def _normalize_domain_hint(value: str) -> str:

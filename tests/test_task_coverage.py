@@ -12,6 +12,7 @@ from ianest_core.errors import AdapterError, CoreError
 from ianest_core.config import load_config
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.runtime import TaskRuntime
+from ianest_core.runtime.task_runtime import _parse_covered_ids
 
 
 class CapturingAdapter(ScriptedFakeAdapter):
@@ -364,6 +365,40 @@ def test_coverage_rejects_invalid_mode_and_missing_config(tmp_path) -> None:
         "ConfigError",
         "orchestration.coverage",
     )
+
+
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        ('["u1", "u2"]', {"u1", "u2"}),
+        ('```json\n["u1"]\n```', {"u1"}),
+        ('{"covered": ["u1", "u2"]}', {"u1", "u2"}),
+        ('{"decada_1920": [{"nombre_original": "Nosferatu"}], "decada_1930": []}', {"decada_1920", "decada_1930"}),
+        ('[{"id": "u1"}, {"unit_id": "u2"}]', {"u1", "u2"}),
+        ('no cubre nada util', set()),
+        ('[]', set()),
+    ],
+)
+def test_parse_covered_ids_tolerates_validator_formats(response, expected) -> None:
+    assert _parse_covered_ids(response) == expected
+
+
+def test_coverage_accepts_validator_dict_keyed_by_id(tmp_path) -> None:
+    units = [{"id": "d1920", "prompt": "cine de 1920"}, {"id": "d1930", "prompt": "cine de 1930"}]
+    validator_dict = json.dumps({"d1920": [{"film": "Nosferatu"}], "d1930": [{"film": "M"}]})
+    runtime = _runtime(
+        tmp_path,
+        units,
+        ["FRAG1", "FRAG2"],
+        [],
+        adapters={"fake_validator": CapturingAdapter("fake_validator", [validator_dict, validator_dict])},
+    )
+
+    result = runtime.run(prompt="obras maestras por decada", mode="coverage")
+
+    assert result.stop_reason == "task_done"
+    assert result.coverage["coverage_complete"] is True
+    assert result.coverage["completed_units"] == ["d1920", "d1930"]
 
 
 def test_coverage_plan_accepts_integer_and_missing_ids(tmp_path) -> None:

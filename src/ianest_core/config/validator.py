@@ -27,6 +27,13 @@ ORCHESTRATION_LIMITS = {
     "max_context_tokens": int,
     "max_parallel": int,
 }
+COVERAGE_LIMITS = {
+    "units_per_chunk": int,
+    "max_chunks": int,
+    "max_total_tokens": int,
+    "max_retries_per_unit": int,
+    "max_no_progress_iterations": int,
+}
 
 
 def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
@@ -95,25 +102,60 @@ def _validate_orchestration(
     if not isinstance(raw, dict):
         raise ConfigValidationError("orchestration must be a mapping", "orchestration")
     for name in ("planner", "combiner"):
-        target = raw.get(name)
-        if not isinstance(target, dict):
-            raise ConfigValidationError("missing orchestration target", name)
-        model = target.get("model")
-        domain = target.get("domain")
-        if bool(model) == bool(domain):
-            raise ConfigValidationError("target requires exactly one of model or domain", name)
-        if model and model not in model_ids:
-            raise ConfigValidationError("orchestration model does not exist", f"{name}.model")
-        if domain and domain not in domain_ids:
-            raise ConfigValidationError("orchestration domain does not exist", f"{name}.domain")
-        if target.get("profile") not in profile_ids:
-            raise ConfigValidationError("orchestration profile does not exist", f"{name}.profile")
+        _validate_orchestration_target(raw.get(name), name, model_ids, domain_ids, profile_ids)
     for field, expected_type in ORCHESTRATION_LIMITS.items():
         if field not in raw:
             continue
         value = raw[field]
         if isinstance(value, bool) or not isinstance(value, expected_type) or value <= 0:
             raise ConfigValidationError("orchestration limit must be positive", field)
+    coverage = raw.get("coverage")
+    if coverage is not None:
+        _validate_coverage(coverage, model_ids, domain_ids, profile_ids)
+
+
+def _validate_coverage(
+    raw: Any,
+    model_ids: set[str],
+    domain_ids: set[str],
+    profile_ids: set[str],
+) -> None:
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("coverage must be a mapping", "orchestration.coverage")
+    target = raw.get("validator")
+    field = "orchestration.coverage.validator"
+    _validate_orchestration_target(target, field, model_ids, domain_ids, profile_ids)
+    _validate_coverage_limits(raw)
+
+
+def _validate_orchestration_target(
+    target: Any,
+    field: str,
+    model_ids: set[str],
+    domain_ids: set[str],
+    profile_ids: set[str],
+) -> None:
+    if not isinstance(target, dict):
+        raise ConfigValidationError("missing orchestration target", field)
+    model = target.get("model")
+    domain = target.get("domain")
+    if bool(model) == bool(domain):
+        raise ConfigValidationError("target requires exactly one of model or domain", field)
+    if model and model not in model_ids:
+        raise ConfigValidationError("orchestration model does not exist", f"{field}.model")
+    if domain and domain not in domain_ids:
+        raise ConfigValidationError("orchestration domain does not exist", f"{field}.domain")
+    if target.get("profile") not in profile_ids:
+        raise ConfigValidationError("orchestration profile does not exist", f"{field}.profile")
+
+
+def _validate_coverage_limits(raw: dict[str, Any]) -> None:
+    for name, expected_type in COVERAGE_LIMITS.items():
+        if name not in raw:
+            continue
+        value = raw[name]
+        if isinstance(value, bool) or not isinstance(value, expected_type) or value <= 0:
+            raise ConfigValidationError("coverage limit must be positive", f"orchestration.coverage.{name}")
 
 
 def _require_section(raw: dict[str, Any], field: str, expected_type: type) -> None:

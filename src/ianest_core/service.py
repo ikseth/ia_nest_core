@@ -101,12 +101,13 @@ def run_task(
     *,
     config_path: str | Path,
     prompt: str,
+    mode: str = "pipeline",
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     return TaskRuntime(config, availability=availability).run(
-        prompt=prompt, identity_override=identity or {}
+        prompt=prompt, mode=mode, identity_override=identity or {}
     ).to_dict()
 
 
@@ -114,12 +115,13 @@ def stream_task(
     *,
     config_path: str | Path,
     prompt: str,
+    mode: str = "pipeline",
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
 ) -> Iterator[dict[str, Any]]:
     config = load_config(config_path)
     runtime = TaskRuntime(config, availability=availability)
-    for event in runtime.stream(prompt=prompt, identity_override=identity or {}):
+    for event in runtime.stream(prompt=prompt, mode=mode, identity_override=identity or {}):
         yield {"type": event.type, "data": event.data}
 
 

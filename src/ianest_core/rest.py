@@ -80,6 +80,7 @@ def create_app(config_path: str | Path = "config/core.yaml"):
             for event in service.stream_task(
                 config_path=config_path,
                 prompt=payload["prompt"],
+                mode=payload.get("mode", "pipeline"),
                 identity=payload.get("identity", {}),
             ):
                 yield service.sse_encode(event)

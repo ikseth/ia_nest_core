@@ -141,8 +141,18 @@ def _build_parser() -> argparse.ArgumentParser:
     task_run_parser = task_subparsers.add_parser(
         "run", help="ejecuta una tarea y muestra sus checkpoints",
         description="Ejecuta task.run y muestra los checkpoints mientras progresa.",
+        epilog=(
+            "pipeline ejecuta el flujo multi-modelo de cinco etapas; coverage "
+            "genera y valida unidades enumerables hasta completar su cobertura."
+        ),
     )
     task_run_parser.add_argument("--prompt", required=True, metavar="TEXTO", help="tarea que se desea ejecutar")
+    task_run_parser.add_argument(
+        "--mode",
+        choices=["pipeline", "coverage"],
+        default="pipeline",
+        help="modo de ejecucion de task.run (por defecto: %(default)s)",
+    )
     _add_json_argument(task_run_parser, "cada checkpoint como JSONL")
     _add_identity_arguments(task_run_parser)
 
@@ -340,16 +350,24 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
 
 
 def _task_run(args: argparse.Namespace) -> int:
+    streamed_answer = False
     for event in service.stream_task(
         config_path=args.config,
         prompt=args.prompt,
+        mode=args.mode,
         identity=_identity_override(args),
     ):
         if args.json:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+        elif event["type"] == "answer_chunk":
+            print(event["data"]["text"], end="", flush=True)
+            streamed_answer = True
         elif event["type"] == "task_done":
-            print(event["data"]["response"])
+            print("" if streamed_answer else event["data"]["response"])
         else:
+            if streamed_answer:
+                print()
+                streamed_answer = False
             print(event["type"])
     return 0
 

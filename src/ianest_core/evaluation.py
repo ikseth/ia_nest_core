@@ -15,7 +15,7 @@ import yaml
 from ianest_core.config import load_config, load_config_from_dict, validate_config_dict
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.errors import CoreError
-from ianest_core.adapters import ScriptedFakeAdapter
+from ianest_core.adapters import Event, ScriptedFakeAdapter
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
 from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime, TaskRuntime
 
@@ -129,7 +129,11 @@ def _execute_prompt_run(case: dict[str, Any], *, config_path: str | Path | None)
             "tokens_out": result.trace["tokens_out"],
             "chars": len(result.response),
         }
-        thresholds_met = _thresholds_met(metrics, case.get("thresholds", {}))
+        thresholds_met = _thresholds_met(
+            metrics,
+            case.get("thresholds", {}),
+            response=result.response,
+        )
         return _smoke_result(case, metrics, thresholds_met, domain=result.domain, model=result.model)
 
     expected = case.get("expect", {})
@@ -179,6 +183,7 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
     try:
         result = runtime.run(
             prompt=case["input"].get("prompt", ""),
+            mode=case["input"].get("mode", "pipeline"),
             identity_override=case["input"].get("identity", {}),
             request_id=case["id"],
         )
@@ -188,6 +193,35 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
             return _case_result(case, [assertion], status="pass", error={"type": exc.type, "message": exc.message})
         raise
 
+    model = result.subtasks[0]["model"] if result.subtasks else ""
+    domain = result.subtasks[0]["domain"] if result.subtasks else ""
+    if case.get("track") == "smoke":
+        coverage = result.coverage or {}
+        metrics = {
+            "latency_ms": result.trace["latency_ms"],
+            "tokens_in": result.trace["tokens_in"],
+            "tokens_out": result.trace["tokens_out"],
+            "chars": len(result.response),
+        }
+        thresholds_met = _thresholds_met(
+            metrics,
+            case.get("thresholds", {}),
+            response=result.response,
+            observed={
+                "stop_reason": result.stop_reason,
+                "coverage_complete": bool(coverage.get("coverage_complete")),
+                "chunk_index": int(coverage.get("chunk_index", 0)),
+            },
+        )
+        return _smoke_result(
+            case,
+            metrics,
+            thresholds_met,
+            domain=domain,
+            model=model,
+        )
+
+    coverage = result.coverage or {}
     actual: dict[str, Any] = {
         "stop_reason": result.stop_reason,
         "response": result.response,
@@ -196,7 +230,16 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         "checkpoint_counts": {
             name: result.checkpoints.count(name) for name in expected.get("checkpoint_counts", {})
         },
+        "coverage_complete": coverage.get("coverage_complete"),
+        "completed_units": coverage.get("completed_units"),
+        "failed_units": coverage.get("failed_units"),
+        "pending_units": coverage.get("pending_units"),
+        "chunk_index": coverage.get("chunk_index"),
+        "units": _subtask_expectation(coverage.get("units", []), expected.get("units", [])),
     }
+    for limit in ("max_chunks", "max_total_tokens", "max_time_s"):
+        if limit in expected:
+            actual[limit] = _effective_limit_actual(result, limit, expected[limit])
     trace_events = _read_trace_events(config)
     subtask_events = [
         event for event in trace_events
@@ -213,13 +256,35 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         event["payload"].get("parent_request_id") == case["id"] for event in subtask_events
     )
     assertions = _assertions(actual, expected)
-    model = result.subtasks[0]["model"] if result.subtasks else ""
-    domain = result.subtasks[0]["domain"] if result.subtasks else ""
     return _case_result(case, assertions, domain=domain, model=model)
 
 
 def _task_adapters(case: dict[str, Any]) -> dict[str, ScriptedFakeAdapter]:
     script = case.get("world", {}).get("script", {})
+    if "units" in script:
+        generator_responses = script.get("generator_responses", {})
+        generator_finish_reasons = script.get("generator_finish_reasons", {})
+        adapters: dict[str, ScriptedFakeAdapter] = {
+            model: _FinishReasonScriptedFakeAdapter(
+                model,
+                [str(response) for response in responses],
+                [str(reason) for reason in generator_finish_reasons.get(model, [])],
+            )
+            for model, responses in generator_responses.items()
+        }
+        adapters["fake_planner"] = ScriptedFakeAdapter(
+            "fake_planner",
+            [json.dumps(script["units"], ensure_ascii=False)],
+        )
+        adapters["fake_validator"] = ScriptedFakeAdapter(
+            "fake_validator",
+            [
+                json.dumps(decision, ensure_ascii=False)
+                for decision in script.get("validator_decisions", [])
+            ],
+        )
+        return adapters
+
     planner_responses: list[str] = []
     decisions = iter(script.get("evaluate_decisions", []))
     for plan in script.get("plans", []):
@@ -235,6 +300,55 @@ def _task_adapters(case: dict[str, Any]) -> dict[str, ScriptedFakeAdapter]:
     }
     adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
     return adapters
+
+
+class _FinishReasonScriptedFakeAdapter(ScriptedFakeAdapter):
+    def __init__(
+        self,
+        model: str,
+        responses: list[str],
+        finish_reasons: list[str],
+    ) -> None:
+        super().__init__(model, responses)
+        self.finish_reasons = finish_reasons
+        self.calls = 0
+
+    def stream(self, req):
+        prompt = req.messages[-1]["content"]
+        text = self._next_response()
+        finish_reason = (
+            self.finish_reasons[self.calls]
+            if self.calls < len(self.finish_reasons)
+            else self.finish_reason
+        )
+        self.calls += 1
+        yield Event("token", {"text": text})
+        yield Event(
+            "done",
+            {
+                "text": text,
+                "model": self.model,
+                "tokens_in": len(prompt.split()) if prompt else 0,
+                "tokens_out": len(text.split()) if text else 0,
+                "finish_reason": finish_reason,
+            },
+        )
+
+
+def _effective_limit_actual(result: Any, name: str, expected: int) -> Any:
+    effective = result.params.get(name)
+    coverage = result.coverage or {}
+    within_limit = True
+    if name == "max_chunks":
+        within_limit = int(coverage.get("chunk_index", 0)) <= expected
+    elif name == "max_total_tokens":
+        tokens = int(coverage.get("tokens_in", 0)) + int(coverage.get("tokens_out", 0))
+        within_limit = tokens <= expected
+    elif name == "max_time_s":
+        within_limit = int(result.trace.get("latency_ms", 0)) <= expected * 1000
+    if effective == expected and within_limit:
+        return expected
+    return {"effective": effective, "within_limit": within_limit}
 
 
 def _subtask_expectation(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -391,12 +505,32 @@ def _totals(results: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
     return totals
 
 
-def _thresholds_met(metrics: dict[str, Any], thresholds: dict[str, Any]) -> bool:
+def _thresholds_met(
+    metrics: dict[str, Any],
+    thresholds: dict[str, Any],
+    *,
+    response: str = "",
+    observed: dict[str, Any] | None = None,
+) -> bool:
+    values = {**metrics, **(observed or {})}
     if "latency_ms_max" in thresholds and metrics["latency_ms"] > thresholds["latency_ms_max"]:
         return False
     if thresholds.get("must_be_nonempty") and metrics["chars"] == 0:
         return False
     if "min_chars" in thresholds and metrics["chars"] < thresholds["min_chars"]:
+        return False
+    if "must_contain" in thresholds and not all(
+        text in response for text in thresholds["must_contain"]
+    ):
+        return False
+    if "stop_reason" in thresholds and values.get("stop_reason") != thresholds["stop_reason"]:
+        return False
+    if (
+        "coverage_complete" in thresholds
+        and values.get("coverage_complete") is not thresholds["coverage_complete"]
+    ):
+        return False
+    if "chunk_index_min" in thresholds and values.get("chunk_index", 0) < thresholds["chunk_index_min"]:
         return False
     return True
 

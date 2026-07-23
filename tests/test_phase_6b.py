@@ -99,10 +99,22 @@ def test_eval_conformance_digest_is_stable() -> None:
     first = run_eval(track="conformance")
     second = run_eval(track="conformance")
 
-    assert first["totals"]["conformance"] == {"pass": 23, "fail": 0}
-    assert second["totals"]["conformance"] == {"pass": 23, "fail": 0}
+    assert first["totals"]["conformance"] == {"pass": 34, "fail": 0}
+    assert second["totals"]["conformance"] == {"pass": 34, "fail": 0}
     assert first["conformance_digest"] == second["conformance_digest"]
-    assert first["conformance_digest"] == "1d405c95660947206a0be19a6f8ef8ecf92874a7718f3dd10348ab0fb040263b"
+    assert first["conformance_digest"] == "5aa67516fb10c2a9b1040798262bc09231467f5bff02fe748a1f8b636ddd3475"
+
+
+def test_eval_v02_task_cases_still_pass() -> None:
+    result = run_eval(battery_dir="eval/battery/v0.2", track="conformance")
+
+    assert result["totals"]["conformance"] == {"pass": 13, "fail": 0}
+
+
+def test_eval_v03_coverage_cases_pass() -> None:
+    result = run_eval(battery_dir="eval/battery/v0.3", track="conformance")
+
+    assert result["totals"]["conformance"] == {"pass": 11, "fail": 0}
 
 
 def test_telemetry_rotates_by_size(tmp_path) -> None:

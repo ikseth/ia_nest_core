@@ -97,31 +97,52 @@ def test_runtime_detect_reports_local_gpu_best_effort() -> None:
 
 
 @pytest.mark.skipif(importlib.util.find_spec("starlette") is None, reason="REST extra not installed")
-def test_rest_prompt_run_and_stream_have_service_parity() -> None:
-    from starlette.testclient import TestClient
+def test_rest_prompt_run_and_stream_have_service_parity(monkeypatch) -> None:
+    import anyio
+    import json
+    import starlette.responses
 
     from ianest_core.rest import create_app
 
+    class Request:
+        def __init__(self, payload):
+            self.payload = payload
+
+        async def json(self):
+            return self.payload
+
+    class StreamingResponse:
+        def __init__(self, content, media_type):
+            self.content = content
+            self.media_type = media_type
+
+    monkeypatch.setattr(starlette.responses, "StreamingResponse", StreamingResponse)
     expected = service.run_prompt(config_path=CONFIG, prompt="hola", domain="general")
-    client = TestClient(create_app(CONFIG))
+    app = create_app(CONFIG)
+    endpoints = {route.path: route.endpoint for route in app.routes}
 
-    response = client.post("/prompt/run", json={"prompt": "hola", "domain": "general"})
-    assert response.status_code == 200
-    assert response.json()["response"] == expected["response"]
+    async def call_endpoints():
+        prompt_response = await endpoints["/prompt/run"](
+            Request({"prompt": "hola", "domain": "general"})
+        )
+        prompt_stream = await endpoints["/prompt/stream"](
+            Request({"prompt": "hola", "domain": "general"})
+        )
+        reasoning_response = await endpoints["/reasoning/run"](
+            Request({"prompt": "hola", "domain": "general"})
+        )
+        reasoning_stream = await endpoints["/reasoning/stream"](
+            Request({"prompt": "hola", "domain": "general"})
+        )
+        return prompt_response, prompt_stream, reasoning_response, reasoning_stream
 
-    with client.stream("POST", "/prompt/stream", json={"prompt": "hola", "domain": "general"}) as stream:
-        body = "".join(stream.iter_text())
-
-    assert "event: token" in body
-    assert "event: done" in body
-
-    response = client.post("/reasoning/run", json={"prompt": "hola", "domain": "general"})
-    assert response.status_code == 200
-    assert response.json()["stop_reason"] == "max_iterations"
-
-    with client.stream("POST", "/reasoning/stream", json={"prompt": "hola", "domain": "general"}) as stream:
-        reasoning_body = "".join(stream.iter_text())
-
+    response, stream, reasoning_response, reasoning_stream = anyio.run(call_endpoints)
+    assert json.loads(response.body)["response"] == expected["response"]
+    prompt_body = "".join(stream.content)
+    assert "event: token" in prompt_body
+    assert "event: done" in prompt_body
+    assert json.loads(reasoning_response.body)["stop_reason"] == "max_iterations"
+    reasoning_body = "".join(reasoning_stream.content)
     assert "event: step" in reasoning_body
     assert "event: done" in reasoning_body
 

@@ -1,0 +1,403 @@
+# Bateria de task.run mode=coverage (linea v0.3, ADR 0038). CRITERIO DE
+# ACEPTACION escrito y CONGELADO ANTES de implementar (fase v0.3-2 del PLAN).
+# El runner carga este archivo desde la fase v0.3-2.
+#
+# Scripting determinista (world.script), realizado por ScriptedFakeAdapter en
+# la implementacion v0.3-2:
+# - units: lista que el fake planner deriva en DERIVE. Cada unidad es
+#   {id, prompt, domain_hint (opcional), depends_on (opcional, ids)}.
+# - generator_responses: por modelo fake, lista de fragmentos en el orden de
+#   llamada de generacion.
+# - generator_finish_reasons: por modelo fake, lista opcional de
+#   finish_reason por llamada; el valor por defecto es stop y permite length.
+# - validator_decisions: una lista, una entrada por llamada de validacion,
+#   con los ids aceptados. Puede aceptar menos de lo pedido, repetir ids ya
+#   aceptados (se ignoran) o no aceptar ninguno.
+# - simulated: agotamiento simulado {elapsed_s | context_tokens}, sin reloj
+#   real, como en la bateria v0.2. En modo coverage, context_tokens override
+#   el acumulado real que gobierna max_total_tokens (precedencia de la ficha
+#   v0.2/0003).
+#
+# Semantica congelada del bucle (fijada en revision, vinculante para la
+# implementacion v0.3-2):
+# - chunk_index cuenta LLAMADAS de generacion, acepten o no unidades; es el
+#   contador que gobierna max_chunks (guardia anti-bucle del ADR 0038).
+# - retries por unidad: una unidad objetivo de una llamada cuyo fragmento no
+#   la cubre suma 1 intento fallido; pasa a failed al acumular
+#   1 + max_retries_per_unit intentos fallidos (intento inicial mas
+#   max_retries_per_unit reintentos).
+# - los cortes (max_chunks, max_time, max_total_tokens, no_progress) se
+#   evaluan ANTES de cada ciclo de generacion, incluido el primero.
+# - las llamadas de validacion siguen orden determinista (orden de las
+#   unidades en el plan), aunque la generacion de grupos independientes sea
+#   paralela; validator_decisions se consume en ese orden.
+
+- id: coverage_ten_units_three_per_chunk
+  track: conformance
+  description: "ADR 0038 caso 1: diez unidades a tres por llamada terminan todas."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre diez puntos"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u01, prompt: "punto 1" }
+        - { id: u02, prompt: "punto 2" }
+        - { id: u03, prompt: "punto 3" }
+        - { id: u04, prompt: "punto 4" }
+        - { id: u05, prompt: "punto 5" }
+        - { id: u06, prompt: "punto 6" }
+        - { id: u07, prompt: "punto 7" }
+        - { id: u08, prompt: "punto 8" }
+        - { id: u09, prompt: "punto 9" }
+        - { id: u10, prompt: "punto 10" }
+      generator_responses:
+        fake_general: [A, B, C, D]
+      validator_decisions:
+        - [u01, u02, u03]
+        - [u04, u05, u06]
+        - [u07, u08, u09]
+        - [u10]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    response: ABCD
+    completed_units: [u01, u02, u03, u04, u05, u06, u07, u08, u09, u10]
+    failed_units: []
+    pending_units: []
+    chunk_index: 4
+    max_chunks: 8
+    max_total_tokens: 16384
+
+- id: coverage_stop_continues_pending
+  track: conformance
+  description: "ADR 0038 caso 2: stop tecnico con cobertura incompleta continua."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre cuatro puntos"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "punto 1" }
+        - { id: u2, prompt: "punto 2" }
+        - { id: u3, prompt: "punto 3" }
+        - { id: u4, prompt: "punto 4" }
+      generator_responses:
+        fake_general: [FIRST, LAST]
+      generator_finish_reasons:
+        fake_general: [stop, stop]
+      validator_decisions:
+        - [u1, u2, u3]
+        - [u4]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    response: FIRSTLAST
+    completed_units: [u1, u2, u3, u4]
+    failed_units: []
+    pending_units: []
+    chunk_index: 2
+
+- id: coverage_length_continues_pending
+  track: conformance
+  description: "ADR 0038 caso 3: length continua desde pendientes sin duplicar respuesta."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre cuatro puntos con corte tecnico"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "punto 1" }
+        - { id: u2, prompt: "punto 2" }
+        - { id: u3, prompt: "punto 3" }
+        - { id: u4, prompt: "punto 4" }
+      generator_responses:
+        fake_general: [FIRST, LAST]
+      generator_finish_reasons:
+        fake_general: [length, stop]
+      validator_decisions:
+        - [u1, u2, u3]
+        - [u4]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    response: FIRSTLAST
+    completed_units: [u1, u2, u3, u4]
+    failed_units: []
+    pending_units: []
+    chunk_index: 2
+
+- id: coverage_repeated_validator_id_ignored
+  track: conformance
+  description: "ADR 0038 caso 4: el validador repite un id aceptado y no duplica respuesta."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre cuatro puntos con repeticion"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "punto 1" }
+        - { id: u2, prompt: "punto 2" }
+        - { id: u3, prompt: "punto 3" }
+        - { id: u4, prompt: "punto 4" }
+      generator_responses:
+        fake_general: [FIRST, LAST]
+      validator_decisions:
+        - [u1, u2, u3]
+        - [u1, u4]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    response: FIRSTLAST
+    completed_units: [u1, u2, u3, u4]
+    failed_units: []
+    pending_units: []
+    chunk_index: 2
+
+- id: coverage_out_of_order_acceptance_assembles_order
+  track: conformance
+  description: "ADR 0038 caso 5: aceptacion desordenada conserva el orden requerido."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre tres puntos ordenados"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "primero" }
+        - { id: u2, prompt: "segundo" }
+        - { id: u3, prompt: "tercero" }
+      generator_responses:
+        fake_general: [THIRD, FIRST, SECOND]
+      validator_decisions:
+        - [u3]
+        - [u1]
+        - [u2]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    response: FIRSTSECONDTHIRD
+    completed_units: [u1, u2, u3]
+    failed_units: []
+    pending_units: []
+    chunk_index: 3
+
+- id: coverage_domain_hint_per_unit
+  track: conformance
+  description: "ADR 0038 caso 6: cada domain_hint usa su dominio y modelo declarados."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre unidades de dominios distintos"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: code, prompt: "escribe codigo", domain_hint: codigo }
+        - { id: reason, prompt: "razona", domain_hint: razonamiento }
+        - { id: general, prompt: "explica", domain_hint: general }
+      generator_responses:
+        fake_code: [CODE]
+        fake_reason: [REASON]
+        fake_general: [GENERAL]
+      validator_decisions:
+        - [code]
+        - [reason]
+        - [general]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    response: CODEREASONGENERAL
+    completed_units: [code, reason, general]
+    failed_units: []
+    pending_units: []
+    chunk_index: 3
+    units:
+      - { id: code, domain: codigo, model: fake_code }
+      - { id: reason, domain: razonamiento, model: fake_reason }
+      - { id: general, domain: general, model: fake_general }
+
+- id: coverage_dependencies_execute_in_order
+  track: conformance
+  description: "ADR 0038 caso 9: las unidades depends_on se ejecutan en orden."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre una cadena dependiente"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "base" }
+        - { id: u2, prompt: "derivada", depends_on: [u1] }
+        - { id: u3, prompt: "final", depends_on: [u2] }
+      generator_responses:
+        fake_general: [ONE, TWO, THREE]
+      validator_decisions:
+        - [u1]
+        - [u2]
+        - [u3]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    response: ONETWOTHREE
+    completed_units: [u1, u2, u3]
+    failed_units: []
+    pending_units: []
+    chunk_index: 3
+
+- id: coverage_no_progress_preserves_partial
+  track: conformance
+  description: "ADR 0038 caso 10: sin progreso corta no_progress y conserva parcial."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre dos puntos con uno imposible"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "punto posible" }
+        - { id: u2, prompt: "punto imposible" }
+      generator_responses:
+        fake_general: [ONE, RETRY_ONE, RETRY_TWO]
+      validator_decisions:
+        - [u1]
+        - []
+        - []
+  expect:
+    stop_reason: no_progress
+    coverage_complete: false
+    response: ONE
+    completed_units: [u1]
+    failed_units: [u2]
+    pending_units: []
+    chunk_index: 3
+    max_chunks: 8
+
+- id: coverage_stop_max_chunks
+  track: conformance
+  description: "ADR 0038 caso 11a: max_chunks no se sobrepasa."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre diez puntos hasta el limite de chunks"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "punto 1" }
+        - { id: u2, prompt: "punto 2" }
+        - { id: u3, prompt: "punto 3" }
+        - { id: u4, prompt: "punto 4" }
+        - { id: u5, prompt: "punto 5" }
+        - { id: u6, prompt: "punto 6" }
+        - { id: u7, prompt: "punto 7" }
+        - { id: u8, prompt: "punto 8" }
+        - { id: u9, prompt: "punto 9" }
+        - { id: u10, prompt: "punto 10" }
+      generator_responses:
+        fake_general: [A, B, C, D, E, F, G, H]
+      validator_decisions:
+        - [u1]
+        - [u2]
+        - [u3]
+        - [u4]
+        - [u5]
+        - [u6]
+        - [u7]
+        - [u8]
+  expect:
+    stop_reason: max_chunks
+    coverage_complete: false
+    response: ABCDEFGH
+    completed_units: [u1, u2, u3, u4, u5, u6, u7, u8]
+    failed_units: []
+    pending_units: [u9, u10]
+    chunk_index: 8
+    max_chunks: 8
+
+- id: coverage_stop_max_time
+  track: conformance
+  description: "ADR 0038 caso 11b: max_time simulado no se sobrepasa."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre un punto sin tiempo"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "punto 1" }
+      generator_responses:
+        fake_general: [ONE]
+      validator_decisions: []
+      simulated: { elapsed_s: 31 }
+  expect:
+    stop_reason: max_time
+    coverage_complete: false
+    response: ""
+    completed_units: []
+    failed_units: []
+    pending_units: [u1]
+    chunk_index: 0
+    max_time_s: 30
+
+- id: coverage_stop_max_total_tokens
+  track: conformance
+  description: "ADR 0038 caso 11c: max_total_tokens no se sobrepasa."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "cubre un punto sin presupuesto total"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      units:
+        - { id: u1, prompt: "punto 1" }
+      generator_responses:
+        fake_general: [ONE]
+      validator_decisions: []
+      simulated: { context_tokens: 16385 }
+  expect:
+    stop_reason: max_total_tokens
+    coverage_complete: false
+    response: ""
+    completed_units: []
+    failed_units: []
+    pending_units: [u1]
+    chunk_index: 0
+    max_total_tokens: 16384
+
+- id: coverage_smoke_enumerable
+  track: smoke
+  description: "ADR 0038 caso 15: una tarea enumerable real se genera en varios fragmentos."
+  capability: task.run
+  input:
+    prompt: "Enumera los ocho planetas del sistema solar en orden desde el Sol y explica brevemente cada uno."
+    mode: coverage
+    identity: { user_id: local, service: local_cli }
+  thresholds:
+    coverage_complete: true
+    chunk_index_min: 2
+    latency_ms_max: 180000

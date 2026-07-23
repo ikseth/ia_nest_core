@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from ianest_core.config.schema import (
+    CoverageConfig,
     CoreConfig,
     DomainConfig,
     ModelConfig,
@@ -111,6 +112,20 @@ def _load_orchestration(raw: dict[str, Any] | None) -> OrchestrationConfig | Non
         max_time_s=float(raw.get("max_time_s", 30)),
         max_context_tokens=int(raw.get("max_context_tokens", 4096)),
         max_parallel=int(raw.get("max_parallel", 2)),
+        coverage=_load_coverage(raw.get("coverage")),
+    )
+
+
+def _load_coverage(raw: dict[str, Any] | None) -> CoverageConfig | None:
+    if raw is None:
+        return None
+    return CoverageConfig(
+        validator=_load_orchestration_target(raw.get("validator", {})),
+        units_per_chunk=int(raw.get("units_per_chunk", 3)),
+        max_chunks=int(raw.get("max_chunks", 8)),
+        max_total_tokens=int(raw.get("max_total_tokens", 16384)),
+        max_retries_per_unit=int(raw.get("max_retries_per_unit", 2)),
+        max_no_progress_iterations=int(raw.get("max_no_progress_iterations", 2)),
     )
 
 

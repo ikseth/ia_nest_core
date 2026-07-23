@@ -56,9 +56,9 @@ fijan el criterio de aceptacion de `task.run` (ADR 0036) ANTES de implementarlo
 `eval/battery/*.yaml` (no recursivo); en la fase v0.2-3 el runner lo incorpora
 y el `conformance_digest` se recalcula (cambio declarado, ADR 0017).
 
-Digest de conformidad declarado tras incorporar los 13 casos v0.2 (23 casos
-de conformidad totales; incluye la enmienda aprobada `task_subtask_unknown_hint`,
-2026-07-16):
+Digest historico v0.2, declarado tras incorporar los 13 casos de orquestacion
+(23 casos de conformidad totales; incluye la enmienda aprobada
+`task_subtask_unknown_hint`, 2026-07-16):
 `1d405c95660947206a0be19a6f8ef8ecf92874a7718f3dd10348ab0fb040263b`.
 Los dos casos `smoke` v0.2 quedan excluidos de esta ejecucion y del digest.
 
@@ -78,6 +78,32 @@ Asserts nuevos en `expect`: `stop_reason`, `subtasks` (arbol: dominio/modelo/
 sustitucion por subtarea), `checkpoints` (secuencia ordenada),
 `checkpoint_counts`, `subtask_trace_fields`, `subtask_traces_share_task_id`,
 `subtask_traces_link_parent`.
+
+## Bateria v0.3 (coverage)
+
+La pista `conformance` de coverage vive en
+`eval/battery/v0.3/coverage.yaml` y usa la fixture
+`eval/fixtures/orchestration_coverage.yaml`. Desde la fase v0.3-2 el runner
+integra sus 11 casos.
+
+Digest de conformidad v0.3 declarado tras la integracion (34 casos de
+conformidad totales):
+`5aa67516fb10c2a9b1040798262bc09231467f5bff02fe748a1f8b636ddd3475`.
+El caso `smoke` v0.3 queda excluido del digest, como los smoke v0.2.
+
+Tests pytest requeridos para los aspectos no expresables end-to-end por la
+bateria declarativa:
+
+- Caso 3: el prompt de la llamada siguiente contiene solo unidades pendientes
+  y no el texto integro aceptado.
+- Caso 7: un fallo reintenta solo la unidad afectada.
+- Caso 8: unidades independientes respetan `max_parallel`.
+- Caso 12: streaming y bloqueante producen el mismo contenido final.
+- Caso 13: la telemetria JSONL reconstruye cobertura, fragmentos y modelos.
+- Caso 14: los casos 1-13 usan solo adaptadores fake.
+
+Caso 15, smoke real: declarar y verificar `coverage_complete=true` y
+`chunk_index >= 2`, sin exigir texto exacto.
 
 ## Convenciones
 

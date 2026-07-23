@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from dataclasses import replace
 
@@ -115,6 +116,49 @@ def test_task_runtime_propagates_subtask_model_unavailable(tmp_path) -> None:
 
     with pytest.raises(ModelUnavailable):
         runtime.run(prompt="imposible")
+
+
+def test_task_runtime_limits_real_accumulated_tokens_and_traces_them(tmp_path) -> None:
+    config = replace(
+        _config(tmp_path),
+        orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
+    )
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea"}]), "done"]),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
+    }
+
+    result = TaskRuntime(config, adapter_factory=adapters.get).run(prompt="tarea", request_id="parent")
+
+    with (tmp_path / "trace.csv").open(newline="") as trace_file:
+        prompt_events = [
+            event for event in csv.DictReader(trace_file, delimiter=";")
+            if event["capability"] == "prompt.run" and event["event"] == "done"
+        ]
+    assert result.stop_reason == "max_context_tokens"
+    assert result.trace["tokens_in"] == sum(int(event["tokens_in"]) for event in prompt_events)
+    assert result.trace["tokens_out"] == sum(int(event["tokens_out"]) for event in prompt_events)
+    assert result.trace["tokens_in"] + result.trace["tokens_out"] > config.orchestration.max_context_tokens
+
+
+def test_task_runtime_simulated_context_tokens_override_real_accumulation(tmp_path) -> None:
+    config = replace(
+        _config(tmp_path),
+        orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
+    )
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea"}]), "done"]),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
+    }
+
+    result = TaskRuntime(
+        config, adapter_factory=adapters.get, simulated={"context_tokens": 0}
+    ).run(prompt="tarea", request_id="parent")
+
+    assert result.stop_reason == "task_done"
+    assert result.trace["tokens_in"] + result.trace["tokens_out"] > config.orchestration.max_context_tokens
 
 
 def _config(tmp_path):

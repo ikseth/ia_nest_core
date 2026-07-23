@@ -69,6 +69,19 @@ marcado como contexto, las unidades asignadas como unico contenido a producir
 y se prohiben preambulo, cierre, transiciones, meta-comentario y contenido de
 otras unidades. Se anadio una prueba unitaria del texto del prompt.
 
+Re-smoke de laboratorio (cine por decadas, planner+validador mistral):
+desaparecen los preambulos/cierres conversacionales del stdout (0 apariciones
+de "Por supuesto/Espero/Disfruta"); 9/9 unidades, sin sangrado grueso entre
+chunks.
+
+Residuo conocido (no lo cubre esta ficha): al no haber combiner (ADR 0038),
+los fragmentos conservan formato HETEROGENEO entre si -unos titulan
+"1920s:", otros repiten el prompt de la unidad como pregunta ("Cuales son
+las obras maestras de los anos 40?")- y persisten errores factuales del
+modelo 7B. Suavizar el formato final es justo la pasada de "voz del ente"
+diferida (opcion C de la conversacion de diseno, `CAPAS_FUTURAS.md`), que
+merece su propia decision (posible ADR), no un fix.
+
 Verificacion automatizada: pytest 125/125 con extras; pytest 121/121 y 4
 omitidos sin extras de interfaces; conformance 34/34 con digest
 `5aa67516fb10c2a9b1040798262bc09231467f5bff02fe748a1f8b636ddd3475`.

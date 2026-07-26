@@ -34,3 +34,18 @@ capas externas (`FRONTERAS.md`) pueden depender del core con seguridad.
 - Las capas externas pueden fijar una version del core como dependencia.
 - Cada release sigue el proceso de `docs/VERSIONADO.md` (mover CHANGELOG, fijar
   pyproject, tag anotado, push con tags).
+
+## Estado posterior
+
+Re-hogada la politica (2026-07-26). La decision sigue vigente; lo que cambia es
+donde vive su parte comun. La POLITICA de versionado -esquema, que numero subir,
+proceso de publicacion- es de todo el ente y vive en
+`ia_nest_meta/docs/POLITICA_SEMVER.md` (meta ADR 0004). Este ADR ya la enunciaba
+como regla para "los tres participantes", y ADR 0032 la reutilizo para gobernar
+el vinculo entre capas: era politica de ente escrita dentro de una capa.
+
+`docs/VERSIONADO.md` conserva lo que solo el core puede fijar: que cuenta como
+su contrato publico y como registra sus fichas de correccion.
+
+Este ADR se conserva sin cambios en su cuerpo, como registro de cuando y por que
+se decidio.

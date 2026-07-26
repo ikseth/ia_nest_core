@@ -32,6 +32,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   interno de capas aun no sembradas. ADR 0032 conserva su cuerpo con una seccion
   `Estado posterior`. `docs/VERSIONADO.md` anade al proceso de publicacion la
   actualizacion de la fila propia en el registro. Impacto: ninguno.
+- Gobernanza: la politica de SemVer (esquema, que numero subir, proceso de
+  publicacion) pasa a `ia_nest_meta/docs/POLITICA_SEMVER.md` (meta ADR 0004).
+  `docs/VERSIONADO.md` conserva lo unico que solo el core fija: que cuenta como
+  su contrato publico y su registro de fichas. `docs/CAPAS_FUTURAS.md` queda
+  como backlog del motor: el registro de repos va al registro de capas y los
+  concerns del ente sin repo asignado, a meta. ADR 0030 conserva su cuerpo con
+  una seccion `Estado posterior`. Impacto: ninguno.
 
 ## [v0.2.0] - 2026-07-16
 

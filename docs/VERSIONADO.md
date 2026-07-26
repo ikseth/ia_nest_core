@@ -1,17 +1,15 @@
-# Versionado
+# Versionado del core
 
 Estado: activo
-Version del documento: 1.1 - 2026-07-16
+Version del documento: 2.0 - 2026-07-26
 
-Regla unica para el usuario, Codex y Claude Code. Toda propuesta que se mergee
-declara su impacto de version y actualiza el CHANGELOG. El objetivo es que
-cualquiera pueda saber, por el numero de version, si un cambio rompe contrato.
+La POLITICA de versionado es comun a todo el ente y vive en
+`ia_nest_meta/docs/POLITICA_SEMVER.md` (meta ADR 0004): esquema
+`MAJOR.MINOR.PATCH`, el tag como fuente de verdad, que numero subir y el proceso
+de publicacion. Origen historico: este documento y ADR 0030.
 
-## Esquema
-
-Versionado semantico `MAJOR.MINOR.PATCH`. Los tags de git son `vMAJOR.MINOR.PATCH`
-(p.ej. `v0.1.0`). `pyproject.toml` (`version`) SIEMPRE refleja el ultimo tag; el
-tag es la fuente de verdad.
+Este documento fija lo que solo el core puede fijar: QUE cuenta como su contrato
+publico, y como registra sus correcciones pequenas.
 
 ## Que es "contrato publico" (lo que gobierna la version)
 
@@ -30,39 +28,22 @@ interno. Cuenta como contrato:
 Un refactor interno que no cambia nada de lo anterior NO sube MINOR ni MAJOR
 (a lo sumo PATCH si corrige un fallo observable).
 
-## Que numero subir
+## Que numero subir, y como se publica
 
-**Pre-1.0 (serie `0.y.z`, situacion actual).** El core aun puede cambiar
-contrato mientras se estabiliza:
+Regla comun del ente: `ia_nest_meta/docs/POLITICA_SEMVER.md`, secciones 3 y 4.
+El core esta en la serie pre-1.0 (`0.y.z`), donde un cambio que rompe contrato
+sube MINOR y una adicion compatible o correccion sube PATCH.
 
-- Cambio que ROMPE contrato (quitar/renombrar una capacidad, cambio no aditivo
-  del esquema de config, reordenar/renombrar columnas de telemetria, cambiar
-  tipos de evento o taxonomia de error de forma incompatible): sube **MINOR**
-  (`0.1.0 -> 0.2.0`).
-- Adicion compatible (nueva capacidad opcional, nuevo campo aditivo, nueva
-  bandera CLI) o correccion: sube **PATCH** (`0.1.0 -> 0.1.1`).
+Concreciones de este repo, que la politica deja a cada capa:
 
-**Post-1.0 (cuando se declaren estables los contratos).** SemVer estandar:
-MAJOR = cambio que rompe contrato; MINOR = capacidad compatible nueva;
-PATCH = correccion compatible. El salto a `1.0.0` es una decision explicita del
-usuario (con su ADR), no automatica.
-
-## Proceso (los tres lo siguen igual)
-
-1. Toda propuesta que toque contrato publico declara su impacto (`patch` /
-   `minor` / `major`) en el commit o PR y anade una linea a la seccion
-   `## [No publicado]` de `CHANGELOG.md`.
-2. Cambios que no tocan contrato (docs, tests, refactor interno) no exigen
-   entrada de CHANGELOG salvo que el autor lo vea util.
-3. Publicar una version (accion del usuario, o de un agente a peticion suya):
-   - mover las entradas de `[No publicado]` a una seccion `[vX.Y.Z] - FECHA`;
-   - fijar `version` en `pyproject.toml` a `X.Y.Z`;
-   - commit y tag anotado `vX.Y.Z` sobre `main`;
-   - `git push origin main --tags`;
-   - si esta capa aparece en el registro de capas del ente
-     (`ia_nest_meta/docs/REGISTRO_CAPAS.md`), actualizar su fila. El tag es la
-     fuente de verdad; el registro es un indice y solo se mantiene al dia si se
-     actualiza aqui (meta ADR 0003).
+- Manifiesto de version: `pyproject.toml` (`version`).
+- Los tags se cortan sobre `main`.
+- Ejemplos de lo que en este core ROMPE contrato: reordenar o renombrar columnas
+  de telemetria, cambio no aditivo del esquema de config, cambiar tipos de
+  evento D2 o la taxonomia `CoreError` de forma incompatible, quitar o renombrar
+  una capacidad de `CORE_CONTRACT.md`.
+- Ejemplos de adicion compatible: capacidad opcional nueva, campo aditivo nuevo,
+  bandera CLI nueva.
 
 ## Registro de correcciones y mejoras pequenas
 
@@ -94,7 +75,6 @@ el mecanismo documental no cambia por si mismo la version del producto.
 
 ## Colaboracion multi-IA
 
-En modo ciego (ver `IA_NEST_CORE_CONTEXT.md`), si dos agentes proponen cambios
-de contrato en paralelo, el usuario reconcilia y decide el numero final. Un
-agente NO crea tags por su cuenta: propone el impacto; el tag se corta en la
-reconciliacion.
+Regla del registro, comun al ente: `ia_nest_meta/docs/DOCTRINA_MULTI_IA.md`. En
+resumen: un agente propone el impacto y NO corta tags por su cuenta; si dos
+agentes cambian contrato en paralelo, el usuario reconcilia y decide el numero.

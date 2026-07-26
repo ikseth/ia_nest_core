@@ -23,12 +23,17 @@ aqui y no se duplica en este repo:
 - `docs/REGISTRO_CAPAS.md`: quien existe en el ente, quien depende de quien y
   la regla de vinculo por SemVer. `docs/FRONTERAS.md` de este repo conserva la
   costura que el core expone a cada capa.
+- `docs/POLITICA_SEMVER.md`: esquema, que numero subir y proceso de
+  publicacion. `docs/VERSIONADO.md` de este repo conserva que cuenta como
+  contrato publico del core y su registro de fichas.
 - `docs/change_requests/`: canal para pedir un cambio de contrato a otra capa,
   y CR abiertos hacia el core.
 
 Versionado: toda propuesta que toque contrato publico declara su impacto
-(patch/minor/major) y actualiza `CHANGELOG.md` (`docs/VERSIONADO.md`, ADR 0030).
-No cortes tags por tu cuenta; el tag se decide en la reconciliacion del usuario.
+(patch/minor/major) y actualiza `CHANGELOG.md`. Que cuenta como contrato publico
+del core: `docs/VERSIONADO.md` (ADR 0030). Que numero subir y como se publica:
+`ia_nest_meta/docs/POLITICA_SEMVER.md`. No cortes tags por tu cuenta; el tag se
+decide en la reconciliacion del usuario.
 
 Este repo se trabaja con mas de un agente de IA en paralelo, en modo ciego. No
 asumas que una inconsistencia entre documentos es un error propio: puede ser

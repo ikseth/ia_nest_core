@@ -35,3 +35,19 @@ tres participantes (usuario, Codex, Claude Code) y por las capas externas.
 - En modo ciego multi-IA, si dos capas cambian contrato en paralelo, la
   reconciliacion del usuario decide las versiones; ningun agente corta tags de
   una capa por su cuenta.
+
+## Estado posterior
+
+Re-hogado el indice (2026-07-26). La REGLA de vinculo de esta decision sigue
+vigente sin cambios: cada capa versiona su contrato, fija por SemVer la version
+de la que depende y lo declara en un manifiesto propio.
+
+Lo que queda superado es una sola frase de la seccion Decision: "el core hospeda
+solo el INDICE/grafo". El registro de capas y su grafo viven hoy en
+`ia_nest_meta/docs/REGISTRO_CAPAS.md` (meta ADR 0003), porque la tabla tiene
+zonas "Ente" y "Exterior" y el propio repo de gobernanza no cabe en ninguna de
+las dos. El core conserva en `docs/FRONTERAS.md` lo que si es suyo: que costura
+expone a cada capa.
+
+Este ADR se conserva sin cambios en su cuerpo, como registro de cuando y por que
+se decidio.

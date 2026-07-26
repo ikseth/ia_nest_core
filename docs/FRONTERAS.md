@@ -10,21 +10,26 @@ capacidad. El core no absorbe la logica de la capa (`ALCANCE_CORE.md`).
 
 ## Registro de capas
 
-Indice y grafo de dependencias (ADR 0032). El core hospeda este registro; el
-contrato de cada capa vive en su repo. "Depende de" se fija por version SemVer.
+Re-hogado. El indice de capas del ente y su grafo de dependencias viven en el
+repo de gobernanza `ia_nest_meta`: `docs/REGISTRO_CAPAS.md`, junto con la regla
+de vinculo entre capas (meta ADR 0003). Alli consta tambien la version publicada
+y el estado de trabajo de cada repo.
 
-| Zona | Capa (repo) | Responsabilidad | Costura con el core | Depende de | Estado |
-|---|---|---|---|---|---|
-| Ente | `ia_nest_core` | El motor: enruta, infiere, itera; orquestacion multi-modelo en linea v0.2 (ADR 0034) | - | - | v0.1.0 |
-| Ente | `ia_nest_extended` | La memoria/conocimiento: enriquecimiento (RAG, memoria, datos web) | Enriquecimiento sobre contratos publicos (ADR 0031) | core | primera capa (en diseno) |
-| Ente | `ia_nest_core_conscience` | Mente voluntaria: control etico/personalidad, dual live/sueno (ADR 0034) | Checkpoints de supervision (v0.2) + telemetria | core, extended (memoria de comportamiento) | prevista |
-| Ente | `ia_nest_core_pulse` | Mente involuntaria (sistema nervioso autonomo): observa telemetria de todos y regula parametros dentro de techos del core (ADR 0037) | `runtime.health` + telemetria + perillas del core | core, extended, conscience | prevista |
-| Ente | `ia_nest_web` | La cara: GUI de gestion y presentacion | Contratos publicos + estado de pulse | core, extended, conscience, pulse | prevista |
-| Exterior | `ia_nest_agents` | Agentes que consumen el ente (no dirigen su pensar, ADR 0033) | Contratos publicos | core (+ capas que use) | prevista |
-| Exterior | `ia_nest_external_*` | Integraciones que ACTUAN | `tool_contracts` (ADR 0007, diferido) | core | diferida |
-| Exterior | Otras entidades IA_NEST | Comunicacion entidad-a-entidad | Por definir | - | futura (`CAPAS_FUTURAS.md`) |
+Origen historico: este documento y ADR 0032. El motivo del movimiento: el
+registro tiene zonas "Ente" y "Exterior", y el propio repo de gobernanza no cabe
+en ninguna de las dos.
+
+Lo que este documento sigue fijando es la COSTURA: que expone el core a cada
+capa.
 
 ## Capas y fronteras
+
+Este documento fija la costura del core. Donde el texto describe ademas la
+doctrina INTERNA de una capa aun no sembrada (conscience, pulse, web), va
+marcado `[doctrina de capa]`: es diseno reconciliado que se conserva aqui como
+deuda declarada y que mudara al repo de esa capa cuando se siembre. No se
+re-hoga a `ia_nest_meta`: meta gobierna COMO se construye el ente, no que hace
+cada pieza por dentro (meta ADR 0003).
 
 ### ia_nest_extended (la memoria/conocimiento del ente)
 Enriquecimiento de contexto: solo lectura, NO `tool_contracts` (ADR 0031).
@@ -33,7 +38,9 @@ capa recupera (memoria/RAG/web), arma el prompt, llama a `prompt.run` y hace el
 write-back con la respuesta. El core aporta la identidad de segmentacion
 (`user_id`/`session_id`/`namespace`/...) como clave de indexacion.
 - Memoria: la estrategia completa (tiers, consolidacion, y la memoria de
-  comportamiento que sedimenta conscience, ADR 0034) vive aqui. `MemoryPort`
+  comportamiento que sedimenta conscience, ADR 0034) vive en esa capa y se
+  documenta en su repo (`docs/VISION_MEMORIA.md`, `docs/ROSTER_MEMORIA.md`,
+  `docs/POLITICA_WRITEBACK.md` y sus ADR). `MemoryPort`
   (ADR 0011) queda superado por la via 2; su retirada del core se registrara
   junto al cambio de codigo.
 - RAG y datos web: enriquecen el prompt con conocimiento acotado (RAG) y datos
@@ -46,16 +53,17 @@ write-back con la respuesta. El core aporta la identidad de segmentacion
   por version (ADR 0032).
 
 ### ia_nest_core_conscience (la mente supervisora)
-- Supervisor etico/de personalidad del ente (ADR 0034), dual: modo live
+- `[doctrina de capa]` Supervisor etico/de personalidad del ente (ADR 0034), dual: modo live
   (supervisa checkpoints del flujo, puede bloquear/replantear contrastando con
   memoria etica) y modo sueno (quiesce del core + revision batch de la
   telemetria del dia).
 - Frontera: contratos publicos + checkpoints de supervision del orquestador
   (linea v0.2 del core, ADR 0034) + telemetria CSV/JSONL (ADR 0010/0015).
-- Sedimenta sus resoluciones como memoria de comportamiento (tier de la memoria
-  de `extended`), que vuelve al core via enriquecimiento (ADR 0025/0031).
-- El modelo de control/verificacion de respuesta (ADR 0025, alternativa
-  descartada para el core) y la "doble conciencia" viven aqui.
+- `[doctrina de capa]` Sedimenta sus resoluciones como memoria de comportamiento
+  (tier de la memoria de `extended`), que vuelve al core via enriquecimiento
+  (ADR 0025/0031).
+- `[doctrina de capa]` El modelo de control/verificacion de respuesta (ADR 0025,
+  alternativa descartada para el core) y la "doble conciencia" viven aqui.
 
 ### ia_nest_external_* (integraciones: Home Assistant, Nextcloud, ...)
 - Frontera: `tool_contracts` (ADR 0007). El core invoca la herramienta por
@@ -69,7 +77,7 @@ write-back con la respuesta. El core aporta la identidad de segmentacion
   la orquestacion del pensamiento es del core (ADR 0034).
 
 ### ia_nest_core_pulse (mente involuntaria / sistema nervioso autonomo)
-- Motor de monitorizacion headless del ente (ADR 0037), CPU/RAM. Observa la
+- `[doctrina de capa]` Motor de monitorizacion headless del ente (ADR 0037), CPU/RAM. Observa la
   telemetria de todos (core, extended, conscience) y REGULA parametros tecnicos
   dentro de los techos del core, a frecuencia fija; sub-modo futuro por
   disparadores.
@@ -77,8 +85,8 @@ write-back con la respuesta. El core aporta la identidad de segmentacion
   ADR 0010/0015) como entrada; las perillas del core (p.ej. limites de perfil)
   como salida. Actua fuera de banda (evento aparte, no dentro de `task.run`;
   preserva el determinismo).
-- Subordinado a conscience (veto voluntario sobre lo involuntario). La GUI
-  (`ia_nest_web`) presenta su estado; pulse no dibuja.
+- `[doctrina de capa]` Subordinado a conscience (veto voluntario sobre lo
+  involuntario). La GUI (`ia_nest_web`) presenta su estado; pulse no dibuja.
 
 ## tool_contracts (frontera generica de herramientas)
 

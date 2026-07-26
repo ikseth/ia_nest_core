@@ -117,5 +117,7 @@ pulse = autonomo/involuntario (regula por reflejo, CPU). Enriquecimiento vs
 herramientas: RAG, memoria y datos web ENRIQUECEN el prompt (solo lectura,
 costura tipo Port); las integraciones que ACTUAN usan `tool_contracts`
 (ADR 0007). Son costuras distintas (ADR 0031). Dependencias entre capas: cada
-capa versiona su contrato y fija las versiones de las que depende; el core solo
-hospeda el indice (ADR 0032, `docs/FRONTERAS.md`).
+capa versiona su contrato y fija las versiones de las que depende (ADR 0032); el
+indice de capas y su grafo viven en `ia_nest_meta/docs/REGISTRO_CAPAS.md`
+(meta ADR 0003), y `docs/FRONTERAS.md` conserva la costura que el core expone a
+cada capa.

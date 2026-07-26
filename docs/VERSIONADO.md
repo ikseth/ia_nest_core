@@ -58,7 +58,11 @@ usuario (con su ADR), no automatica.
    - mover las entradas de `[No publicado]` a una seccion `[vX.Y.Z] - FECHA`;
    - fijar `version` en `pyproject.toml` a `X.Y.Z`;
    - commit y tag anotado `vX.Y.Z` sobre `main`;
-   - `git push origin main --tags`.
+   - `git push origin main --tags`;
+   - si esta capa aparece en el registro de capas del ente
+     (`ia_nest_meta/docs/REGISTRO_CAPAS.md`), actualizar su fila. El tag es la
+     fuente de verdad; el registro es un indice y solo se mantiene al dia si se
+     actualiza aqui (meta ADR 0003).
 
 ## Registro de correcciones y mejoras pequenas
 

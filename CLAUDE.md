@@ -18,8 +18,9 @@ Versionado: toda propuesta que toque contrato publico declara su impacto
 No cortes tags por tu cuenta; el tag se decide en la reconciliacion del usuario.
 
 Doctrina transversal del ente, en el repo de gobernanza `ia_nest_meta`:
-`docs/DOCTRINA_MULTI_IA.md` y `docs/CONVENCIONES_TRANSVERSALES.md`. Aplica aqui
-y no se duplica en este repo.
+`docs/DOCTRINA_MULTI_IA.md`, `docs/CONVENCIONES_TRANSVERSALES.md`,
+`docs/REGISTRO_CAPAS.md` (quien depende de quien) y `docs/change_requests/`
+(CR abiertos hacia este repo). Aplica aqui y no se duplica en este repo.
 
 Este repo se trabaja tambien con Codex en modo ciego. No asumas que una
 inconsistencia entre documentos es un error: puede ser trabajo en curso de la

@@ -25,6 +25,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   `IA_NEST_CORE_CONTEXT.md`); este repo conserva punteros y ADR 0016 conserva su
   cuerpo con una seccion `Estado posterior`. Ver meta ADR 0001 y meta ADR 0002.
   Impacto: ninguno (no toca contrato publico).
+- Gobernanza: el registro de capas y su grafo de dependencias pasan a
+  `ia_nest_meta/docs/REGISTRO_CAPAS.md` (meta ADR 0003), con los datos
+  corregidos y una regla de mantenimiento. `docs/FRONTERAS.md` conserva la
+  costura que el core expone a cada capa y marca `[doctrina de capa]` el diseno
+  interno de capas aun no sembradas. ADR 0032 conserva su cuerpo con una seccion
+  `Estado posterior`. `docs/VERSIONADO.md` anade al proceso de publicacion la
+  actualizacion de la fila propia en el registro. Impacto: ninguno.
 
 ## [v0.2.0] - 2026-07-16
 

@@ -67,13 +67,14 @@ Cada punto se considera cumplido cuando la capacidad correspondiente de
 Este repo puede recibir propuestas de mas de una IA (por ejemplo Codex y
 Claude) de forma independiente.
 
-- Modo por defecto: modo ciego. Cada IA propone sobre el mismo estado de
-  documentos, sin ver la propuesta de la otra.
-- Ninguna propuesta estructural se aplica directamente. Se reconcilia por
-  el usuario y solo el resultado reconciliado se registra como ADR.
-- Si una IA detecta una inconsistencia entre documentos, no debe asumir que
-  es un error propio: puede ser trabajo en curso de otra IA. Debe
-  senalarla, no corregirla por inferencia.
+Doctrina TRANSVERSAL del ente: vive en
+`ia_nest_meta/docs/DOCTRINA_MULTI_IA.md` (roles, modo ciego, regla de la
+inconsistencia, regla del registro y disciplina de handoff). Origen historico:
+este documento, hasta meta ADR 0002.
+
+Lo esencial, para no leer dos ficheros: modo ciego por defecto; una
+inconsistencia se senala, no se corrige por inferencia; solo el resultado
+reconciliado por el usuario se registra.
 
 ## Regla anti-entropia
 

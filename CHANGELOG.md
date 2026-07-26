@@ -19,6 +19,12 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   core, subordinado a conscience-, y pasa al pack basico del ente. conscience
   queda como sistema nervioso voluntario (puro, psicologico). Frontera con la
   GUI (presentacion) y prerrequisito `finish_reason` en el core registrados.
+- Gobernanza: nace `ia_nest_meta`, repo de gobernanza del ente (el taller, fuera
+  del mapa ente/exterior de ADR 0033). Se re-hogan alli las convenciones
+  transversales (origen ADR 0016) y la doctrina multi-IA (origen
+  `IA_NEST_CORE_CONTEXT.md`); este repo conserva punteros y ADR 0016 conserva su
+  cuerpo con una seccion `Estado posterior`. Ver meta ADR 0001 y meta ADR 0002.
+  Impacto: ninguno (no toca contrato publico).
 
 ## [v0.2.0] - 2026-07-16
 

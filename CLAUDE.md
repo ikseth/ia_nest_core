@@ -17,10 +17,13 @@ Versionado: toda propuesta que toque contrato publico declara su impacto
 (patch/minor/major) y actualiza `CHANGELOG.md` (`docs/VERSIONADO.md`, ADR 0030).
 No cortes tags por tu cuenta; el tag se decide en la reconciliacion del usuario.
 
-Este repo se trabaja tambien con Codex en modo ciego (ver seccion
-"Colaboracion entre varias IA" en `IA_NEST_CORE_CONTEXT.md`). No asumas que
-una inconsistencia entre documentos es un error: puede ser trabajo en
-curso de la otra IA. Senalala, no la corrijas por inferencia.
+Doctrina transversal del ente, en el repo de gobernanza `ia_nest_meta`:
+`docs/DOCTRINA_MULTI_IA.md` y `docs/CONVENCIONES_TRANSVERSALES.md`. Aplica aqui
+y no se duplica en este repo.
+
+Este repo se trabaja tambien con Codex en modo ciego. No asumas que una
+inconsistencia entre documentos es un error: puede ser trabajo en curso de la
+otra IA. Senalala, no la corrijas por inferencia.
 
 No accents/tildes in repo docs: deliberate convention for this project, not
 an error to fix.

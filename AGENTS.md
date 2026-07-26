@@ -13,13 +13,19 @@ Antes de proponer o valorar cualquier cambio de diseno, lee en este orden:
 9. `docs/VERSIONADO.md`
 10. ADRs recientes en `docs/decision_records/`
 
+Doctrina transversal del ente (repo de gobernanza `ia_nest_meta`), que aplica
+aqui y no se duplica en este repo:
+
+- `docs/DOCTRINA_MULTI_IA.md`: roles, modo ciego, regla de la inconsistencia,
+  regla del registro, handoff.
+- `docs/CONVENCIONES_TRANSVERSALES.md`: docs en ASCII puro, identificadores en
+  ingles snake_case, citas `<repo> ADR NNNN`, repo publico.
+
 Versionado: toda propuesta que toque contrato publico declara su impacto
 (patch/minor/major) y actualiza `CHANGELOG.md` (`docs/VERSIONADO.md`, ADR 0030).
 No cortes tags por tu cuenta; el tag se decide en la reconciliacion del usuario.
 
-Este repo se trabaja con mas de un agente de IA en paralelo (ver seccion
-"Colaboracion entre varias IA" en `IA_NEST_CORE_CONTEXT.md`). Modo por
-defecto: modo ciego, sin ver propuestas de otro agente. No asumas que una
-inconsistencia entre documentos es un error propio: puede ser trabajo en
-curso de otro agente. Senalala, no la corrijas por inferencia. Ninguna
-propuesta estructural se aplica sin reconciliacion del usuario.
+Este repo se trabaja con mas de un agente de IA en paralelo, en modo ciego. No
+asumas que una inconsistencia entre documentos es un error propio: puede ser
+trabajo en curso de otro agente. Senalala, no la corrijas por inferencia.
+Ninguna propuesta estructural se aplica sin reconciliacion del usuario.

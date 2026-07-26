@@ -21,3 +21,14 @@ auditoria de Codex.
 - El esquema de configuracion (ADR 0014) usa claves en ingles.
 - Se anade la regla a `CONVENCIONES.md`.
 - La documentacion narrativa no cambia: sigue en espanol sin tildes.
+
+## Estado posterior
+
+Re-hogada (2026-07-26). La regla VIVA de esta decision vive hoy en
+`ia_nest_meta/docs/CONVENCIONES_TRANSVERSALES.md` (meta ADR 0002), porque
+gobierna a todas las capas del ente y no solo al core. Alli consta ademas la
+forma vigente, mas estricta que la escrita arriba: los docs se escriben en ASCII
+puro, sin acentos y sin `n` con virgulilla.
+
+Este ADR se conserva sin cambios en su cuerpo, como registro de cuando y por que
+se decidio.

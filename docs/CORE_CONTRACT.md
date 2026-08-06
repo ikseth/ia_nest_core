@@ -151,6 +151,58 @@ Debe devolver:
 - parametros efectivos,
 - trazabilidad.
 
+Modos de ejecucion (ADR 0038, linea v0.3): el consumidor selecciona el
+modo de forma explicita; no hay promocion automatica.
+
+- `mode=pipeline` (default): el flujo de 5 etapas anterior, sin cambios.
+- `mode=coverage`: completitud semantica guiada por cobertura para tareas
+  con unidades enumerables y verificables.
+
+En modo coverage:
+
+- PLAN deriva unidades de cobertura (id, descripcion verificable,
+  `domain_hint` opcional, `depends_on` opcional, orden requerido).
+- Cada llamada de generacion usa ventana nueva, se enruta por la
+  precedencia del ADR 0019 y cubre un subconjunto acotado de unidades
+  pendientes; unidades independientes pueden ejecutarse en paralelo
+  (`max_parallel`).
+- Una etapa de validacion separada (rol `validator`, declarativo como
+  planner/combiner) determina que unidades quedaron realmente cubiertas;
+  solo lo validado se acepta y emite.
+- `finish_reason` es senal tecnica, no prueba de completitud semantica:
+  `stop` con cobertura pendiente continua; `length` continua desde lo
+  pendiente sin duplicar contenido aceptado. La terminacion semantica la
+  decide solo la cobertura (`coverage_complete`).
+- La respuesta final es el ensamblado determinista de los fragmentos
+  aceptados en el orden requerido (sin reescritura global).
+
+Checkpoints adicionales (aditivos al flujo D2): `answer_chunk` (fragmento
+aceptado: `chunk_index`, `unit_ids`, texto; emision en orden con
+retencion de prefijo contiguo) y `coverage_updated` (snapshot compacto
+del ledger).
+
+Cortes tipados adicionales (aditivos): `max_chunks | max_total_tokens |
+no_progress`. En modo coverage `task_done` implica
+`coverage_complete=true`; cualquier otro corte devuelve
+`coverage_complete=false` con el detalle en el estado final de cobertura.
+
+Debe devolver ademas (aditivo, modo coverage):
+
+- fragmentos aceptados,
+- estado final de cobertura (unidades requeridas, completadas, fallidas,
+  pendientes),
+- contadores efectivos (chunks, tokens acumulados, reintentos).
+
+Config declarativa aditiva (`orchestration.coverage`): `validator`,
+`units_per_chunk`, `max_chunks`, `max_total_tokens`,
+`max_retries_per_unit`, `max_no_progress_iterations`. Los limites
+globales de `orchestration` (`max_time_s`, `max_parallel`,
+`max_subtasks` como techo de unidades derivables) aplican tambien.
+
+Regla de compatibilidad: los consumidores de streaming deben tolerar
+tipos de evento y valores de `stop_reason` que no conozcan; las
+adiciones a ambos catalogos son cambios compatibles.
+
 ### `config.validate`
 
 Valida configuracion declarativa.
@@ -174,6 +226,26 @@ Debe devolver:
 - modelo usado,
 - dominio usado,
 - veredicto reproducible.
+
+## Seleccion de capacidad
+
+El consumidor (o agente) elige la capacidad de forma explicita; el core no
+promociona una capacidad a otra de forma silenciosa (ADR 0038). Esto
+permite disponer de modos ligeros y modos potentes con coste y latencia
+previsibles.
+
+Criterios de uso:
+
+- `prompt.run`: peticion atomica; una llamada, una respuesta.
+- `reasoning.run`: una respuesta que mejora por borrador y refinamiento.
+- `task.run` (mode=pipeline): tarea descomponible en subtareas
+  heterogeneas que se combinan.
+- `task.run` (mode=coverage): tarea con unidades enumerables y
+  verificables que debe completarse con garantia de cobertura.
+
+`finish_reason=stop` no acredita completitud semantica: si el consumidor
+necesita esa garantia, la capacidad correcta es `task.run` en modo
+coverage.
 
 ## No capacidades
 

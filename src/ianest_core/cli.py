@@ -367,28 +367,44 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
 
 def _task_run(args: argparse.Namespace) -> int:
     answer_was_streamed = False
+    exit_code = 0
     for event in service.stream_task(
         config_path=args.config,
         prompt=args.prompt,
         mode=args.mode,
         identity=_identity_override(args),
     ):
-        if args.json:
+        if event["type"] == "task_done":
+            if args.json:
+                print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+            elif not answer_was_streamed:
+                print(event["data"]["response"])
+            stop_reason = event["data"].get("stop_reason", "task_done")
+            if stop_reason != "task_done":
+                _emit_task_stop(str(stop_reason), event["data"].get("response"))
+                exit_code = 1
+        elif args.json:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
         elif event["type"] == "answer_chunk":
             print(event["data"]["text"], end="", flush=True)
             answer_was_streamed = True
-        elif event["type"] == "task_done":
-            if not answer_was_streamed:
-                print(event["data"]["response"])
         else:
             _emit_progress(_task_progress(event), quiet=args.quiet)
-    return 0
+    return exit_code
 
 
 def _emit_progress(message: str, *, quiet: bool) -> None:
     if not quiet:
         print(message, file=sys.stderr)
+
+
+def _emit_task_stop(stop_reason: str, response: object) -> None:
+    message = f"Tarea cortada: {stop_reason}."
+    if response:
+        message += " Se devuelve lo producido hasta el corte."
+    else:
+        message += " No se produjo respuesta."
+    print(message, file=sys.stderr)
 
 
 def _reasoning_progress(event: dict[str, object]) -> str:
@@ -424,7 +440,7 @@ def _task_progress(event: dict[str, object]) -> str:
         iteration = payload.get("iteration")
         return f"Iteracion {iteration} completada" if iteration is not None else "Iteracion completada"
     if event_type == "combine_ready":
-        return "Respuesta preparada"
+        return "Respuesta preparada" if payload.get("response") else "Combinacion sin respuesta"
     return "Tarea en curso"
 
 

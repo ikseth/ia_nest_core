@@ -59,6 +59,20 @@ def test_split_reasoning_removes_unclosed_block() -> None:
     )
 
 
+def test_split_reasoning_removes_orphan_closing_tag() -> None:
+    assert split_reasoning("contenido</think>respuesta") == ("respuesta", "contenido")
+
+
+def test_split_reasoning_tolerates_spaces_in_orphan_closing_tag() -> None:
+    assert split_reasoning("contenido< / think >respuesta") == ("respuesta", "contenido")
+
+
+def test_split_reasoning_accumulates_all_marker_forms_in_order() -> None:
+    text = "<think>cerrado</think>huerfano</think>respuesta<think>truncado"
+
+    assert split_reasoning(text) == ("respuesta", "cerrado\nhuerfano\ntruncado")
+
+
 def test_split_reasoning_accumulates_closed_and_unclosed_blocks() -> None:
     text = "antes<think>uno</think>medio< think >dos truncado"
 

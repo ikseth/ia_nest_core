@@ -386,7 +386,9 @@ def _task_run(args: argparse.Namespace) -> int:
         elif args.json:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
         elif event["type"] == "answer_chunk":
-            print(event["data"]["text"], end="", flush=True)
+            if answer_was_streamed:
+                print("\n\n", end="")
+            print(event["data"]["text"].strip(), end="", flush=True)
             answer_was_streamed = True
         else:
             _emit_progress(_task_progress(event), quiet=args.quiet)

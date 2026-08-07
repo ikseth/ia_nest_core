@@ -66,10 +66,10 @@ def test_cli_task_run_emits_checkpoints_as_jsonl(monkeypatch, capsys) -> None:
 def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys) -> None:
     events = [
         {"type": "task_received", "data": {"prompt": "tarea"}},
-        {"type": "answer_chunk", "data": {"text": "FIRST"}},
+        {"type": "answer_chunk", "data": {"text": " FIRST\n"}},
         {"type": "coverage_updated", "data": {"completed": ["u1"]}},
-        {"type": "answer_chunk", "data": {"text": "SECOND"}},
-        {"type": "task_done", "data": {"response": "FIRSTSECOND"}},
+        {"type": "answer_chunk", "data": {"text": "\nSECOND "}},
+        {"type": "task_done", "data": {"response": "FIRST\n\nSECOND"}},
     ]
     calls = []
     monkeypatch.setattr(service, "stream_task", lambda **kwargs: calls.append(kwargs) or iter(events))
@@ -80,12 +80,12 @@ def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert captured.out == "FIRSTSECOND"
+    assert captured.out == "FIRST\n\nSECOND"
     assert "Tarea recibida" in captured.err
     assert "Cobertura actualizada" in captured.err
     assert "task_received" not in captured.out
     assert "coverage_updated" not in captured.out
-    assert captured.out.count("FIRSTSECOND") == 1
+    assert captured.out.count("FIRST\n\nSECOND") == 1
     assert calls[0]["mode"] == "coverage"
 
 

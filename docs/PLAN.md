@@ -297,6 +297,85 @@ Criterio de salida (cumplido): smoke dentro de umbral; ficha
 registrada. El corte de v0.3.0 queda a decision del usuario en la
 reconciliacion.
 
+## Linea v0.4 (propuesta 2026-07-27; pendiente de reconciliacion)
+
+Objetivo: cerrar `extended CR-0001` (ADR 0040) llevando hasta el nivel de
+subtarea la costura de entrada que el core ya tiene -el prompt-, sin abrir
+ninguna costura hacia arriba. La descomposicion se queda en el core; el
+enriquecimiento, en la capa. Version objetivo: la primera linea MINOR posterior
+a la v0.3 en curso; el numero lo corta el usuario (`meta POLITICA_SEMVER.md`,
+ADR 0030). Misma disciplina: contrato y bateria ANTES de implementar.
+
+### Fase v0.4-1: contrato del plan explicito
+
+Fijar en `CORE_CONTRACT.md`: capacidad `task.plan` (solo la etapa PLAN, devuelve
+el plan con el dominio ya resuelto y no ejecuta nada); entrada opcional `plan`
+en `task.run`; corte tipado `replan_unavailable`; campo `plan_source`
+(`planner | supplied`) en el checkpoint `plan_ready`. Alcance `mode=pipeline`.
+
+Criterio de salida: contrato reconciliado por el usuario y registrado.
+
+### Fase v0.4-2: bateria de evaluacion
+
+Casos de conformance deterministas: plan suministrado valido; plan invalido de
+forma (`PlanParseError`); plan con ciclo o indice invalido
+(`PlanDependencyError`); plan que excede `max_subtasks`; decision `replan` con
+plan suministrado -> corte `replan_unavailable`; `plan_source` correcto en las
+dos vias; y no regresion (sin `plan`, salida identica a la actual).
+
+Criterio de salida: bateria escrita y congelada antes de implementar.
+
+### Fase v0.4-3: implementacion y paridad
+
+`task.plan` y la entrada `plan` con paridad CLI/REST/MCP (`ianest task plan`,
+`POST /task/plan`, `plan` en el cuerpo de `POST /task/run` y en las herramientas
+MCP correspondientes), telemetria con `plan_source`.
+
+Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
+`extended` ejerce la via de punta a punta con su RAG por subtarea (leccion de
+ADR 0035: la capacidad se cierra cuando tiene consumidor real, no cuando
+compila).
+
+## Linea del router semantico (abierta 2026-08-07; ADR 0043 reconciliado)
+
+Objetivo: el enrutado por dominio pasa de un filtro de palabras clave a un
+clasificador semantico (ADR 0043). Un solo router para `domain.route` (publica)
+y para las subtareas de `task.run`; `prompt.run` va directo (sin router);
+`routing_rules.keywords` se retira; el core es agnostico en modelos. Version
+objetivo: MINOR (rompe contrato de config); el numero lo corta el usuario. Misma
+disciplina: contrato y bateria ANTES de implementar.
+
+### Fase 1: contrato (completada 2026-08-07)
+
+ADR 0043 reconciliado; `CORE_CONTRACT.md` actualizado (`domain.route` semantica,
+`prompt.run` sin router, `task.run` sin dominio de nivel superior).
+
+Criterio de salida (cumplido): decision reconciliada por el usuario y
+registrada.
+
+### Fase 2: config y bateria
+
+Esquema: `routing_rules.keywords`/`tags` fuera; `description` como entrada
+normativa; objetivo `router` declarativo (modelo o dominio + perfil, en
+conformance un fake guionizado); dominio por defecto designado EXPLICITAMENTE
+(en vez del nombre magico `general`). Los dominios son config del operador; solo
+el default es arquitectura (ADR 0043). Bateria congelada: `domain.route`
+semantica con router fake; ruteo de subtareas de `task.run` por el router unico;
+`prompt.run` sin declarar resuelve al dominio por defecto SIN router;
+precedencia intacta; asignacion de modelo por dominio respetada. La plantilla
+actualiza sus dominios de EJEMPLO con descripciones inequivocas (punto de
+partida, no contrato).
+
+Criterio de salida: esquema y bateria congelados antes de tocar el runtime.
+
+### Fase 3: implementacion y paridad
+
+Router semantico con paridad CLI/REST/MCP; retirada de `_matches` y
+`_resolve_domain_hint`; `prompt.run` directo; digest recalculado y declarado.
+
+Criterio de salida: conformance reproducible en verde; smoke en laboratorio
+(enruta por sentido, no por palabras); core minimo instalable.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

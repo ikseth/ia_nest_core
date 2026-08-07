@@ -58,3 +58,8 @@ Las ejecuciones concretas (host, comandos, salidas, fecha) se registran en
 `local/lab/` (no versionado), para trazabilidad sin exponer datos internos
 en el repo publico. Un resumen saneado (que se probo, pass/fail, ajustes
 aplicados) puede reflejarse en `docs/PLAN.md` (fase de validacion).
+
+La frontera entre contexto local y documentacion normativa la fija la regla 5
+de `ia_nest_meta/docs/CONVENCIONES_TRANSVERSALES.md`: el contexto local de cada
+maquina se mantiene fuera del control de versiones. Su detalle, por ser
+contexto local, tampoco se versiona.

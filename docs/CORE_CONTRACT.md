@@ -89,22 +89,28 @@ Debe devolver:
 
 ### `domain.route`
 
-Recibe un prompt y propone dominio, modelo y perfil.
+Recibe un prompt y propone dominio, modelo y perfil. El enrutado es SEMANTICO
+(ADR 0043): un modelo clasifica el prompt por su sentido contra el catalogo de
+dominios (cada dominio con su `description`, que es la entrada normativa del
+clasificador). No es un filtro de palabras clave.
 
 Debe devolver:
 
 - dominio seleccionado,
-- confianza,
+- confianza (la del clasificador, real),
 - motivo breve,
 - alternativas relevantes.
 
 ### `prompt.run`
 
-Ejecuta un prompt contra el dominio seleccionado o declarado.
+Ejecuta un prompt contra el dominio declarado o el dominio por defecto. NO
+orquesta ni enruta por sentido (ADR 0043): es el camino atomico y directo.
 
-Resolucion de modelo por precedencia (ADR 0019): modelo directo declarado >
-dominio declarado (usa su `preferred_model`) > orquestador/router (o dominio
-por defecto). El modelo resuelto debe existir en `models[]`.
+Resolucion de modelo por precedencia (ADR 0019, enmendado por ADR 0043): modelo
+directo declarado > dominio declarado (usa su `preferred_model`) > dominio por
+defecto (`general`). `prompt.run` NO invoca el router: quien quiera enrutado
+semantico en una peticion atomica usa antes `domain.route`, o usa `task.run`.
+El modelo resuelto debe existir en `models[]`.
 
 Debe devolver:
 
@@ -128,9 +134,15 @@ Debe tener:
 ### `task.run` (linea v0.2: contrato fijado, implementacion en curso)
 
 Ejecuta una tarea compleja orquestando los modelos del roster (ADR 0036):
-descompone en subtareas (PLAN), enruta cada una (ROUTE, precedencia ADR 0019),
-ejecuta en fan-out (paralelo si independientes), combina (COMBINE) y evalua e
-itera dentro de limites (EVALUATE, con re-ejecucion o re-planificacion).
+descompone en subtareas (PLAN), enruta cada una (ROUTE, precedencia ADR 0019;
+router semantico ADR 0043), ejecuta en fan-out (paralelo si independientes),
+combina (COMBINE) y evalua e itera dentro de limites (EVALUATE, con
+re-ejecucion o re-planificacion).
+
+`task.run` NO recibe dominio de nivel superior, y no lo tendra (ADR 0043):
+forzar un dominio unico a toda la tarea contradice la orquestacion. Cada
+subtarea se enruta por su propio sentido. Quien quiera fijar un dominio, usa
+`prompt.run`.
 
 Debe tener:
 

@@ -9,7 +9,17 @@ build/
 # Contexto local no versionado (detalles de red/hardware, endpoints, secretos)
 /local/
 
-# Temporales del harness y artefactos de build
+# Ajustes de las herramientas de IA (son de la herramienta, no del repo)
 .claude/
+.codex/
+.agents/
+
+# Artefactos de build
 *.egg-info/
+
+# Configuracion efectiva de la instalacion: se versiona la plantilla
+# (config/*.example.yaml), nunca la config real ni sus copias de seguridad.
+config/core.yaml
+config/*.bak
+config/*.bak-*
 

@@ -6,6 +6,17 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Contrato: el enrutado por dominio pasa a ser SEMANTICO (ADR 0043). Un
+  clasificador por sentido reemplaza el filtro de palabras clave (cuya confianza
+  estaba falseada); un solo router para `domain.route` (que se conserva publica)
+  y para las subtareas de `task.run`. `prompt.run` va DIRECTO: sin router, al
+  dominio declarado o al por defecto (enmienda el punto 3 de ADR 0019).
+  `task.run` no recibe dominio de nivel superior. `routing_rules.keywords` se
+  retira; la `description` de cada dominio pasa a ser la entrada del router. Los
+  dominios son config del operador; solo el dominio por defecto es arquitectura
+  (se designa explicito). El core es agnostico en modelos. Contrato fijado
+  (fase 1); config, bateria e implementacion en la linea del router
+  (`docs/PLAN.md`). Impacto: minor (rompe contrato de config).
 - Contrato del modo de cobertura de `task.run` (`mode=coverage`: unidades
   verificables, ledger, validacion separada, eventos `answer_chunk` y
   `coverage_updated`, cortes `max_chunks | max_total_tokens | no_progress`)
@@ -68,6 +79,22 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   como backlog del motor: el registro de repos va al registro de capas y los
   concerns del ente sin repo asignado, a meta. ADR 0030 conserva su cuerpo con
   una seccion `Estado posterior`. Impacto: ninguno.
+- Contrato: `extended CR-0001` (enriquecimiento por subtarea en `task.run`)
+  resuelto como REFORMULADO (ADR 0040). Se acepta la necesidad y se separa en
+  dos mitades: que dominio le toca a cada subtarea solo lo produce el core, y
+  meterle el conocimiento es de la capa (ADR 0031, via 2). Se descarta la forma
+  sugerida -un checkpoint con valor de vuelta-: los checkpoints del core son de
+  una sola direccion, el punto de insercion cae dentro del pool de hilos del
+  fan-out, y el consumidor real habla por REST, con lo que un puerto en proceso
+  le es inalcanzable y una llamada saliente invertiria el grafo de dependencias.
+  En su lugar, granularidad de la entrada: capacidad `task.plan` (devuelve el
+  plan con el dominio ya resuelto, sin ejecutarlo) y entrada opcional `plan` en
+  `task.run`, con corte tipado `replan_unavailable` y campo `plan_source` en
+  `plan_ready`. La capa enriquece entre las dos llamadas; el core no abre
+  ninguna costura hacia arriba. Un bus bidireccional generico queda descartado
+  hoy y NO cerrado: los anclajes del VETO diferido (ADR 0036) siguen en pie.
+  Contrato fijado; implementacion en la linea siguiente (`docs/PLAN.md`).
+  Impacto cuando se entregue: minor.
 
 ## [v0.2.0] - 2026-07-16
 

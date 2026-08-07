@@ -52,6 +52,19 @@ def test_split_reasoning_supports_multiple_blocks() -> None:
     assert split_reasoning(text) == ("AB", "uno\ndos")
 
 
+def test_split_reasoning_removes_unclosed_block() -> None:
+    assert split_reasoning("<think>analisis truncado") == (
+        "",
+        "analisis truncado",
+    )
+
+
+def test_split_reasoning_accumulates_closed_and_unclosed_blocks() -> None:
+    text = "antes<think>uno</think>medio< think >dos truncado"
+
+    assert split_reasoning(text) == ("antesmedio", "uno\ndos truncado")
+
+
 def test_split_reasoning_leaves_unmarked_text_intact() -> None:
     text = "  respuesta sin marcas\n"
 

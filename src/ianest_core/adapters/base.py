@@ -39,6 +39,7 @@ _THINK_BLOCK = re.compile(
     r"<\s*think\s*>(.*?)<\s*/\s*think\s*>",
     re.DOTALL,
 )
+_THINK_OPEN = re.compile(r"<\s*think\s*>")
 
 
 def split_reasoning(text: str) -> tuple[str, str]:
@@ -49,6 +50,10 @@ def split_reasoning(text: str) -> tuple[str, str]:
         return ""
 
     clean_text = _THINK_BLOCK.sub(collect, text)
+    open_match = _THINK_OPEN.search(clean_text)
+    if open_match is not None:
+        reasoning_parts.append(clean_text[open_match.end() :])
+        clean_text = clean_text[: open_match.start()]
     return clean_text, "\n".join(reasoning_parts)
 
 

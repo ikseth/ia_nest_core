@@ -41,6 +41,15 @@ distintas a proposito:
    retirada va en `run_blocking` (el cuello, obligatorio): prevenir la fuga no
    puede depender de un adaptador.
 
+   Un `<think>` ABIERTO SIN CERRAR cuenta como razonamiento hasta el final del
+   texto. Ocurre cuando el modelo agota su presupuesto de tokens antes de
+   cerrar la etiqueta (`finish_reason=length`): el canal de razonamiento se
+   abrio y nunca volvio al de respuesta. La respuesta limpia es lo anterior al
+   `<think>` (a menudo, vacia), y ese vacio con `finish_reason=length` es la
+   salida honesta -el modelo no llego a responder-. Verificado en laboratorio
+   el 2026-08-07 (puerta A.2): sin esto, un razonamiento truncado de 4405
+   caracteres se filtraba entero como respuesta.
+
 2. **Campo aparte** (`reasoning_content` / `reasoning`, separado del contenido).
    Es la via a la que tiende el ecosistema. Solo el adaptador ve el cable, asi
    que es el adaptador quien lo captura y lo pasa en el evento `done`. Si un
@@ -126,7 +135,8 @@ futuro, sin modulo nuevo ni logica por modelo.
   es no-op sobre ellos. Se verifica que el digest `5aa67516...` no se mueve.
 - Tests (por no ser expresables end-to-end con fakes reales):
   - `split_reasoning` como funcion pura: retira `<think>...</think>` (incluido
-    multilinea y varias apariciones), respeta texto sin marcas, y devuelve el
+    multilinea y varias apariciones), retira un `<think>` sin cerrar desde la
+    etiqueta hasta el final, respeta texto sin marcas, y devuelve el
     razonamiento separado;
   - un `FakeAdapter` al que se le inyecta `<think>` en la respuesta sale limpio
     por `run_blocking` y su razonamiento aparece en la traza JSONL;

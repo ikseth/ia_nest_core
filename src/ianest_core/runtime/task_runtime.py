@@ -213,7 +213,14 @@ class TaskRuntime:
                 break
 
             iterations += 1
-            iteration_results = self._fan_out(plan, identity_data, parent_request_id, task_id, token_usage)
+            iteration_results = self._fan_out(
+                plan,
+                iterations,
+                identity_data,
+                parent_request_id,
+                task_id,
+                token_usage,
+            )
             subtasks.extend(iteration_results)
             for item in iteration_results:
                 yield self._checkpoint("subtask_done", checkpoints, identity, parent_request_id, task_id, item)
@@ -913,7 +920,7 @@ class TaskRuntime:
             raise CoreError("PlanParseError", "planner returned an invalid plan", "plan")
         return [dict(item) for item in plan]
 
-    def _fan_out(self, plan: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
+    def _fan_out(self, plan: list[dict[str, Any]], iteration: int, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
         pending = set(range(len(plan)))
         completed: dict[int, dict[str, Any]] = {}
         while pending:
@@ -922,7 +929,16 @@ class TaskRuntime:
                 raise CoreError("PlanDependencyError", "plan contains cyclic or invalid dependencies", "depends_on")
             with ThreadPoolExecutor(max_workers=self.settings.max_parallel) as executor:
                 futures = {
-                    index: executor.submit(self._run_subtask, index, plan[index], identity, parent, task_id, token_usage)
+                    index: executor.submit(
+                        self._run_subtask,
+                        index,
+                        iteration,
+                        plan[index],
+                        identity,
+                        parent,
+                        task_id,
+                        token_usage,
+                    )
                     for index in ready
                 }
                 for index in ready:
@@ -930,12 +946,17 @@ class TaskRuntime:
                     pending.remove(index)
         return [completed[index] for index in range(len(plan))]
 
-    def _run_subtask(self, index: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
+    def _run_subtask(self, index: int, iteration: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
         domain_hint = item.get("domain_hint")
         domain_id = self._resolve_domain_hint(domain_hint)
         ignored_hint = domain_hint if domain_hint and domain_id is None else None
         request_id = str(uuid4())
-        trace_payload = {"task_id": task_id, "parent_request_id": parent, "subtask_index": index}
+        trace_payload = {
+            "task_id": task_id,
+            "parent_request_id": parent,
+            "subtask_index": index,
+            "iteration": iteration,
+        }
         if ignored_hint is not None:
             trace_payload["domain_hint_ignored"] = ignored_hint
         result = self._run_prompt(
@@ -944,6 +965,7 @@ class TaskRuntime:
         )
         record = {
             "index": index,
+            "iteration": iteration,
             "prompt": item["prompt"],
             "response": result.response,
             "domain": result.domain,

@@ -87,6 +87,7 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
         ("razonamiento", "fake_reason"), ("codigo", "fake_code")
     ]
     assert [item["finish_reason"] for item in result.subtasks] == ["stop", "length"]
+    assert [item["iteration"] for item in result.subtasks] == [1, 1]
     events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
     subtask_done = [event for event in events if event["event"] == "done" and event["payload"].get("subtask_index") is not None]
     assert len(subtask_done) == 2
@@ -95,6 +96,37 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     assert {event["session_id"] for event in subtask_done} == {"s7"}
     code_done = next(event for event in subtask_done if event["payload"].get("subtask_index") == 1)
     assert code_done["payload"]["finish_reason"] == "length"
+    assert {event["payload"]["iteration"] for event in subtask_done} == {1}
+
+
+def test_task_runtime_rerun_records_unique_iteration_and_index_pairs(tmp_path) -> None:
+    config = _config(tmp_path)
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter(
+            "fake_planner",
+            [json.dumps([{"prompt": "primera"}, {"prompt": "segunda"}]), "rerun", "done"],
+        ),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["A"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["AB"]),
+    }
+
+    result = TaskRuntime(config, adapter_factory=adapters.get).run(prompt="tarea", request_id="parent")
+
+    assert [(item["iteration"], item["index"]) for item in result.subtasks] == [
+        (1, 0), (1, 1), (2, 0), (2, 1),
+    ]
+    assert len({(item["iteration"], item["index"]) for item in result.subtasks}) == len(result.subtasks)
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    subtask_done = [
+        event for event in events
+        if event["event"] == "done" and "subtask_index" in event["payload"]
+    ]
+    assert {
+        (event["payload"]["iteration"], event["payload"]["subtask_index"])
+        for event in subtask_done
+    } == {
+        (1, 0), (1, 1), (2, 0), (2, 1),
+    }
 
 
 def test_task_runtime_requires_orchestration_config() -> None:

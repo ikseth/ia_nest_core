@@ -95,6 +95,11 @@ Digest de conformidad v0.3 declarado tras la ficha 0004 (34 casos de
 conformidad totales; separador de ensamblado coverage):
 `34122194cb09133eb2567093c4715d3b8c3db0c1b54a5fc147192875574a2e75`.
 
+Digest de conformidad v0.3 declarado tras la ficha 0008 (34 casos de
+conformidad totales; el caso pipeline `rerun` aserta el campo aditivo
+`iteration` en sus subtareas):
+`eb0113e69fdc9fc4674332995afc8950a8acc165bcc65cfa26bec4ed7d02f3c4`.
+
 Tests pytest requeridos para los aspectos no expresables end-to-end por la
 bateria declarativa:
 

@@ -25,8 +25,9 @@ configuracion ni contacta con el backend.
     ianest [--config RUTA] GRUPO ACCION [opciones]
 
 `GRUPO` y `ACCION` son obligatorios (dos palabras). Ejemplos: `prompt run`,
-`reasoning run`, `domain route`, `domain list`, `model list`,
-`config validate`, `eval run`, `runtime detect`, `runtime health`.
+`prompt stream`, `reasoning run`, `reasoning stream`, `task run`,
+`domain route`, `domain list`, `model list`, `model pull`, `config validate`,
+`eval run`, `runtime detect`, `runtime health`.
 
 NO funciona `ianest --prompt "..."` suelto: le falta el grupo y la accion.
 Lo correcto es `ianest ... prompt run --prompt "..."`.
@@ -37,7 +38,10 @@ e [instalacion.md](instalacion.md).
 
 `--config RUTA` es una opcion global, se escribe antes del grupo y usa
 `config/core.yaml` por defecto. Las acciones operativas aceptan `--json` para
-obtener salida estructurada; `init` no produce salida JSON.
+obtener salida estructurada; `init` no produce salida JSON. En acciones con
+flujo, stdout contiene la respuesta y stderr el progreso; `--quiet` suprime
+ese progreso sin afectar a la respuesta. Con `--json`, stdout contiene los
+eventos estructurados completos.
 
 ## Inicializar (crear config)
 
@@ -54,14 +58,24 @@ Crea `config/core.yaml` y `.env`, y valida. Es la excepcion a "dos palabras":
 
     # razonamiento iterativo (borrador + refinamiento, con los limites del perfil)
     ianest --config config/core.yaml reasoning run --prompt "Resuelve ..." --domain matematicas --json
+    ianest --config config/core.yaml reasoning stream --prompt "Resuelve ..." --quiet
+
+    # respuesta por fragmentos; stdout se puede redirigir limpio a un fichero
+    ianest --config config/core.yaml prompt stream --prompt "Hola" --domain general > respuesta.txt
 
 Flags de identidad (opcionales): `--user-id`, `--service`, `--session-id`,
 `--domain-tag`, `--namespace`.
+
+## Tareas
+
+    # pipeline multi-modelo; --mode acepta pipeline (por defecto) o coverage
+    ianest --config config/core.yaml task run --prompt "Analiza ..." --mode pipeline
 
 ## Enrutado e inventario
 
     ianest --config config/core.yaml domain route --prompt "..."   # que dominio/modelo elegiria
     ianest --config config/core.yaml model list                    # modelos y disponibilidad
+    ianest --config config/core.yaml model pull                    # descarga los modelos declarados ausentes
     ianest --config config/core.yaml domain list                   # dominios
 
 ## Configuracion y evaluacion

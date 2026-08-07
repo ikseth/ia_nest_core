@@ -94,6 +94,23 @@ profiles:
     max_context_tokens: 4096
     system: "Responde siempre en espanol, de forma clara y concisa."
 
+orchestration:
+  planner: { model: deepseek_reason, profile: default }
+  combiner: { model: mistral_nemo, profile: default }
+  max_subtasks: 4
+  max_iterations: 2
+  max_replans: 1
+  max_time_s: 30
+  max_context_tokens: 4096
+  max_parallel: 2
+  coverage:
+    validator: { model: qwen_tech, profile: default }
+    units_per_chunk: 3
+    max_chunks: 8
+    max_total_tokens: 16384
+    max_retries_per_unit: 2
+    max_no_progress_iterations: 2
+
 identity_defaults:
   user_id: local
   service: local_cli

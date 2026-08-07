@@ -235,9 +235,153 @@ quiesce.
 En paralelo (fuera de este plan): tras cerrar v0.2-1, sembrar la definicion de
 `ia_nest_extended` contra el contrato ya fijado.
 
+## Linea v0.3 (abierta 2026-07-23)
+
+Objetivo: completitud semantica guiada por cobertura en `task.run`
+(`mode=coverage`, ADR 0038). Version objetivo: v0.3.0 (MINOR por
+envergadura, precedente ADR 0034; decision del usuario). Misma disciplina:
+bateria congelada antes de implementar; el modo pipeline y su digest de
+conformance v0.2 permanecen intactos.
+
+Metodo de trabajo de la linea: diseno, prompts por tarea y supervision por
+Claude Code; implementacion por Codex sobre el contrato ya reconciliado
+(no aplica modo ciego: se implementa una decision registrada, no se
+propone diseno).
+
+### Fase v0.3-0: contrato y ADR (completada 2026-07-23)
+
+ADR 0038 registrado; `CORE_CONTRACT.md` (modo coverage + seleccion de
+capacidad) y CHANGELOG actualizados; ficha v0.2/0003 (contabilidad real
+de tokens) abierta como adelanto independiente.
+
+Criterio de salida (cumplido): diseno reconciliado por el usuario
+(2026-07-23) y registrado.
+
+### Fase v0.3-1: config y bateria v0.3 (completada 2026-07-23)
+
+Esquema `orchestration.coverage` (schema + validator + fixtures) y
+bateria determinista congelada como `coverage.yaml.frozen` (el runner
+hace rglob desde v0.2-3; el sufijo sustituye al "aparcar en
+subdirectorio" de v0.2-2): 11 casos conformance (ADR 0038: 1-6, 9, 10,
+11a/b/c) y los casos 3/7/8/12/13/14 como tests pytest requeridos en
+eval/README. Enmienda de reconciliacion: `max_subtasks: 12` en la
+fixture (los casos de 10 unidades eran insatisfacibles con el 4
+heredado; detectado por el implementador antes de codificar).
+
+Criterio de salida (cumplido): `config.validate` acepta/rechaza; casos
+congelados antes de tocar el runtime; digest v0.2 sin cambio.
+
+### Fase v0.3-2: implementacion minima (completada 2026-07-23)
+
+Ledger, bucle DERIVE/GENERATE/VALIDATE/ASSEMBLE, eventos `answer_chunk`
+(en orden, retencion de prefijo) y `coverage_updated` (JSONL), cortes
+`max_chunks | max_total_tokens | no_progress`, reintentos por unidad,
+ensamblado determinista y paridad CLI/REST/MCP (`--mode coverage`).
+Bateria integrada (rename `.frozen` -> `.yaml`): conformance 34/34 con
+digest recalculado y DECLARADO (ADR 0017, patron v0.2-3); el digest
+v0.2 queda como historico en eval/README.
+
+Criterio de salida (cumplido): conformance 34/34 con digest declarado;
+pipeline byte a byte intacto; pytest verde con y sin extras; core
+minimo instalable sin extras.
+
+### Fase v0.3-3: validacion en laboratorio (completada 2026-07-23)
+
+Smoke real (caso 15) en el host de laboratorio: task_done,
+coverage_complete=true, chunk_index=6 (umbral >=2), 8/8 unidades, con
+aceptacion desordenada real y orden conservado. Un robustecimiento
+surgido del smoke, registrado como ficha v0.3/0001 (DERIVE tolerante a
+ids no-string + granularidad explicita), patron v0.2-3.
+
+Criterio de salida (cumplido): smoke dentro de umbral; ficha
+registrada. El corte de v0.3.0 queda a decision del usuario en la
+reconciliacion.
+
+## Linea v0.4 (propuesta 2026-07-27; pendiente de reconciliacion)
+
+Objetivo: cerrar `extended CR-0001` (ADR 0040) llevando hasta el nivel de
+subtarea la costura de entrada que el core ya tiene -el prompt-, sin abrir
+ninguna costura hacia arriba. La descomposicion se queda en el core; el
+enriquecimiento, en la capa. Version objetivo: la primera linea MINOR posterior
+a la v0.3 en curso; el numero lo corta el usuario (`meta POLITICA_SEMVER.md`,
+ADR 0030). Misma disciplina: contrato y bateria ANTES de implementar.
+
+### Fase v0.4-1: contrato del plan explicito
+
+Fijar en `CORE_CONTRACT.md`: capacidad `task.plan` (solo la etapa PLAN, devuelve
+el plan con el dominio ya resuelto y no ejecuta nada); entrada opcional `plan`
+en `task.run`; corte tipado `replan_unavailable`; campo `plan_source`
+(`planner | supplied`) en el checkpoint `plan_ready`. Alcance `mode=pipeline`.
+
+Criterio de salida: contrato reconciliado por el usuario y registrado.
+
+### Fase v0.4-2: bateria de evaluacion
+
+Casos de conformance deterministas: plan suministrado valido; plan invalido de
+forma (`PlanParseError`); plan con ciclo o indice invalido
+(`PlanDependencyError`); plan que excede `max_subtasks`; decision `replan` con
+plan suministrado -> corte `replan_unavailable`; `plan_source` correcto en las
+dos vias; y no regresion (sin `plan`, salida identica a la actual).
+
+Criterio de salida: bateria escrita y congelada antes de implementar.
+
+### Fase v0.4-3: implementacion y paridad
+
+`task.plan` y la entrada `plan` con paridad CLI/REST/MCP (`ianest task plan`,
+`POST /task/plan`, `plan` en el cuerpo de `POST /task/run` y en las herramientas
+MCP correspondientes), telemetria con `plan_source`.
+
+Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
+`extended` ejerce la via de punta a punta con su RAG por subtarea (leccion de
+ADR 0035: la capacidad se cierra cuando tiene consumidor real, no cuando
+compila).
+
+## Linea del router semantico (abierta 2026-08-07; ADR 0043 reconciliado)
+
+Objetivo: el enrutado por dominio pasa de un filtro de palabras clave a un
+clasificador semantico (ADR 0043). Un solo router para `domain.route` (publica)
+y para las subtareas de `task.run`; `prompt.run` va directo (sin router);
+`routing_rules.keywords` se retira; el core es agnostico en modelos. Version
+objetivo: MINOR (rompe contrato de config); el numero lo corta el usuario. Misma
+disciplina: contrato y bateria ANTES de implementar.
+
+### Fase 1: contrato (completada 2026-08-07)
+
+ADR 0043 reconciliado; `CORE_CONTRACT.md` actualizado (`domain.route` semantica,
+`prompt.run` sin router, `task.run` sin dominio de nivel superior).
+
+Criterio de salida (cumplido): decision reconciliada por el usuario y
+registrada.
+
+### Fase 2: config y bateria
+
+Esquema: `routing_rules.keywords`/`tags` fuera; `description` como entrada
+normativa; objetivo `router` declarativo (modelo o dominio + perfil, en
+conformance un fake guionizado); dominio por defecto designado EXPLICITAMENTE
+(en vez del nombre magico `general`). Los dominios son config del operador; solo
+el default es arquitectura (ADR 0043). Bateria congelada: `domain.route`
+semantica con router fake; ruteo de subtareas de `task.run` por el router unico;
+`prompt.run` sin declarar resuelve al dominio por defecto SIN router;
+precedencia intacta; asignacion de modelo por dominio respetada. La plantilla
+actualiza sus dominios de EJEMPLO con descripciones inequivocas (punto de
+partida, no contrato).
+
+Criterio de salida: esquema y bateria congelados antes de tocar el runtime.
+
+### Fase 3: implementacion y paridad
+
+Router semantico con paridad CLI/REST/MCP; retirada de `_matches` y
+`_resolve_domain_hint`; `prompt.run` directo; digest recalculado y declarado.
+
+Criterio de salida: conformance reproducible en verde; smoke en laboratorio
+(enruta por sentido, no por palabras); core minimo instalable.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).
+- `capability.route` (clasificador consultivo de capacidad: propone
+  atomica/iterativa/compleja sin ejecutar, ADR 0038): diferido hasta que
+  exista un agente consumidor real (leccion MemoryPort).
 - tool_contracts (invocacion de herramientas, ADR 0007): diferido hasta que
   exista una herramienta concreta que lo justifique (anti-entropia); sin fase
   asignada (ADR 0022).

@@ -36,6 +36,7 @@ class OpenAICompatibleAdapter:
         )
 
         text_parts: list[str] = []
+        reasoning_parts: list[str] = []
         tokens_in = 0
         tokens_out = 0
         finish_reason: Any = None
@@ -56,6 +57,13 @@ class OpenAICompatibleAdapter:
                         if choice.get("finish_reason") is not None:
                             finish_reason = choice.get("finish_reason")
                         delta = choice.get("delta", {})
+                        reasoning = (
+                            delta.get("reasoning_content")
+                            if "reasoning_content" in delta
+                            else delta.get("reasoning")
+                        )
+                        if reasoning:
+                            reasoning_parts.append(str(reasoning))
                         token = delta.get("content")
                         if token:
                             text_parts.append(token)
@@ -73,6 +81,7 @@ class OpenAICompatibleAdapter:
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
                 "finish_reason": finish_reason,
+                "reasoning": "".join(reasoning_parts),
             },
         )
 

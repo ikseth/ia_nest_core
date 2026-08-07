@@ -66,10 +66,10 @@ def test_cli_task_run_emits_checkpoints_as_jsonl(monkeypatch, capsys) -> None:
 def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys) -> None:
     events = [
         {"type": "task_received", "data": {"prompt": "tarea"}},
-        {"type": "answer_chunk", "data": {"text": "FIRST"}},
+        {"type": "answer_chunk", "data": {"text": " FIRST\n"}},
         {"type": "coverage_updated", "data": {"completed": ["u1"]}},
-        {"type": "answer_chunk", "data": {"text": "SECOND"}},
-        {"type": "task_done", "data": {"response": "FIRSTSECOND"}},
+        {"type": "answer_chunk", "data": {"text": "\nSECOND "}},
+        {"type": "task_done", "data": {"response": "FIRST\n\nSECOND"}},
     ]
     calls = []
     monkeypatch.setattr(service, "stream_task", lambda **kwargs: calls.append(kwargs) or iter(events))
@@ -80,12 +80,12 @@ def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert captured.out == "FIRSTSECOND"
+    assert captured.out == "FIRST\n\nSECOND"
     assert "Tarea recibida" in captured.err
     assert "Cobertura actualizada" in captured.err
     assert "task_received" not in captured.out
     assert "coverage_updated" not in captured.out
-    assert captured.out.count("FIRSTSECOND") == 1
+    assert captured.out.count("FIRST\n\nSECOND") == 1
     assert calls[0]["mode"] == "coverage"
 
 
@@ -107,6 +107,67 @@ def test_cli_task_run_quiet_suppresses_progress(monkeypatch, capsys) -> None:
     assert exit_code == 0
     assert captured.out == "FIRST"
     assert captured.err == ""
+
+
+def test_cli_task_run_limit_stop_returns_error_and_preserves_partial_response(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "combine_ready", "data": {"response": "PARCIAL"}},
+        {"type": "task_done", "data": {"response": "PARCIAL", "stop_reason": "max_iterations"}},
+    ]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main(["--config", "unused", "task", "run", "--prompt", "tarea"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == "PARCIAL\n"
+    assert captured.err == (
+        "Respuesta preparada\n"
+        "Tarea cortada: max_iterations. Se devuelve lo producido hasta el corte.\n"
+    )
+
+
+def test_cli_task_run_quiet_does_not_suppress_limit_stop(monkeypatch, capsys) -> None:
+    events = [{"type": "task_done", "data": {"response": "", "stop_reason": "max_subtasks"}}]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "task", "run", "--prompt", "tarea", "--quiet",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == "\n"
+    assert captured.err == "Tarea cortada: max_subtasks. No se produjo respuesta.\n"
+
+
+def test_cli_task_run_json_does_not_suppress_limit_stop(monkeypatch, capsys) -> None:
+    events = [{"type": "task_done", "data": {"response": "", "stop_reason": "max_subtasks"}}]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "task", "run", "--prompt", "tarea", "--json",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert [json.loads(line) for line in captured.out.splitlines()] == events
+    assert captured.err == "Tarea cortada: max_subtasks. No se produjo respuesta.\n"
+
+
+def test_cli_task_run_empty_combination_does_not_claim_response_is_ready(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "combine_ready", "data": {"response": ""}},
+        {"type": "task_done", "data": {"response": "", "stop_reason": "max_subtasks"}},
+    ]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main(["--config", "unused", "task", "run", "--prompt", "tarea"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "Combinacion sin respuesta" in captured.err
+    assert "Respuesta preparada" not in captured.err
 
 
 def test_cli_task_pipeline_prints_final_response_once(monkeypatch, capsys) -> None:

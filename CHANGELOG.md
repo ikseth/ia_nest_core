@@ -6,13 +6,53 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Contrato: el enrutado por dominio pasa a ser SEMANTICO (ADR 0043). Un
+  clasificador por sentido reemplaza el filtro de palabras clave (cuya confianza
+  estaba falseada); un solo router para `domain.route` (que se conserva publica)
+  y para las subtareas de `task.run`. `prompt.run` va DIRECTO: sin router, al
+  dominio declarado o al por defecto (enmienda el punto 3 de ADR 0019).
+  `task.run` no recibe dominio de nivel superior. `routing_rules.keywords` se
+  retira; la `description` de cada dominio pasa a ser la entrada del router. Los
+  dominios son config del operador; solo el dominio por defecto es arquitectura
+  (se designa explicito). El core es agnostico en modelos. Contrato fijado
+  (fase 1); config, bateria e implementacion en la linea del router
+  (`docs/PLAN.md`). Impacto: minor (rompe contrato de config).
+- Contrato del modo de cobertura de `task.run` (`mode=coverage`: unidades
+  verificables, ledger, validacion separada, eventos `answer_chunk` y
+  `coverage_updated`, cortes `max_chunks | max_total_tokens | no_progress`)
+  y seccion de seleccion de capacidad en `CORE_CONTRACT.md` (ADR 0038);
+  implementacion en fases v0.3-1/2/3 del PLAN. Impacto: minor (version
+  objetivo v0.3.0).
+- Implementacion completa del modo coverage (fases v0.3-1/2/3): config
+  `orchestration.coverage`, bateria v0.3 congelada e integrada
+  (conformance 34/34, digest recalculado y declarado, ADR 0017), runtime
+  con ledger y salida progresiva, paridad CLI/REST/MCP (`--mode`), manual,
+  y smoke de laboratorio dentro de umbral con robustecimiento
+  ([ficha v0.3/0001](docs/fixes/v0.3/0001-derive-coverage-tolerante.md)).
+  Parte de v0.3.0.
 - `finish_reason` crudo del backend en el evento `done`, la traza y telemetria
   JSONL de `prompt.run`, los registros de subtarea de `task.run` y los pasos de
   `reasoning.run`; fakes deterministas con `stop` por defecto y valor
   scriptable ([ficha 0002](docs/fixes/v0.2/0002-finish-reason.md)). Impacto:
   patch.
 
+### Corregido
+- Los cortes por `max_context_tokens` de `task.run` evaluan el acumulado
+  real de tokens de todas las llamadas (antes solo el override
+  `simulated`, inoperante con backend real); el acumulado queda expuesto
+  en la traza ([ficha 0003](docs/fixes/v0.2/0003-contabilidad-tokens-task-run.md)).
+  Impacto: patch.
+- Modo coverage robustecido tras el smoke real: el validador devuelve solo
+  ids y el parser tolera varios formatos de salida
+  ([ficha v0.3/0002](docs/fixes/v0.3/0002-parser-cobertura-tolerante.md)); el
+  generador emite solo el contenido de sus unidades, sin preambulo ni cierre
+  ([ficha v0.3/0003](docs/fixes/v0.3/0003-generador-coverage-sin-boilerplate.md)).
+  Impacto: patch.
+
 ### Cambiado
+- Salida de la CLI: stdout lleva solo la respuesta, el progreso va a stderr
+  como linea concisa, `--json` intacto y nueva bandera `--quiet`; uniforme en
+  `prompt.run`, `reasoning.run` y `task.run` (ADR 0039). Impacto: patch.
 - Doctrina del ente: dos funciones nerviosas (ADR 0037). `ia_nest_core_ops`
   se reconcilia como `ia_nest_core_pulse` -sistema nervioso autonomo: observa
   la telemetria de todos y regula parametros tecnicos dentro de los techos del
@@ -39,6 +79,22 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   como backlog del motor: el registro de repos va al registro de capas y los
   concerns del ente sin repo asignado, a meta. ADR 0030 conserva su cuerpo con
   una seccion `Estado posterior`. Impacto: ninguno.
+- Contrato: `extended CR-0001` (enriquecimiento por subtarea en `task.run`)
+  resuelto como REFORMULADO (ADR 0040). Se acepta la necesidad y se separa en
+  dos mitades: que dominio le toca a cada subtarea solo lo produce el core, y
+  meterle el conocimiento es de la capa (ADR 0031, via 2). Se descarta la forma
+  sugerida -un checkpoint con valor de vuelta-: los checkpoints del core son de
+  una sola direccion, el punto de insercion cae dentro del pool de hilos del
+  fan-out, y el consumidor real habla por REST, con lo que un puerto en proceso
+  le es inalcanzable y una llamada saliente invertiria el grafo de dependencias.
+  En su lugar, granularidad de la entrada: capacidad `task.plan` (devuelve el
+  plan con el dominio ya resuelto, sin ejecutarlo) y entrada opcional `plan` en
+  `task.run`, con corte tipado `replan_unavailable` y campo `plan_source` en
+  `plan_ready`. La capa enriquece entre las dos llamadas; el core no abre
+  ninguna costura hacia arriba. Un bus bidireccional generico queda descartado
+  hoy y NO cerrado: los anclajes del VETO diferido (ADR 0036) siguen en pie.
+  Contrato fijado; implementacion en la linea siguiente (`docs/PLAN.md`).
+  Impacto cuando se entregue: minor.
 
 ## [v0.2.0] - 2026-07-16
 

@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
             return _init(args)
         if args.command == "prompt" and args.prompt_command == "run":
             return _prompt_run(args)
+        if args.command == "prompt" and args.prompt_command == "stream":
+            return _prompt_stream(args)
         if args.command == "reasoning" and args.reasoning_command == "run":
             return _reasoning_run(args)
         if args.command == "reasoning" and args.reasoning_command == "stream":
@@ -49,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
             return _runtime_detect(args)
     except CoreError as exc:
         return _emit_error(exc, json_output=getattr(args, "json", False))
-    parser.print_help()
+    _print_group_help(parser, args.command)
     return 2
 
 
@@ -107,6 +109,16 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_argument(run_parser, "resultado")
     _add_quiet_argument(run_parser)
     _add_identity_arguments(run_parser)
+    prompt_stream_parser = prompt_subparsers.add_parser(
+        "stream",
+        help="emite los fragmentos del prompt mientras se ejecuta",
+        description="Ejecuta un prompt: la respuesta va a stdout y el progreso a stderr.",
+        epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
+    )
+    _add_inference_arguments(prompt_stream_parser)
+    _add_json_argument(prompt_stream_parser, "cada evento como JSONL")
+    _add_quiet_argument(prompt_stream_parser)
+    _add_identity_arguments(prompt_stream_parser)
 
     reasoning_parser = _group_parser(
         subparsers,
@@ -236,11 +248,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     runtime_subparsers = _action_subparsers(runtime_parser, "runtime_command")
     health_parser = runtime_subparsers.add_parser(
-        "health", help="comprueba la salud del core", description="Informa del core, backend, modelos y protocolo MCP."
+        "health",
+        help="detecta runtime, backend y GPU",
+        description="Informa de core, backend, modelos, GPU y version de protocolo MCP.",
     )
     _add_json_argument(health_parser, "informe")
     detect_parser = runtime_subparsers.add_parser(
-        "detect", help="detecta runtime, backend y GPU", description="Detecta Python, plataforma, backend y GPU disponible."
+        "detect",
+        help="detecta runtime, backend y GPU",
+        description="Informa de core, backend, modelos, GPU y version de protocolo MCP.",
     )
     _add_json_argument(detect_parser, "informe")
     return parser
@@ -259,6 +275,17 @@ def _action_subparsers(parser: argparse.ArgumentParser, dest: str) -> argparse._
     return parser.add_subparsers(dest=dest, title="acciones", metavar="ACCION")
 
 
+def _print_group_help(parser: argparse.ArgumentParser, command: str | None) -> None:
+    if command is not None:
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                group_parser = action.choices.get(command)
+                if group_parser is not None:
+                    group_parser.print_help()
+                    return
+    parser.print_help()
+
+
 def _add_inference_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--prompt", required=True, metavar="TEXTO", help="texto que se enviara al modelo")
     parser.add_argument("--domain", metavar="DOMINIO", help="dominio declarado usado para resolver el modelo")
@@ -266,7 +293,7 @@ def _add_inference_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_json_argument(parser: argparse.ArgumentParser, content: str) -> None:
-    parser.add_argument("--json", action="store_true", help=f"emite {content} en formato JSON")
+    parser.add_argument("--json", action="store_true", help=f"emite {content}")
 
 
 def _add_quiet_argument(parser: argparse.ArgumentParser) -> None:
@@ -331,6 +358,23 @@ def _prompt_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _prompt_stream(args: argparse.Namespace) -> int:
+    for event in service.stream_prompt(
+        config_path=args.config,
+        prompt=args.prompt,
+        model=args.model,
+        domain=args.domain,
+        identity=_identity_override(args),
+    ):
+        if args.json:
+            print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+        elif event["type"] == "token":
+            print(event["data"]["text"], end="", flush=True)
+        elif event["type"] != "done":
+            _emit_progress("Prompt en curso", quiet=args.quiet)
+    return 0
+
+
 def _reasoning_run(args: argparse.Namespace) -> int:
     result = service.run_reasoning(
         config_path=args.config,
@@ -367,28 +411,46 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
 
 def _task_run(args: argparse.Namespace) -> int:
     answer_was_streamed = False
+    exit_code = 0
     for event in service.stream_task(
         config_path=args.config,
         prompt=args.prompt,
         mode=args.mode,
         identity=_identity_override(args),
     ):
-        if args.json:
+        if event["type"] == "task_done":
+            if args.json:
+                print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+            elif not answer_was_streamed:
+                print(event["data"]["response"])
+            stop_reason = event["data"].get("stop_reason", "task_done")
+            if stop_reason != "task_done":
+                _emit_task_stop(str(stop_reason), event["data"].get("response"))
+                exit_code = 1
+        elif args.json:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
         elif event["type"] == "answer_chunk":
-            print(event["data"]["text"], end="", flush=True)
+            if answer_was_streamed:
+                print("\n\n", end="")
+            print(event["data"]["text"].strip(), end="", flush=True)
             answer_was_streamed = True
-        elif event["type"] == "task_done":
-            if not answer_was_streamed:
-                print(event["data"]["response"])
         else:
             _emit_progress(_task_progress(event), quiet=args.quiet)
-    return 0
+    return exit_code
 
 
 def _emit_progress(message: str, *, quiet: bool) -> None:
     if not quiet:
         print(message, file=sys.stderr)
+
+
+def _emit_task_stop(stop_reason: str, response: object) -> None:
+    message = f"Tarea cortada: {stop_reason}."
+    if response:
+        message += " Se devuelve lo producido hasta el corte."
+    else:
+        message += " No se produjo respuesta."
+    print(message, file=sys.stderr)
 
 
 def _reasoning_progress(event: dict[str, object]) -> str:
@@ -424,7 +486,7 @@ def _task_progress(event: dict[str, object]) -> str:
         iteration = payload.get("iteration")
         return f"Iteracion {iteration} completada" if iteration is not None else "Iteracion completada"
     if event_type == "combine_ready":
-        return "Respuesta preparada"
+        return "Respuesta preparada" if payload.get("response") else "Combinacion sin respuesta"
     return "Tarea en curso"
 
 

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import argparse
+from pathlib import Path
+
 import pytest
 
 from ianest_core import cli
@@ -9,6 +12,7 @@ GROUPS = ["prompt", "reasoning", "task", "domain", "model", "config", "eval", "r
 ACTIONS = [
     ("init",),
     ("prompt", "run"),
+    ("prompt", "stream"),
     ("reasoning", "run"),
     ("reasoning", "stream"),
     ("task", "run"),
@@ -23,6 +27,7 @@ ACTIONS = [
 ]
 QUIET_ACTIONS = [
     ("prompt", "run"),
+    ("prompt", "stream"),
     ("reasoning", "run"),
     ("reasoning", "stream"),
     ("task", "run"),
@@ -49,6 +54,14 @@ def test_group_help_describes_its_actions(group: str, capsys: pytest.CaptureFixt
     output = _help([group], capsys)
     assert "acciones:" in output
     assert "ACCION" in output
+
+
+@pytest.mark.parametrize("group", GROUPS)
+def test_group_without_action_prints_its_own_help(group: str, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main([group]) == 2
+    output = capsys.readouterr().out
+    assert f"usage: ianest {group}" in output
+    assert "acciones:" in output
 
 
 @pytest.mark.parametrize("action", ACTIONS)
@@ -91,3 +104,26 @@ def test_help_does_not_load_environment(monkeypatch: pytest.MonkeyPatch, capsys:
 
     monkeypatch.setattr(cli, "load_dotenv", fail_if_called)
     _help(["runtime", "health"], capsys)
+
+
+def test_manual_mentions_every_parser_action() -> None:
+    manual = (Path(__file__).resolve().parents[1] / "docs/manual/cli.md").read_text(encoding="utf-8")
+    assert _parser_actions() == ACTIONS
+    for action in _parser_actions():
+        assert " ".join(action) in manual
+
+
+def _parser_actions() -> list[tuple[str, ...]]:
+    root = cli._build_parser()
+    root_subparsers = next(action for action in root._actions if isinstance(action, argparse._SubParsersAction))
+    actions: list[tuple[str, ...]] = []
+    for group, group_parser in root_subparsers.choices.items():
+        action_subparsers = next(
+            (action for action in group_parser._actions if isinstance(action, argparse._SubParsersAction)),
+            None,
+        )
+        if action_subparsers is None:
+            actions.append((group,))
+        else:
+            actions.extend((group, action) for action in action_subparsers.choices)
+    return actions

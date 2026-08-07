@@ -29,6 +29,30 @@ homeostasis continua y (futuro) respuesta por disparadores.
   construye sin la senal ni sin uso (leccion MemoryPort). Vigilancia del backend
   (p.ej. GPU caida tras `systemctl daemon-reload`, ADR 0028) tambien cae aqui.
 
+## Senal de degeneracion mecanica de la generacion
+
+Candidato registrado por ADR 0042, no construido. La FORMA de la salida puede
+degenerar sin que el core entienda su significado: bucles de repeticion,
+colapso de entropia. Es detectable mecanicamente -sin juicio semantico-, lo que
+la hace hermana de `finish_reason` (senal de la generacion, no de su sentido).
+El juicio de si una respuesta "tiene sentido" es semantico y NO es del core
+(ADR 0025, conscience).
+
+Evidencia (laboratorio 2026-08-07): deepseek-r1 entro en bucle "7.7.7..." hasta
+agotar tokens. Frontera: mecanico (repeticion) = posible core; semantico
+(coherencia, validez de un dato) = conscience.
+
+No se construye sin consumidor real. El consumidor plausible existe -que
+coverage rechace y reintente un fragmento degenerado- pero es capacidad nueva,
+con su alcance y su bateria; se decide aparte (anti-entropia).
+
+Antes de tratarlo como desarrollo, valorar si la respuesta es de CONFIGURACION,
+no de codigo: la degeneracion observada puede ser especifica de un modelo
+(deepseek-r1) y corregible por parametros del backend (p.ej. penalizacion de
+repeticion, limite de generacion) o por eleccion de modelo por dominio, sin
+tocar el core. El core solo aportaria la senal; actuar sobre ella es de las
+capas o del operador.
+
 ## Voz del ente (combiner) y personalidad
 
 Regla del core. El combiner de `task.run` (o el modelo unico en `prompt.run`)

@@ -166,6 +166,9 @@
   expect:
     stop_reason: max_iterations
     response: "COMBINADO_PARCIAL"
+    subtasks:
+      - { iteration: 1, index: 0 }
+      - { iteration: 2, index: 0 }
 
 - id: task_replan_then_done
   track: conformance

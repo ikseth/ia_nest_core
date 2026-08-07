@@ -11,6 +11,7 @@ from ianest_core.adapters import (
     ModelRequest,
     OpenAICompatibleAdapter,
     run_blocking,
+    split_reasoning,
 )
 from ianest_core.config.schema import CoreConfig, ModelConfig
 from ianest_core.domain_router import DomainRouter
@@ -113,12 +114,19 @@ class PromptRuntime:
             "substituted": prepared.resolved.substituted,
             "preferred_model": prepared.resolved.preferred_model,
         }
+        done_payload = {
+            "response": response.text,
+            "finish_reason": response.finish_reason,
+            **prepared.trace_payload,
+        }
+        if response.reasoning:
+            done_payload["reasoning"] = response.reasoning
         self.telemetry.record(
             request_id=prepared.request_id,
             event="done",
             capability="prompt.run",
             identity=prepared.identity,
-            payload={"response": response.text, "finish_reason": response.finish_reason, **prepared.trace_payload},
+            payload=done_payload,
             domain=prepared.domain,
             model=prepared.resolved.model.id,
             latency_ms=latency_ms,
@@ -156,6 +164,7 @@ class PromptRuntime:
         tokens_in = 0
         tokens_out = 0
         finish_reason: Any = None
+        adapter_reasoning = ""
         completed = False
         for event in prepared.adapter.stream(prepared.req):
             if event.type == "token":
@@ -164,6 +173,7 @@ class PromptRuntime:
                 tokens_in = int(event.data.get("tokens_in", 0) or 0)
                 tokens_out = int(event.data.get("tokens_out", 0) or 0)
                 finish_reason = event.data.get("finish_reason")
+                adapter_reasoning = str(event.data.get("reasoning", "") or "")
                 completed = True
             elif event.type == "error":
                 error_type = str(event.data.get("type", "AdapterError"))
@@ -179,12 +189,17 @@ class PromptRuntime:
             return
 
         latency_ms = _latency_ms(prepared.started)
+        response_text, inline_reasoning = split_reasoning("".join(text_parts))
+        reasoning = "\n".join(part for part in (adapter_reasoning, inline_reasoning) if part)
+        done_payload = {"response": response_text, "finish_reason": finish_reason}
+        if reasoning:
+            done_payload["reasoning"] = reasoning
         self.telemetry.record(
             request_id=prepared.request_id,
             event="done",
             capability="prompt.run",
             identity=prepared.identity,
-            payload={"response": "".join(text_parts), "finish_reason": finish_reason},
+            payload=done_payload,
             domain=prepared.domain,
             model=prepared.resolved.model.id,
             latency_ms=latency_ms,

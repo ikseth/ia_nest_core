@@ -1,0 +1,124 @@
+# Fixture de configuracion para la bateria congelada del router semantico
+# (ADR 0043). Modelos y dominios FAKE, autocontenidos: no tocan red ni GPU.
+
+models:
+  - id: fake_router
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://router
+    model_name: fake-router
+    capabilities: [chat]
+    profile: default
+  - id: fake_planner
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://planner
+    model_name: fake-planner
+    capabilities: [chat]
+    profile: default
+  - id: fake_combiner
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://combiner
+    model_name: fake-combiner
+    capabilities: [chat]
+    profile: default
+  - id: fake_general
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://general
+    model_name: fake-general
+    capabilities: [chat]
+    profile: default
+  - id: fake_code
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://code
+    model_name: fake-code
+    capabilities: [chat]
+    profile: default
+  - id: fake_reason
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://reason
+    model_name: fake-reason
+    capabilities: [chat]
+    profile: default
+  - id: fake_tech
+    provider: fake
+    adapter: openai_compatible
+    endpoint: fake://tech
+    model_name: fake-tech
+    capabilities: [chat]
+    profile: default
+
+domains:
+  - id: general
+    description: "Consultas generales que no encajan en otro dominio configurado."
+    preferred_model: fake_general
+    fallback_models: []
+    profile: default
+    status: active
+  - id: codigo
+    description: "Escritura, revision y explicacion de codigo fuente y software."
+    preferred_model: fake_code
+    fallback_models: [fake_general]
+    profile: default
+    status: active
+  - id: razonamiento
+    description: "Deduccion logica, problemas abstractos y razonamiento paso a paso."
+    preferred_model: fake_reason
+    fallback_models: [fake_general]
+    profile: default
+    status: active
+  - id: humanidades
+    description: "Literatura, historia, filosofia, arte e interpretacion cultural."
+    preferred_model: fake_general
+    fallback_models: []
+    profile: default
+    status: active
+  - id: linux
+    description: "Administracion de sistemas Linux, servicios, shell y diagnostico tecnico."
+    preferred_model: fake_tech
+    fallback_models: [fake_general]
+    profile: default
+    status: active
+
+profiles:
+  - id: default
+    temperature: 0.2
+    max_tokens: 512
+    top_p: 1.0
+    max_iterations: 4
+    max_time_s: 30
+    max_context_tokens: 4096
+
+router:
+  model: fake_router
+  profile: default
+
+default_domain: general
+
+orchestration:
+  planner:
+    model: fake_planner
+    profile: default
+  combiner:
+    model: fake_combiner
+    profile: default
+  max_subtasks: 4
+  max_iterations: 2
+  max_replans: 1
+  max_time_s: 30
+  max_context_tokens: 4096
+  max_parallel: 2
+
+identity_defaults:
+  user_id: local
+  service: local_cli
+
+telemetry:
+  csv_path: local/telemetry/eval.csv
+  jsonl_path: local/telemetry/eval.jsonl
+  rotation: size
+  strict_mode: false

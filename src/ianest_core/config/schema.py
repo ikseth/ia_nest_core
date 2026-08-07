@@ -22,8 +22,8 @@ class DomainConfig:
     preferred_model: str
     fallback_models: list[str]
     profile: str
-    routing_rules: dict[str, Any]
     status: str
+    routing_rules: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,13 @@ class TelemetryConfig:
 
 @dataclass(frozen=True)
 class OrchestrationTargetConfig:
+    model: str | None
+    domain: str | None
+    profile: str
+
+
+@dataclass(frozen=True)
+class RouterConfig:
     model: str | None
     domain: str | None
     profile: str
@@ -80,3 +87,5 @@ class CoreConfig:
     identity_defaults: dict[str, str]
     telemetry: TelemetryConfig | None
     orchestration: OrchestrationConfig | None = None
+    router: RouterConfig | None = None
+    default_domain: str | None = None

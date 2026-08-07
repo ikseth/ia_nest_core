@@ -12,7 +12,7 @@ from ianest_core.errors import AdapterError, CoreError
 from ianest_core.config import load_config
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.runtime import TaskRuntime
-from ianest_core.runtime.task_runtime import _CoverageUnit, _parse_covered_ids
+from ianest_core.runtime.task_runtime import _CoverageLedger, _CoverageUnit, _TokenUsage, _parse_covered_ids
 
 
 class CapturingAdapter(ScriptedFakeAdapter):
@@ -103,7 +103,7 @@ def test_coverage_ten_units_three_per_chunk(tmp_path) -> None:
     )
 
     assert result.stop_reason == "task_done"
-    assert result.response == "ABCD"
+    assert result.response == "A\n\nB\n\nC\n\nD"
     assert result.coverage["completed_units"] == [unit["id"] for unit in units]
     assert result.coverage["failed_units"] == []
     assert result.coverage["pending_units"] == []
@@ -123,7 +123,7 @@ def test_coverage_next_generation_contains_only_pending_units(tmp_path) -> None:
 
     result = runtime.run(prompt="objetivo", mode="coverage")
 
-    assert result.response == "ACCEPTED-TEXTLAST"
+    assert result.response == "ACCEPTED-TEXT\n\nLAST"
     assert "detail-4" in generator.prompts[1]
     assert all(f"detail-{index}" not in generator.prompts[1] for index in range(1, 4))
     assert "ACCEPTED-TEXT" not in generator.prompts[1]
@@ -143,9 +143,27 @@ def test_coverage_generation_prompt_is_only_assigned_content() -> None:
     assert "context only; do not answer it as a whole" in normalized
     assert "the only content to produce" in normalized
     assert "do not include a preamble, conclusion" in normalized
+    assert "do not restate or rephrase a unit prompt" in normalized
     assert "do not address unassigned units" in normalized
     assert "responde diez puntos" in prompt
     assert "solo el primer punto" in prompt
+
+
+def test_coverage_assembly_separates_and_strips_chunks() -> None:
+    runtime = object.__new__(TaskRuntime)
+    ledger = _CoverageLedger(
+        units=[
+            _CoverageUnit(id="u1", prompt="primero", depends_on=[]),
+            _CoverageUnit(id="u2", prompt="segundo", depends_on=[]),
+        ],
+        token_usage=_TokenUsage(),
+        chunks=[
+            {"chunk_index": 1, "unit_ids": ["u1"], "text": "FIRST\n"},
+            {"chunk_index": 2, "unit_ids": ["u2"], "text": "LAST"},
+        ],
+    )
+
+    assert runtime._assemble_coverage(ledger) == "FIRST\n\nLAST"
 
 
 def test_coverage_adapter_error_retries_only_affected_unit(tmp_path) -> None:
@@ -177,7 +195,7 @@ def test_coverage_adapter_error_retries_only_affected_unit(tmp_path) -> None:
     result = runtime.run(prompt="objetivo", mode="coverage")
 
     assert result.stop_reason == "task_done"
-    assert result.response == "CODEREASONGENERAL"
+    assert result.response == "CODE\n\nREASON\n\nGENERAL"
     assert (code.calls, reason.calls, general.calls) == (2, 1, 1)
     assert result.coverage["retries"]["code"] == 1
 
@@ -228,7 +246,7 @@ def test_coverage_out_of_order_acceptance_retains_answer_prefix(tmp_path) -> Non
     result = next(event.data for event in reversed(events) if event.type == "task_done")
     answer_chunks = [event.data for event in events if event.type == "answer_chunk"]
 
-    assert result["response"] == "FIRSTSECONDTHIRD"
+    assert result["response"] == "FIRST\n\nSECOND\n\nTHIRD"
     assert [chunk["text"] for chunk in answer_chunks] == ["FIRST", "SECOND", "THIRD"]
     assert [chunk["chunk_index"] for chunk in answer_chunks] == [2, 3, 1]
 
@@ -248,7 +266,7 @@ def test_coverage_dependencies_execute_in_plan_order(tmp_path) -> None:
         generator=generator,
     ).run(prompt="objetivo", mode="coverage")
 
-    assert result.response == "ONETWOTHREE"
+    assert result.response == "ONE\n\nTWO\n\nTHREE"
     assert result.coverage["chunk_index"] == 3
     assert '"u1"' in generator.prompts[0]
     assert '"u2"' in generator.prompts[1]
@@ -310,7 +328,7 @@ def test_coverage_max_chunks_does_not_exceed_eight(tmp_path) -> None:
     ).run(prompt="objetivo", mode="coverage")
 
     assert result.stop_reason == "max_chunks"
-    assert result.response == "ABCDEFGH"
+    assert result.response == "A\n\nB\n\nC\n\nD\n\nE\n\nF\n\nG\n\nH"
     assert result.coverage["completed_units"] == [f"u{index}" for index in range(1, 9)]
     assert result.coverage["failed_units"] == []
     assert result.coverage["pending_units"] == ["u9", "u10"]
@@ -443,7 +461,7 @@ def test_coverage_plan_accepts_integer_and_missing_ids(tmp_path) -> None:
     )
 
     assert result.stop_reason == "task_done"
-    assert result.response == "ONETWO"
+    assert result.response == "ONE\n\nTWO"
     assert result.coverage["completed_units"] == ["1", "u2"]
 
 

@@ -64,7 +64,14 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    response: ABCD
+    response: |-
+      A
+
+      B
+
+      C
+
+      D
     completed_units: [u01, u02, u03, u04, u05, u06, u07, u08, u09, u10]
     failed_units: []
     pending_units: []
@@ -98,7 +105,10 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    response: FIRSTLAST
+    response: |-
+      FIRST
+
+      LAST
     completed_units: [u1, u2, u3, u4]
     failed_units: []
     pending_units: []
@@ -130,7 +140,10 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    response: FIRSTLAST
+    response: |-
+      FIRST
+
+      LAST
     completed_units: [u1, u2, u3, u4]
     failed_units: []
     pending_units: []
@@ -160,7 +173,10 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    response: FIRSTLAST
+    response: |-
+      FIRST
+
+      LAST
     completed_units: [u1, u2, u3, u4]
     failed_units: []
     pending_units: []
@@ -190,7 +206,12 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    response: FIRSTSECONDTHIRD
+    response: |-
+      FIRST
+
+      SECOND
+
+      THIRD
     completed_units: [u1, u2, u3]
     failed_units: []
     pending_units: []
@@ -222,7 +243,12 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    response: CODEREASONGENERAL
+    response: |-
+      CODE
+
+      REASON
+
+      GENERAL
     completed_units: [code, reason, general]
     failed_units: []
     pending_units: []
@@ -256,7 +282,12 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    response: ONETWOTHREE
+    response: |-
+      ONE
+
+      TWO
+
+      THREE
     completed_units: [u1, u2, u3]
     failed_units: []
     pending_units: []
@@ -328,7 +359,22 @@
   expect:
     stop_reason: max_chunks
     coverage_complete: false
-    response: ABCDEFGH
+    response: |-
+      A
+
+      B
+
+      C
+
+      D
+
+      E
+
+      F
+
+      G
+
+      H
     completed_units: [u1, u2, u3, u4, u5, u6, u7, u8]
     failed_units: []
     pending_units: [u9, u10]

@@ -86,10 +86,14 @@ La pista `conformance` de coverage vive en
 `eval/fixtures/orchestration_coverage.yaml`. Desde la fase v0.3-2 el runner
 integra sus 11 casos.
 
-Digest de conformidad v0.3 declarado tras la integracion (34 casos de
-conformidad totales):
+Digest historico de conformidad v0.3 declarado tras la integracion (34 casos
+de conformidad totales):
 `5aa67516fb10c2a9b1040798262bc09231467f5bff02fe748a1f8b636ddd3475`.
 El caso `smoke` v0.3 queda excluido del digest, como los smoke v0.2.
+
+Digest de conformidad v0.3 declarado tras la ficha 0004 (34 casos de
+conformidad totales; separador de ensamblado coverage):
+`34122194cb09133eb2567093c4715d3b8c3db0c1b54a5fc147192875574a2e75`.
 
 Tests pytest requeridos para los aspectos no expresables end-to-end por la
 bateria declarativa:
@@ -104,6 +108,45 @@ bateria declarativa:
 
 Caso 15, smoke real: declarar y verificar `coverage_complete=true` y
 `chunk_index >= 2`, sin exigir texto exacto.
+
+## Bateria de invariantes del orquestador (ADR 0041)
+
+`eval/battery/v0.3/invariantes_orquestador.yaml.frozen`: 10 casos de
+conformidad para los tres invariantes del ADR 0041 (adecuacion semantica,
+negociacion de presupuesto y cortes no silenciosos), en los dos modos de
+`task.run`. Congelada ANTES de implementar; el runner no la carga mientras
+conserve el sufijo `.frozen`.
+
+Al integrarla (rename a `.yaml`) el digest se recalcula y se DECLARA, con el
+patron de v0.2-3 y v0.3-2. El digest cambia ademas por la ficha v0.3/0004
+(separador en el ensamblado), que altera el `response` esperado de ocho casos
+de `coverage.yaml`. Ambos cambios son intencionados y estan declarados por
+adelantado; el digest historico de 34 casos queda arriba.
+
+Tests pytest requeridos, por no ser expresables end-to-end en la bateria
+declarativa:
+
+- La comprobacion de I1 no genera NINGUNA llamada de modelo adicional:
+  `requirements` y unidades llegan en la misma respuesta del planificador.
+- La instruccion de re-derivacion nombra los requisitos huerfanos (I1) y el
+  presupuesto disponible (I2) en el texto del prompt.
+- I3 en la CLI: un corte por limite termina con codigo de salida distinto de
+  cero y explica el motivo por stderr, en los dos modos.
+- Paridad: `requirements_covered` y `uncovered_requirements` viajan por
+  CLI (`--json`), REST y MCP.
+
+Smoke real pendiente de laboratorio: el prompt de los ocho planetas
+(`enumera los ocho planetas ... y explica brevemente cada uno`) debe terminar
+con `requirements_covered=true` y una respuesta que incluya descripciones.
+Es el caso que motivo el ADR y su regresion natural.
+
+### Decision D-AUSENCIA
+
+El caso `invariantes_planificador_no_declara_requisitos` fija que un
+planificador que omite `requirements` se trata como si dejase todos los
+requisitos huerfanos (ADR 0041, decision `D-AUSENCIA`, reconciliada
+2026-08-06). Si el comportamiento no convence en uso, esa etiqueta localiza la
+decision, su motivo y las dos alternativas descartadas.
 
 ## Convenciones
 

@@ -640,6 +640,8 @@ class TaskRuntime:
             f"Completed unit references: {completed_text}\n"
             "Produce ONLY the content that directly fulfills the assigned coverage units. "
             "Do not include a preamble, conclusion, transition, or meta-commentary. "
+            "Do not restate or rephrase a unit prompt as an introductory sentence; "
+            "emit the requested content directly. "
             "Do not address unassigned units or any other part of the global objective. "
             "Do not repeat completed units."
         )
@@ -815,7 +817,7 @@ class TaskRuntime:
         return None
 
     def _assemble_coverage(self, ledger: _CoverageLedger) -> str:
-        return "".join(str(chunk["text"]) for chunk in self._ordered_internal_chunks(ledger))
+        return "\n\n".join(str(chunk["text"]).strip() for chunk in self._ordered_internal_chunks(ledger))
 
     def _ordered_internal_chunks(self, ledger: _CoverageLedger) -> list[dict[str, Any]]:
         index_by_id = {unit.id: index for index, unit in enumerate(ledger.units)}

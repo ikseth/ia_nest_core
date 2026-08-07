@@ -15,6 +15,7 @@ from ianest_core.config.schema import (
     OrchestrationConfig,
     OrchestrationTargetConfig,
     ProfileConfig,
+    RouterConfig,
     TelemetryConfig,
 )
 from ianest_core.errors import ConfigError
@@ -45,7 +46,18 @@ def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:
     telemetry = _load_telemetry(raw.get("telemetry"))
     identity_defaults = dict(raw.get("identity_defaults", {}))
     orchestration = _load_orchestration(raw.get("orchestration"))
-    return CoreConfig(models, domains, profiles, identity_defaults, telemetry, orchestration)
+    router = _load_router(raw.get("router"))
+    default_domain = str(raw["default_domain"]) if raw.get("default_domain") else None
+    return CoreConfig(
+        models=models,
+        domains=domains,
+        profiles=profiles,
+        identity_defaults=identity_defaults,
+        telemetry=telemetry,
+        orchestration=orchestration,
+        router=router,
+        default_domain=default_domain,
+    )
 
 
 def _resolve_env(value: Any) -> Any:
@@ -131,6 +143,16 @@ def _load_coverage(raw: dict[str, Any] | None) -> CoverageConfig | None:
 
 def _load_orchestration_target(raw: dict[str, Any]) -> OrchestrationTargetConfig:
     return OrchestrationTargetConfig(
+        model=str(raw["model"]) if raw.get("model") else None,
+        domain=str(raw["domain"]) if raw.get("domain") else None,
+        profile=str(raw.get("profile", "")),
+    )
+
+
+def _load_router(raw: dict[str, Any] | None) -> RouterConfig | None:
+    if raw is None:
+        return None
+    return RouterConfig(
         model=str(raw["model"]) if raw.get("model") else None,
         domain=str(raw["domain"]) if raw.get("domain") else None,
         profile=str(raw.get("profile", "")),

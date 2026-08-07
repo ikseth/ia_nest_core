@@ -15,7 +15,6 @@ DOMAIN_FIELDS = [
     "preferred_model",
     "fallback_models",
     "profile",
-    "routing_rules",
     "status",
 ]
 PROFILE_FIELDS = ["id"]
@@ -57,12 +56,13 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
         _require_fields(domain, DOMAIN_FIELDS)
         if not isinstance(domain.get("fallback_models"), list):
             raise ConfigValidationError("fallback_models must be a list", "fallback_models")
-        routing_rules = domain.get("routing_rules")
-        if not isinstance(routing_rules, dict):
-            raise ConfigValidationError("routing_rules must be a mapping", "routing_rules")
-        for key in ("keywords", "tags"):
-            if key in routing_rules and not isinstance(routing_rules[key], list):
-                raise ConfigValidationError(f"routing_rules.{key} must be a list", "routing_rules")
+        if "routing_rules" in domain:
+            routing_rules = domain["routing_rules"]
+            if not isinstance(routing_rules, dict):
+                raise ConfigValidationError("routing_rules must be a mapping", "routing_rules")
+            for key in ("keywords", "tags"):
+                if key in routing_rules and not isinstance(routing_rules[key], list):
+                    raise ConfigValidationError(f"routing_rules.{key} must be a list", "routing_rules")
 
     for profile in profiles:
         _require_fields(profile, PROFILE_FIELDS)
@@ -89,6 +89,14 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
     orchestration = raw.get("orchestration")
     if orchestration is not None:
         _validate_orchestration(orchestration, model_ids, domain_ids, profile_ids)
+
+    router = raw.get("router")
+    if router is not None:
+        _validate_orchestration_target(router, "router", model_ids, domain_ids, profile_ids)
+
+    default_domain = raw.get("default_domain")
+    if default_domain is not None and default_domain not in domain_ids:
+        raise ConfigValidationError("default_domain does not exist", "default_domain")
 
     return {"models": model_ids, "domains": domain_ids, "profiles": profile_ids}
 

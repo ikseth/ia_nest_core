@@ -181,6 +181,41 @@ sandbox, se hizo aparte: 187 pasados, 4 omitidos y los 4 fallos PREEXISTENTES de
 `test_init.py` -los mismos que la ficha 0010 ya documento como defecto de
 empaquetado ajeno, reproducidos sobre arbol limpio-.
 
+### Puerta de laboratorio: medida, y corrige el diagnostico al alza
+
+Ejecutada el 2026-08-10 aislando el planificador (las dos instrucciones contra
+el MISMO codigo y la misma tarea, elegida para inducir dependencias):
+
+| | instruccion vieja | instruccion nueva |
+|---|---|---|
+| planes con dependencias | 10/20 y 11/20 | 6/20 y 9/20 |
+| valores en prosa | 26 y 23 (el 100%) | 0 |
+| valores enteros | 0 | 16 y 27 (el 100%) |
+| planes ejecutables de los que tienen dependencias | 0 | 9 de 9 |
+
+Con la instruccion vieja el planificador referencia las dependencias por el
+TEXTO de la otra subtarea (`'Prepara el sistema'`, `'Instala el paquete'`), no
+por indice: ni un entero ni una cadena numerica. El diagnostico de esta ficha,
+apoyado en telemetria acumulada, veia sobre todo cadenas numericas; la medicion
+dirigida muestra que esas son el caso BENIGNO, y que el dominante en tareas
+secuenciales es la prosa. El fallo era por tanto mas grave de lo estimado -en
+torno a la mitad de las tareas de esa forma-, y el cambio A, no el B, es el que
+lo resuelve.
+
+Los indices producidos son ademas validos: 0 fuera de rango, 0
+autorreferencias, y una distribucion `{0: 9, 1: 9, 2: 9}` en la que el `0`
+aparece con la misma frecuencia que el resto. Eso confirma empiricamente la base
+0 y descarta el riesgo latente que esta ficha declaraba -que el modelo usara
+base 1 y cambiasemos un fallo ruidoso por uno silencioso-.
+
+Alcance de la puerta: valida el cambio A con medida. B y C no tienen caso real
+que medir una vez A esta puesto -el planificador deja de producir las formas que
+B tolera-, y quedan cubiertos por pytest y por el digest. B sigue justificada
+por la telemetria acumulada, donde esas cadenas SI aparecen con otras formas de
+tarea: A reduce la frecuencia del fallo, B evita que las que se cuelen cuesten
+la tarea. Detalle en `local/lab/2026-08-10_puerta_0011_dependencias.md` (no
+versionado).
+
 Consecuencia conocida del cambio C, anotada para que no sorprenda: un plan con
 dependencias invalidas ahora falla DENTRO de `_plan`, es decir ANTES de que se
 emita el checkpoint `plan_ready`; antes fallaba durante el fan-out, con el

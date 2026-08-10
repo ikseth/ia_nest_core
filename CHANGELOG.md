@@ -37,6 +37,11 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   patch.
 
 ### Corregido
+- En modo pipeline, `depends_on` declara y tolera indices enteros base 0: se
+  aceptan enteros y cadenas de digitos, se rechazan booleanos y formas
+  invalidas, y los indices fuera de rango se distinguen de los ciclos antes del
+  fan-out ([ficha v0.3/0011](docs/fixes/v0.3/0011-dependencias-de-pipeline-tolerantes.md)).
+  Impacto: patch.
 - En modo pipeline, una decision `done` de `task.run` prevalece sobre los
   limites de contexto y tiempo alcanzados al completar esa pasada; el
   presupuesto por defecto de orquestacion pasa a `16384`

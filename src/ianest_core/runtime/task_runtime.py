@@ -906,14 +906,30 @@ class TaskRuntime:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
             "Decompose the task. Return only a JSON list of objects with prompt, optional "
-            "domain, optional advisory domain_hint and optional depends_on. If domain is "
+            "domain, optional advisory domain_hint and optional depends_on as a list of "
+            "zero-based integer indexes into this same list. If domain is "
             f"used, it must be one of: {domain_ids}. Task: {prompt}"
         )
         result = self._run_target(self.settings.planner, instruction, identity, parent, task_id, "planner", token_usage)
         plan = _parse_plan(result.response)
         if not isinstance(plan, list) or not all(self._valid_subtask(item) for item in plan):
             raise CoreError("PlanParseError", "planner returned an invalid plan", "plan")
-        return [dict(item) for item in plan]
+        copied_plan = [dict(item) for item in plan]
+        self._validate_pipeline_dependencies(copied_plan)
+        return copied_plan
+
+    def _validate_pipeline_dependencies(self, plan: list[dict[str, Any]]) -> None:
+        dependencies = {index: self._dependencies(item) for index, item in enumerate(plan)}
+        if any(dependency < 0 or dependency >= len(plan) for indexes in dependencies.values() for dependency in indexes):
+            raise CoreError("PlanDependencyError", "pipeline dependencies must reference valid indexes", "depends_on")
+        remaining = set(dependencies)
+        completed: set[int] = set()
+        while remaining:
+            ready = {index for index in remaining if dependencies[index].issubset(completed)}
+            if not ready:
+                raise CoreError("PlanDependencyError", "pipeline plan contains a cycle", "depends_on")
+            completed.update(ready)
+            remaining.difference_update(ready)
 
     def _fan_out(self, plan: list[dict[str, Any]], iteration: int, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
         pending = set(range(len(plan)))
@@ -1066,12 +1082,26 @@ class TaskRuntime:
     @staticmethod
     def _dependencies(item: dict[str, Any]) -> set[int]:
         value = item.get("depends_on", [])
+        if value is None or value == []:
+            return set()
+        if isinstance(value, bool):
+            raise CoreError("PlanDependencyError", "depends_on must contain subtask indexes", "depends_on")
         if isinstance(value, int):
             return {value}
-        if isinstance(value, list) and all(isinstance(index, int) for index in value):
-            return set(value)
-        if value in (None, []):
-            return set()
+        if isinstance(value, str) and value.isdecimal():
+            return {int(value)}
+        if isinstance(value, list):
+            indexes: set[int] = set()
+            for index in value:
+                if isinstance(index, bool):
+                    raise CoreError("PlanDependencyError", "depends_on must contain subtask indexes", "depends_on")
+                if isinstance(index, int):
+                    indexes.add(index)
+                elif isinstance(index, str) and index.isdecimal():
+                    indexes.add(int(index))
+                else:
+                    raise CoreError("PlanDependencyError", "depends_on must contain subtask indexes", "depends_on")
+            return indexes
         raise CoreError("PlanDependencyError", "depends_on must contain subtask indexes", "depends_on")
 
 

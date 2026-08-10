@@ -1,6 +1,6 @@
 # 0011: el contrato de dependencias de pipeline, dicho y tolerado
 
-Estado: propuesta
+Estado: implementada
 Tipo: correccion (robustez del planificador, modo pipeline)
 Impacto de version: patch
 Version objetivo: v0.3.x
@@ -160,4 +160,32 @@ tarea. Son dos defensas independientes y se verifican por separado.
 
 ## Resultado
 
-(pendiente de implementacion)
+Implementado en modo pipeline. La instruccion del planificador declara que
+`depends_on` usa indices enteros base 0 sobre el propio plan. El parser acepta
+enteros y cadenas de digitos, tanto sueltas como en lista, y rechaza booleanos
+y formas sin significado recuperable.
+
+Las dependencias se validan antes del fan-out: los indices fuera de rango y los
+ciclos producen `PlanDependencyError` con mensajes distintos, sin ejecutar
+subtareas. Coverage no cambia.
+
+Pruebas anadidas para las formas toleradas, los rechazos, la instruccion y la
+validacion previa. El digest de conformance permanece intacto:
+`6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708`.
+
+### Revision cruzada (2026-08-10)
+
+Verificacion independiente: pytest 195/195 con extras y digest confirmado. La
+pasada SIN extras, que el codificador no pudo ejecutar por no tener red en su
+sandbox, se hizo aparte: 187 pasados, 4 omitidos y los 4 fallos PREEXISTENTES de
+`test_init.py` -los mismos que la ficha 0010 ya documento como defecto de
+empaquetado ajeno, reproducidos sobre arbol limpio-.
+
+Consecuencia conocida del cambio C, anotada para que no sorprenda: un plan con
+dependencias invalidas ahora falla DENTRO de `_plan`, es decir ANTES de que se
+emita el checkpoint `plan_ready`; antes fallaba durante el fan-out, con el
+`plan_ready` ya emitido. Se pierde por tanto la ocasion de ver el plan malo en
+un checkpoint. Es lo que la ficha pedia -validar al planificar, sin gastar
+llamadas- y el diagnostico no se resiente: la respuesta cruda del planificador
+sigue en la telemetria JSONL, que es justamente de donde salio la evidencia de
+esta ficha.

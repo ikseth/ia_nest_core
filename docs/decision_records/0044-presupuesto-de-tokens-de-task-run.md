@@ -150,7 +150,7 @@ limite gobierna su propio eje.
   Asi se cumple el "nunca de forma silenciosa" del ADR 0008 por observacion, que
   es lo unico que el core puede acreditar honestamente.
 
-### Campos nuevos (aditivos)
+### D4: campos nuevos (aditivos)
 
 - En `plan_ready`: `token_budget_granted` (concesion de esta pasada) y
   `token_budget_total` (suma acumulada).
@@ -159,7 +159,7 @@ limite gobierna su propio eje.
 - En la traza: `token_budget_total`, junto a los `tokens_in`/`tokens_out` que ya
   estan.
 
-### Valores por defecto, y como se fijan
+### D5: valores por defecto, y como se fijan
 
 El ADR fija la FORMA y la regla de comprobacion. Los numeros se calibran en el
 laboratorio contra telemetria medida, no se adivinan aqui. Punto de partida
@@ -277,6 +277,13 @@ que fijo ADR 0041 para sus tres invariantes, y el criterio de
   (ADR 0025).
 
 ## Puntos reconciliados (2026-08-10)
+
+Nota de forma, para que el registro sea auditable: en la reconciliacion el
+usuario acepto D1 a D4. La version que leyo tenia solo tres bloques numerados;
+los dos ultimos bloques normativos -campos nuevos y valores por defecto- iban
+sin etiqueta y por eso no eran citables. Se numeran ahora como D4 y D5, sin
+cambiar una linea de su contenido: el texto que el usuario aprobo es el mismo, y
+su "D4 conforme" queda anclado a los campos aditivos.
 
 Los dos puntos que se dejaron abiertos quedan resueltos por el usuario:
 

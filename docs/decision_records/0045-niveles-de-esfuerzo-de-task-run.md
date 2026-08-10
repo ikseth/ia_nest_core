@@ -1,12 +1,8 @@
 # Decision 0045: niveles de esfuerzo de task.run (effort low/medium/high)
 
 Fecha: 2026-08-10
-Estado: reconciliado por el usuario (2026-08-10), con un punto abierto
+Estado: reconciliado por el usuario (2026-08-10), sin puntos abiertos
 Depende de: ADR 0044 (presupuesto de tokens dimensionado por el plan)
-
-Las decisiones D1 a D7 quedan reconciliadas. Sigue ABIERTO el punto de mas
-abajo -que limites propios de `coverage` puede declarar un nivel-, que no
-bloquea a D1-D7 pero si a la forma final del esquema de config.
 
 ## Contexto
 
@@ -48,7 +44,20 @@ Gobierna los ejes de INTENCION -cuanto TRABAJO se autoriza-:
 - `max_subtasks`,
 - `max_iterations`,
 - `max_replans`,
-- `max_time_s`.
+- `max_time_s`,
+- `coverage.max_chunks` y `coverage.max_retries_per_unit`, los dos ejes de
+  intencion propios del modo `coverage`: cuantos fragmentos se autorizan y
+  cuanto se insiste en una unidad que falla.
+
+Quedan FUERA, ademas de `max_parallel` y `token_budget`, los otros dos limites
+de `coverage`:
+
+- `units_per_chunk` decide cuanto se mete en UNA sola llamada de generacion, es
+  decir cuanta presion se pone sobre la ventana del modelo. Es forma de la
+  maquina, como `max_parallel`, no ganas de trabajar.
+- `max_no_progress_iterations` es un detector de atasco. Subirlo no compra
+  trabajo: compra tolerancia a que la tarea no avance, que es justo lo que ese
+  limite existe para cortar.
 
 **No gobierna `token_budget`**, aunque parezca el candidato mas obvio. Bajo ADR
 0044 el presupuesto ya es `base + per_subtask * n`, concedido por pasada: crece
@@ -162,9 +171,23 @@ los cuatro ejes, y las excepciones son la parte importante:
 | `max_iterations` | 1 | 2 | 4 | x2 |
 | `max_replans` | 0 | 1 | 2 | a mano |
 | `max_time_s` | 30 | 120 | 480 | x4 |
+| `coverage.max_chunks` | 4 | 8 | 16 | x2 |
+| `coverage.max_retries_per_unit` | 1 | 2 | 3 | a mano |
 
 `max_replans` no admite multiplicador: su suelo correcto es 0 -un nivel para
 tareas pequenas no replanifica- y 0 multiplicado sigue siendo 0. Se fija a mano.
+
+`coverage.max_retries_per_unit` tampoco lo admite, por una razon distinta:
+entra multiplicando en la concesion de presupuesto de coverage
+(`base + per_subtask * n * (1 + max_retries_per_unit)`, ADR 0044 D2), de modo
+que un x2 sobre el se compone con el x2 de `max_subtasks`. Con 1/2/3 la
+diferencia de trabajo autorizado entre `low` y `high` en coverage queda en el
+mismo orden que en `pipeline`; con 1/2/4 se dispararia.
+
+`coverage.max_chunks` si escala x2, en paralelo a `max_subtasks`: los
+fragmentos son el vehiculo de las unidades, y autorizar el doble de unidades
+sin autorizar el doble de fragmentos dejaria el nivel alto cortando por
+`max_chunks` en vez de por lo que decidio el operador.
 
 `max_time_s` escala mas fuerte que el resto, y esta es la consecuencia menos
 evidente de la decision. Las pasadas son ADITIVAS (el bucle acota por
@@ -197,21 +220,31 @@ orchestration:
   max_replans: 1
   max_time_s: 120
   default_effort: medium
+  coverage:
+    validator: { model: ..., profile: default }
+    units_per_chunk: 3              # maquina: fuera del esfuerzo
+    max_no_progress_iterations: 2   # detector de atasco: fuera del esfuerzo
+    max_chunks: 8
+    max_retries_per_unit: 2
   effort:
     low:
       max_subtasks: 3
       max_iterations: 1
       max_replans: 0
       max_time_s: 30
+      coverage: { max_chunks: 4, max_retries_per_unit: 1 }
     high:
       max_subtasks: 12
       max_iterations: 4
       max_replans: 2
       max_time_s: 480
+      coverage: { max_chunks: 16, max_retries_per_unit: 3 }
 ```
 
-Los niveles no mencionan `token_budget` (D2) ni `max_parallel` (D2). `medium` no
-se declara: es el bloque base.
+Los niveles no mencionan `token_budget` ni `max_parallel` (D2), ni
+`units_per_chunk` ni `max_no_progress_iterations` (D2). `medium` no se declara:
+es el bloque base. Un nivel que ejecute en `pipeline` ignora su bloque
+`coverage` sin error, y al reves: la precedencia de D3 opera campo a campo.
 
 ### Campos nuevos (aditivos)
 
@@ -308,15 +341,21 @@ sustituirlo. `high` compra mas trabajo, no mas acierto.
   6. `default_effort: low`: sin bandera se aplica `low`;
   7. `effort` fuera del vocabulario: `ConfigError` con `field: effort` y codigo
      de salida distinto de cero;
-  8. el nivel aplica igual en `mode=coverage`;
-  9. `max_parallel` NO cambia con el nivel (guarda de D2);
+  8. el nivel aplica igual en `mode=coverage`, y `max_chunks` y
+     `max_retries_per_unit` toman los valores del nivel;
+  9. `max_parallel`, `units_per_chunk` y `max_no_progress_iterations` NO cambian
+     con el nivel (guarda de D2);
   10. el `token_budget` resuelto es el MISMO en los tres niveles para un mismo
       `n` (guarda de D2: el nivel no toca la medicion, solo el trabajo
       autorizado);
   11. paridad CLI/REST/MCP del campo y del nivel resuelto.
-- Los valores POR DEFECTO del esquema y de las dos plantillas se recalibran en
-  la misma pasada (`max_subtasks`, `max_iterations`, `max_replans`,
-  `max_time_s` pasan a los de `medium` en D7). Es un cambio deliberado y
+- Los valores POR DEFECTO del esquema, del CARGADOR y de las dos plantillas se
+  recalibran en la misma pasada (`max_subtasks`, `max_iterations`,
+  `max_replans`, `max_time_s`, `coverage.max_chunks` y
+  `coverage.max_retries_per_unit` pasan a los de `medium` en D7). Los tres
+  vertices a la vez: la ficha v0.3/0010 demostro que el cargador repite los
+  defaults del esquema y que olvidarlo deja el valor nuevo muerto para la via de
+  YAML. Es un cambio deliberado y
   declarado, no un efecto del mecanismo de esfuerzo: la garantia de
   compatibilidad de D5 dice que una config que declara sus limites se comporta
   igual que antes, no que los defaults de fabrica se congelen. Las dos
@@ -327,17 +366,28 @@ sustituirlo. `high` compra mas trabajo, no mas acierto.
   por la linea del router; conviene saldarla en la misma pasada.)
 - No toca `prompt.run`, `reasoning.run`, `profiles` ni `max_parallel`.
 
-## Punto a reconciliar
+## Punto reconciliado (2026-08-10)
 
-**Los limites propios de `coverage` dentro de un nivel.** La propuesta abre
-`max_retries_per_unit` y `max_chunks` -son eje de intencion: cuanto se insiste y
-cuantos fragmentos se autorizan- y deja FUERA `units_per_chunk`, que decide
-cuanto se mete en una sola llamada de generacion y por tanto empuja la ventana
-del modelo, mas cerca de un parametro de maquina que de intencion.
+**Los limites propios de `coverage` dentro de un nivel. RECONCILIADO: entran dos
+de los cuatro.** Se adopta la recomendacion, ya incorporada a D2 y D7:
 
-Alternativa mas simple, por si se prefiere: que ningun limite propio de coverage
-entre en el nivel, y que `effort` gobierne solo los cuatro limites comunes. Menos
-superficie, a cambio de que `high` en coverage no pueda insistir mas por unidad.
+- `max_chunks` y `max_retries_per_unit` SI, por ser ejes de intencion -cuantos
+  fragmentos se autorizan, cuanto se insiste en una unidad que falla-;
+- `units_per_chunk` NO, por empujar la ventana del modelo en una sola llamada:
+  es forma de la maquina, el mismo argumento que deja fuera a `max_parallel`;
+- `max_no_progress_iterations` NO, por no ser trabajo sino tolerancia al
+  atasco: subirlo compra que la tarea tarde mas en reconocer que no avanza.
+
+Se descarta la alternativa mas simple -que ningun limite de `coverage` entre en
+el nivel y `effort` gobierne solo los cuatro comunes-: era menos superficie, a
+cambio de que `high` en `coverage` no pudiese insistir mas por unidad ni
+autorizar mas fragmentos, con lo que el nivel alto habria quedado sin efecto
+practico justo en el modo pensado para tareas grandes.
+
+Coherencia con ADR 0044 que conviene dejar anotada: `max_retries_per_unit` entra
+en la formula de concesion de `coverage`, de modo que subirlo con el nivel hace
+crecer el presupuesto SOLO por la via de D2 de aquel ADR. El nivel sigue sin
+tocar la medicion; autoriza trabajo, y el presupuesto lo sigue.
 
 ## Alternativas descartadas
 

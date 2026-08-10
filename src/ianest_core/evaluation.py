@@ -13,7 +13,7 @@ from uuid import uuid4
 import yaml
 
 from ianest_core.config import load_config, load_config_from_dict, validate_config_dict
-from ianest_core.config.schema import TelemetryConfig
+from ianest_core.config.schema import CoreConfig, TelemetryConfig
 from ianest_core.errors import CoreError
 from ianest_core.adapters import Event, ScriptedFakeAdapter
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
@@ -112,7 +112,27 @@ def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | Non
 
 def _execute_prompt_run(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
     config = _case_config(case, config_path=config_path)
-    runtime = PromptRuntime(config, availability=_case_availability(case))
+    availability = _case_availability(case)
+    router_adapter = None
+    if "router_invoked" in case.get("expect", {}) and config.router is not None:
+        router_model = ModelRegistry(config, availability=availability).resolve_prompt_target(
+            config.router.model,
+            config.router.domain,
+        ).model
+        router_adapter = _InvokedScriptedFakeAdapter(
+            router_model.id,
+            [
+                str(response)
+                for response in case.get("world", {}).get("script", {}).get("router_responses", [])
+            ],
+        )
+    runtime = PromptRuntime(
+        config,
+        availability=availability,
+        adapter_factory=(
+            lambda model: router_adapter if router_adapter is not None and model.id == router_adapter.model else None
+        ),
+    )
     try:
         result = runtime.run(
             prompt=case["input"].get("prompt", ""),
@@ -151,6 +171,7 @@ def _execute_prompt_run(case: dict[str, Any], *, config_path: str | Path | None)
         "domain": result.domain,
         "model": result.model,
         "trace_substitution": bool(result.trace.get("substituted")),
+        "router_invoked": bool(router_adapter and router_adapter.invoked),
     }
     trace_fields = expected.get("trace_fields", {})
     for key in trace_fields:
@@ -181,7 +202,7 @@ def _execute_reasoning_run(case: dict[str, Any], *, config_path: str | Path | No
 
 def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
     config = _case_config(case, config_path=config_path)
-    adapters = _task_adapters(case)
+    adapters = _task_adapters(case, config)
     script = case.get("world", {}).get("script", {})
     runtime = TaskRuntime(
         config,
@@ -269,7 +290,7 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
     return _case_result(case, assertions, domain=domain, model=model)
 
 
-def _task_adapters(case: dict[str, Any]) -> dict[str, ScriptedFakeAdapter]:
+def _task_adapters(case: dict[str, Any], config: CoreConfig) -> dict[str, ScriptedFakeAdapter]:
     script = case.get("world", {}).get("script", {})
     if "units" in script:
         generator_responses = script.get("generator_responses", {})
@@ -293,6 +314,7 @@ def _task_adapters(case: dict[str, Any]) -> dict[str, ScriptedFakeAdapter]:
                 for decision in script.get("validator_decisions", [])
             ],
         )
+        _add_router_adapter(adapters, script, config)
         return adapters
 
     planner_responses: list[str] = []
@@ -309,7 +331,35 @@ def _task_adapters(case: dict[str, Any]) -> dict[str, ScriptedFakeAdapter]:
         model: ScriptedFakeAdapter(model, [str(response)]) for model, response in responses.items()
     }
     adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
+    _add_router_adapter(adapters, script, config)
     return adapters
+
+
+def _add_router_adapter(
+    adapters: dict[str, ScriptedFakeAdapter],
+    script: dict[str, Any],
+    config: CoreConfig,
+) -> None:
+    if "router_responses" not in script or config.router is None:
+        return
+    router_model = ModelRegistry(config).resolve_prompt_target(
+        config.router.model,
+        config.router.domain,
+    ).model
+    adapters[router_model.id] = ScriptedFakeAdapter(
+        router_model.id,
+        [str(response) for response in script["router_responses"]],
+    )
+
+
+class _InvokedScriptedFakeAdapter(ScriptedFakeAdapter):
+    def __init__(self, model: str, responses: list[str]) -> None:
+        super().__init__(model, responses)
+        self.invoked = False
+
+    def stream(self, req):
+        self.invoked = True
+        yield from super().stream(req)
 
 
 class _FinishReasonScriptedFakeAdapter(ScriptedFakeAdapter):

@@ -100,16 +100,19 @@ conformidad totales; el caso pipeline `rerun` aserta el campo aditivo
 `iteration` en sus subtareas):
 `eb0113e69fdc9fc4674332995afc8950a8acc165bcc65cfa26bec4ed7d02f3c4`.
 
-## Bateria del router semantico (fase 3a)
+## Bateria del router semantico (fases 3a y 3b-i)
 
 `eval/battery/router/domain_route.yaml` integra los 4 casos de
-`domain.route` del router semantico (ADR 0043). Los 5 casos de `prompt.run` y
-`task.run` permanecen congelados en
-`eval/battery/router/domain_route_semantico.yaml.frozen` hasta la fase 3b.
+`domain.route` del router semantico (ADR 0043) y los 5 casos de `prompt.run` y
+`task.run` de la fase 3b-i.
 
 Digest de conformidad declarado tras integrar los 4 casos (38 casos de
 conformidad totales):
 `42146c0cfe52f5a1ab8f290173458fa1f28b8b5d90e6a0a101d8e282369f0226`.
+
+Digest de conformidad declarado tras integrar los 5 casos de `prompt.run` y
+`task.run` de la fase 3b-i (43 casos de conformidad totales):
+`e3ea47ed3d1e30d8de9dd1b5c01fcad28fff2e7a858c3e60ef871ab7583ea13e`.
 
 Tests pytest requeridos para los aspectos no expresables end-to-end por la
 bateria declarativa:

@@ -224,8 +224,8 @@ class PromptRuntime:
         request_id = request_id or str(uuid4())
         route = None
         if model_id is None and domain_id is None:
-            route = self.router.route(prompt)
-            resolved = route.resolved
+            default_id = self.config.default_domain or "general"
+            resolved = self.registry.resolve_prompt_target(None, default_id)
         else:
             resolved = self.registry.resolve_prompt_target(model_id, domain_id)
         domain = resolved.domain.id if resolved.domain is not None else ""

@@ -65,3 +65,106 @@
   expect:
     domain: linux
     model: fake_tech
+
+# ---------------------------------------------------------------------------
+# prompt.run: va DIRECTO, no invoca el router
+# ---------------------------------------------------------------------------
+
+- id: router_prompt_run_undeclared_uses_default_no_router
+  track: conformance
+  description: "ADR 0043: prompt.run sin declarar nada resuelve al default SIN llamar al router."
+  capability: prompt.run
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "hola"
+  world:
+    script:
+      router_responses: []
+  expect:
+    domain: general
+    model: fake_general
+    router_invoked: false
+
+- id: router_prompt_run_declared_domain_no_router
+  track: conformance
+  description: "ADR 0043/0019: prompt.run con --domain usa ese dominio, sin router."
+  capability: prompt.run
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "cualquier cosa"
+    domain: codigo
+  world:
+    script:
+      router_responses: []
+  expect:
+    domain: codigo
+    model: fake_code
+    router_invoked: false
+
+- id: router_prompt_run_declared_model_no_router
+  track: conformance
+  description: "ADR 0019: prompt.run con --model usa ese modelo, sin router ni dominio."
+  capability: prompt.run
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "cualquier cosa"
+    model: fake_reason
+  world:
+    script:
+      router_responses: []
+  expect:
+    model: fake_reason
+    router_invoked: false
+
+# ---------------------------------------------------------------------------
+# task.run: cada subtarea se enruta por el MISMO router
+# ---------------------------------------------------------------------------
+
+- id: router_task_subtasks_routed_by_router
+  track: conformance
+  description: "ADR 0043: en task.run, las subtareas sin dominio en el plan se enrutan por el router unico."
+  capability: task.run
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "resuelve un problema con dos partes"
+    mode: pipeline
+  world:
+    script:
+      plans:
+        - - { prompt: "escribe la funcion" }
+          - { prompt: "razona el enfoque" }
+      router_responses:
+        - '{"domain": "codigo", "confidence": 0.9, "reason": "codigo"}'
+        - '{"domain": "razonamiento", "confidence": 0.85, "reason": "deduccion"}'
+      responses:
+        fake_code: "FUNCION"
+        fake_reason: "ENFOQUE"
+        fake_combiner: "COMBINADO"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    subtasks:
+      - { domain: codigo, model: fake_code }
+      - { domain: razonamiento, model: fake_reason }
+
+- id: router_task_subtask_declared_domain_bypasses_router
+  track: conformance
+  description: "ADR 0043/0019: una subtarea con dominio fijado en el plan no invoca el router."
+  capability: task.run
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "una sola parte, con dominio fijado"
+    mode: pipeline
+  world:
+    script:
+      plans:
+        - - { prompt: "escribe la funcion", domain: codigo }
+      router_responses: []
+      responses:
+        fake_code: "FUNCION"
+        fake_combiner: "COMBINADO"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    subtasks:
+      - { domain: codigo, model: fake_code }

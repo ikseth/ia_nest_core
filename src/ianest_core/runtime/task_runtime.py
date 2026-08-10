@@ -947,9 +947,22 @@ class TaskRuntime:
         return [completed[index] for index in range(len(plan))]
 
     def _run_subtask(self, index: int, iteration: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
+        declared_domain = item.get("domain")
+        fixed_domain = next(
+            (
+                domain.id
+                for domain in self.config.domains
+                if isinstance(declared_domain, str) and domain.id == declared_domain
+            ),
+            None,
+        )
         domain_hint = item.get("domain_hint")
-        domain_id = self._resolve_domain_hint(domain_hint)
-        ignored_hint = domain_hint if domain_hint and domain_id is None else None
+        hinted_domain = self._resolve_domain_hint(domain_hint)
+        ignored_hint = domain_hint if domain_hint and hinted_domain is None else None
+        domain_id = fixed_domain or hinted_domain
+        if domain_id is None:
+            route = self.prompt_runtime.router.route(str(item["prompt"]))
+            domain_id = route.domain
         request_id = str(uuid4())
         trace_payload = {
             "task_id": task_id,

@@ -58,6 +58,35 @@ def test_unknown_domain_hint_is_ignored_and_routed(tmp_path) -> None:
     assert subtask_done["payload"]["domain_hint_ignored"] == "inventado"
 
 
+def test_subtask_declared_domain_bypasses_router(tmp_path) -> None:
+    config = replace(
+        load_config("eval/fixtures/router.yaml"),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+        ),
+    )
+    router_adapter = CountingScriptedAdapter("fake_router", [])
+    adapters = {
+        "fake_router": router_adapter,
+        "fake_planner": ScriptedFakeAdapter(
+            "fake_planner",
+            [json.dumps([{"prompt": "escribe una funcion", "domain": "codigo"}]), "done"],
+        ),
+        "fake_code": ScriptedFakeAdapter("fake_code", ["FUNCION"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
+    }
+
+    result = TaskRuntime(config, adapter_factory=adapters.get).run(
+        prompt="tarea",
+        request_id="parent",
+    )
+
+    assert result.subtasks[0]["domain"] == "codigo"
+    assert result.subtasks[0]["model"] == "fake_code"
+    assert router_adapter.calls == 0
+
+
 def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     config = _config(tmp_path)
     adapters = {
@@ -198,3 +227,13 @@ def _config(tmp_path):
         load_config("eval/fixtures/orchestration.yaml"),
         telemetry=TelemetryConfig(csv_path=str(tmp_path / "trace.csv"), jsonl_path=str(tmp_path / "trace.jsonl")),
     )
+
+
+class CountingScriptedAdapter(ScriptedFakeAdapter):
+    def __init__(self, model: str, responses: list[str]) -> None:
+        super().__init__(model, responses)
+        self.calls = 0
+
+    def stream(self, req):
+        self.calls += 1
+        yield from super().stream(req)

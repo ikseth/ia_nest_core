@@ -1,7 +1,7 @@
 # Decision 0044: el presupuesto de tokens de task.run lo dimensiona el plan, y decide la proxima pasada
 
 Fecha: 2026-08-10
-Estado: propuesta, pendiente de reconciliacion por el usuario
+Estado: reconciliado por el usuario (2026-08-10)
 
 ## Contexto: lo que hay hoy, y por que contradice el ADR 0008
 
@@ -276,27 +276,26 @@ que fijo ADR 0041 para sus tres invariantes, y el criterio de
   `requirements_covered` (ADR 0038, 0041). No toca la exactitud factual
   (ADR 0025).
 
-## Puntos a reconciliar
+## Puntos reconciliados (2026-08-10)
 
-Dos decisiones cambian el alcance del trabajo y las dejo abiertas al usuario en
-vez de resolverlas por inferencia:
+Los dos puntos que se dejaron abiertos quedan resueltos por el usuario:
 
-**P1. Unificar `coverage` en el mismo presupuesto, o dejarlo aparte.**
-La propuesta unifica (D3). La alternativa -tocar solo `pipeline` y conservar
-`coverage.max_total_tokens` tal cual- es mas barata, no cambia el corte tipado
-de `coverage` y reduce el impacto a un digest mas pequeno; pero deja vivas dos
-semanticas para el mismo concepto y obliga a volver. Recomiendo unificar: la
-entropia de nombres es justo lo que este ADR viene a cerrar.
+**P1. Unificar `coverage` en el mismo presupuesto. RECONCILIADO: se unifica.**
+Se adopta la recomendacion. `coverage.max_total_tokens` se retira y el modo
+`coverage` pasa al presupuesto de D2; el corte tipado es `max_total_tokens` para
+los dos modos, como fija D3. Se descarta la alternativa de tocar solo
+`pipeline`, mas barata en digest, porque dejaba vivas dos semanticas para el
+mismo concepto -que es exactamente la entropia que esta decision viene a
+cerrar-.
 
-**P2. Parche puente antes del ADR.**
-Subir los defaults de `max_context_tokens` a 16384 en esquema y plantillas, y
-corregir la precedencia del merito sobre el techo, es una ficha de correccion
-independiente (impacto PATCH, sin tocar contrato) que deja `task.run` usable en
-el laboratorio esta misma semana, sin esperar a la linea MINOR. No sustituye a
-esta decision -no arregla el crecimiento- y su unico coste es que el numero 16384
-se retira despues. Recomiendo hacerla si el laboratorio se necesita antes de que
-la linea MINOR entre; la correccion de precedencia merece la ficha aunque no se
-suba el default, porque es un fallo observable por si sola.
+**P2. Parche puente. RECONCILIADO: se hace.**
+Ficha de correccion propia, impacto PATCH, sin tocar contrato, ANTES de la linea
+MINOR: subir el default de `max_context_tokens` y corregir la precedencia del
+merito sobre el techo, para que `task.run` sea usable en el laboratorio sin
+esperar a que entre esta decision. No sustituye a este ADR -no arregla el
+crecimiento- y su unico coste es que el numero se retira despues, cuando D2
+entre. La correccion de precedencia se justifica por si sola: es un fallo
+observable, y el test vigente congela la expectativa equivocada.
 
 ## Alternativas descartadas
 

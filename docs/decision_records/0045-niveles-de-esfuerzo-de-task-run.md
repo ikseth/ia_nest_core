@@ -1,8 +1,12 @@
 # Decision 0045: niveles de esfuerzo de task.run (effort low/medium/high)
 
 Fecha: 2026-08-10
-Estado: propuesta, pendiente de reconciliacion por el usuario
+Estado: reconciliado por el usuario (2026-08-10), con un punto abierto
 Depende de: ADR 0044 (presupuesto de tokens dimensionado por el plan)
+
+Las decisiones D1 a D7 quedan reconciliadas. Sigue ABIERTO el punto de mas
+abajo -que limites propios de `coverage` puede declarar un nivel-, que no
+bloquea a D1-D7 pero si a la forma final del esquema de config.
 
 ## Contexto
 

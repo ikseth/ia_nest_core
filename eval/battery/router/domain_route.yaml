@@ -66,6 +66,23 @@
     domain: linux
     model: fake_tech
 
+- id: router_domain_route_tags_do_not_route
+  track: conformance
+  description: "ADR 0043 fase 3b-ii: los tags no fuerzan dominio; decide el clasificador semantico."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "interpreta este poema"
+    tags: [codigo]
+  world:
+    script:
+      router_responses:
+        - '{"domain": "humanidades", "confidence": 0.87, "reason": "interpretacion literaria"}'
+  expect:
+    domain: humanidades
+    model: fake_general
+    confidence: 0.87
+
 # ---------------------------------------------------------------------------
 # prompt.run: va DIRECTO, no invoca el router
 # ---------------------------------------------------------------------------
@@ -145,6 +162,29 @@
     stop_reason: task_done
     subtasks:
       - { domain: codigo, model: fake_code }
+      - { domain: razonamiento, model: fake_reason }
+
+- id: router_task_subtask_domain_hint_is_advisory
+  track: conformance
+  description: "ADR 0043 fase 3b-ii: domain_hint llega como contexto asesor y el router conserva la decision."
+  capability: task.run
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "tarea con pista asesora"
+    mode: pipeline
+  world:
+    script:
+      plans:
+        - - { prompt: "razona esta parte", domain_hint: "Filosofia" }
+      router_responses:
+        - '{"domain": "razonamiento", "confidence": 0.84, "reason": "la subtarea pide deduccion"}'
+      responses:
+        fake_reason: "R"
+        fake_combiner: "C"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    subtasks:
       - { domain: razonamiento, model: fake_reason }
 
 - id: router_task_subtask_declared_domain_bypasses_router

@@ -1,30 +1,6 @@
 # Pista conformance: deterministica, adaptadores fake, fixture autocontenido.
 # Veredicto reproducible; alimenta conformance_digest (ADR 0017).
 
-- id: routing_keyword_match
-  track: conformance
-  description: "Un prompt con keyword de soporte se enruta al dominio support."
-  capability: domain.route
-  fixture: eval/fixtures/config.yaml
-  input:
-    prompt: "tengo un error en el sistema"
-    identity: { user_id: u1, service: local_cli }
-  expect:
-    domain: support
-    model: fake_a
-
-- id: routing_default_domain
-  track: conformance
-  description: "Un prompt sin keywords cae al dominio general por defecto."
-  capability: domain.route
-  fixture: eval/fixtures/config.yaml
-  input:
-    prompt: "hola, buenos dias"
-    identity: { user_id: u1, service: local_cli }
-  expect:
-    domain: general
-    model: fake_b
-
 - id: fallback_used_when_preferred_unavailable
   track: conformance
   description: "Si el modelo preferido no esta disponible, se usa el fallback y se registra la sustitucion."

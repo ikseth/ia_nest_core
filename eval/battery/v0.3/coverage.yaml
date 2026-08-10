@@ -5,7 +5,7 @@
 # Scripting determinista (world.script), realizado por ScriptedFakeAdapter en
 # la implementacion v0.3-2:
 # - units: lista que el fake planner deriva en DERIVE. Cada unidad es
-#   {id, prompt, domain_hint (opcional), depends_on (opcional, ids)}.
+#   {id, prompt, domain, depends_on (opcional, ids)}.
 # - generator_responses: por modelo fake, lista de fragmentos en el orden de
 #   llamada de generacion.
 # - generator_finish_reasons: por modelo fake, lista opcional de
@@ -44,16 +44,16 @@
   world:
     script:
       units:
-        - { id: u01, prompt: "punto 1" }
-        - { id: u02, prompt: "punto 2" }
-        - { id: u03, prompt: "punto 3" }
-        - { id: u04, prompt: "punto 4" }
-        - { id: u05, prompt: "punto 5" }
-        - { id: u06, prompt: "punto 6" }
-        - { id: u07, prompt: "punto 7" }
-        - { id: u08, prompt: "punto 8" }
-        - { id: u09, prompt: "punto 9" }
-        - { id: u10, prompt: "punto 10" }
+        - { id: u01, prompt: "punto 1", domain: general }
+        - { id: u02, prompt: "punto 2", domain: general }
+        - { id: u03, prompt: "punto 3", domain: general }
+        - { id: u04, prompt: "punto 4", domain: general }
+        - { id: u05, prompt: "punto 5", domain: general }
+        - { id: u06, prompt: "punto 6", domain: general }
+        - { id: u07, prompt: "punto 7", domain: general }
+        - { id: u08, prompt: "punto 8", domain: general }
+        - { id: u09, prompt: "punto 9", domain: general }
+        - { id: u10, prompt: "punto 10", domain: general }
       generator_responses:
         fake_general: [A, B, C, D]
       validator_decisions:
@@ -91,10 +91,10 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "punto 1" }
-        - { id: u2, prompt: "punto 2" }
-        - { id: u3, prompt: "punto 3" }
-        - { id: u4, prompt: "punto 4" }
+        - { id: u1, prompt: "punto 1", domain: general }
+        - { id: u2, prompt: "punto 2", domain: general }
+        - { id: u3, prompt: "punto 3", domain: general }
+        - { id: u4, prompt: "punto 4", domain: general }
       generator_responses:
         fake_general: [FIRST, LAST]
       generator_finish_reasons:
@@ -126,10 +126,10 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "punto 1" }
-        - { id: u2, prompt: "punto 2" }
-        - { id: u3, prompt: "punto 3" }
-        - { id: u4, prompt: "punto 4" }
+        - { id: u1, prompt: "punto 1", domain: general }
+        - { id: u2, prompt: "punto 2", domain: general }
+        - { id: u3, prompt: "punto 3", domain: general }
+        - { id: u4, prompt: "punto 4", domain: general }
       generator_responses:
         fake_general: [FIRST, LAST]
       generator_finish_reasons:
@@ -161,10 +161,10 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "punto 1" }
-        - { id: u2, prompt: "punto 2" }
-        - { id: u3, prompt: "punto 3" }
-        - { id: u4, prompt: "punto 4" }
+        - { id: u1, prompt: "punto 1", domain: general }
+        - { id: u2, prompt: "punto 2", domain: general }
+        - { id: u3, prompt: "punto 3", domain: general }
+        - { id: u4, prompt: "punto 4", domain: general }
       generator_responses:
         fake_general: [FIRST, LAST]
       validator_decisions:
@@ -194,9 +194,9 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "primero" }
-        - { id: u2, prompt: "segundo" }
-        - { id: u3, prompt: "tercero" }
+        - { id: u1, prompt: "primero", domain: general }
+        - { id: u2, prompt: "segundo", domain: general }
+        - { id: u3, prompt: "tercero", domain: general }
       generator_responses:
         fake_general: [THIRD, FIRST, SECOND]
       validator_decisions:
@@ -219,7 +219,7 @@
 
 - id: coverage_domain_hint_per_unit
   track: conformance
-  description: "ADR 0038 caso 6: cada domain_hint usa su dominio y modelo declarados."
+  description: "ADR 0038 caso 6: cada domain fijado usa su dominio y modelo declarados."
   capability: task.run
   fixture: eval/fixtures/orchestration_coverage.yaml
   input:
@@ -229,9 +229,9 @@
   world:
     script:
       units:
-        - { id: code, prompt: "escribe codigo", domain_hint: codigo }
-        - { id: reason, prompt: "razona", domain_hint: razonamiento }
-        - { id: general, prompt: "explica", domain_hint: general }
+        - { id: code, prompt: "escribe codigo", domain: codigo }
+        - { id: reason, prompt: "razona", domain: razonamiento }
+        - { id: general, prompt: "explica", domain: general }
       generator_responses:
         fake_code: [CODE]
         fake_reason: [REASON]
@@ -270,9 +270,9 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "base" }
-        - { id: u2, prompt: "derivada", depends_on: [u1] }
-        - { id: u3, prompt: "final", depends_on: [u2] }
+        - { id: u1, prompt: "base", domain: general }
+        - { id: u2, prompt: "derivada", domain: general, depends_on: [u1] }
+        - { id: u3, prompt: "final", domain: general, depends_on: [u2] }
       generator_responses:
         fake_general: [ONE, TWO, THREE]
       validator_decisions:
@@ -305,8 +305,8 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "punto posible" }
-        - { id: u2, prompt: "punto imposible" }
+        - { id: u1, prompt: "punto posible", domain: general }
+        - { id: u2, prompt: "punto imposible", domain: general }
       generator_responses:
         fake_general: [ONE, RETRY_ONE, RETRY_TWO]
       validator_decisions:
@@ -335,16 +335,16 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "punto 1" }
-        - { id: u2, prompt: "punto 2" }
-        - { id: u3, prompt: "punto 3" }
-        - { id: u4, prompt: "punto 4" }
-        - { id: u5, prompt: "punto 5" }
-        - { id: u6, prompt: "punto 6" }
-        - { id: u7, prompt: "punto 7" }
-        - { id: u8, prompt: "punto 8" }
-        - { id: u9, prompt: "punto 9" }
-        - { id: u10, prompt: "punto 10" }
+        - { id: u1, prompt: "punto 1", domain: general }
+        - { id: u2, prompt: "punto 2", domain: general }
+        - { id: u3, prompt: "punto 3", domain: general }
+        - { id: u4, prompt: "punto 4", domain: general }
+        - { id: u5, prompt: "punto 5", domain: general }
+        - { id: u6, prompt: "punto 6", domain: general }
+        - { id: u7, prompt: "punto 7", domain: general }
+        - { id: u8, prompt: "punto 8", domain: general }
+        - { id: u9, prompt: "punto 9", domain: general }
+        - { id: u10, prompt: "punto 10", domain: general }
       generator_responses:
         fake_general: [A, B, C, D, E, F, G, H]
       validator_decisions:
@@ -393,7 +393,7 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "punto 1" }
+        - { id: u1, prompt: "punto 1", domain: general }
       generator_responses:
         fake_general: [ONE]
       validator_decisions: []
@@ -420,7 +420,7 @@
   world:
     script:
       units:
-        - { id: u1, prompt: "punto 1" }
+        - { id: u1, prompt: "punto 1", domain: general }
       generator_responses:
         fake_general: [ONE]
       validator_decisions: []

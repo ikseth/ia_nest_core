@@ -6,7 +6,7 @@
 # la implementacion:
 # - plans: lista de planes que el fake planner devuelve en orden (uno por
 #   re-planificacion). Cada plan es una lista de subtareas
-#   {prompt, domain_hint (opcional), depends_on (opcional)}.
+#   {prompt, domain, depends_on (opcional)}.
 # - responses: respuesta fija por modelo fake worker/combiner.
 # - evaluate_decisions: decision del EVALUATE por iteracion, en orden:
 #   done | rerun | replan.
@@ -24,8 +24,8 @@
   world:
     script:
       plans:
-        - - { prompt: "razona el enfoque", domain_hint: razonamiento }
-          - { prompt: "escribe la funcion", domain_hint: codigo }
+        - - { prompt: "razona el enfoque", domain: razonamiento }
+          - { prompt: "escribe la funcion", domain: codigo }
       responses:
         fake_reason: "ENFOQUE_OK"
         fake_code: "FUNCION_OK"
@@ -49,8 +49,8 @@
   world:
     script:
       plans:
-        - - { prompt: "razona el enfoque", domain_hint: razonamiento }
-          - { prompt: "escribe la funcion", domain_hint: codigo }
+        - - { prompt: "razona el enfoque", domain: razonamiento }
+          - { prompt: "escribe la funcion", domain: codigo }
       responses:
         fake_reason: "ENFOQUE_OK"
         fake_code: "FUNCION_OK"
@@ -68,7 +68,7 @@
 
 - id: task_subtask_routing
   track: conformance
-  description: "Subtarea con domain_hint usa ese dominio; subtarea sin hint pasa por el router (keywords)."
+  description: "Las subtareas usan los dominios fijados en el plan; este caso prueba el fan-out multi-dominio."
   capability: task.run
   fixture: eval/fixtures/orchestration.yaml
   input:
@@ -77,8 +77,8 @@
   world:
     script:
       plans:
-        - - { prompt: "parte con hint", domain_hint: codigo }
-          - { prompt: "razona esta parte sin hint" }
+        - - { prompt: "parte con dominio fijado", domain: codigo }
+          - { prompt: "razona esta parte", domain: razonamiento }
       responses:
         fake_code: "A"
         fake_reason: "B"
@@ -102,7 +102,7 @@
     unavailable_models: [fake_code]
     script:
       plans:
-        - - { prompt: "escribe la funcion", domain_hint: codigo }
+        - - { prompt: "escribe la funcion", domain: codigo }
       responses:
         fake_general: "FUNCION_FALLBACK"
         fake_combiner: "FINAL"
@@ -124,7 +124,7 @@
     unavailable_models: [fake_reason]
     script:
       plans:
-        - - { prompt: "razona", domain_hint: razonamiento }
+        - - { prompt: "razona", domain: razonamiento }
   expect:
     error_type: ModelUnavailable
 
@@ -139,11 +139,11 @@
   world:
     script:
       plans:
-        - - { prompt: "s1" }
-          - { prompt: "s2" }
-          - { prompt: "s3" }
-          - { prompt: "s4" }
-          - { prompt: "s5" }
+        - - { prompt: "s1", domain: general }
+          - { prompt: "s2", domain: general }
+          - { prompt: "s3", domain: general }
+          - { prompt: "s4", domain: general }
+          - { prompt: "s5", domain: general }
   expect:
     stop_reason: max_subtasks
 
@@ -158,7 +158,7 @@
   world:
     script:
       plans:
-        - - { prompt: "s1", domain_hint: general }
+        - - { prompt: "s1", domain: general }
       responses:
         fake_general: "PARCIAL"
         fake_combiner: "COMBINADO_PARCIAL"
@@ -181,8 +181,8 @@
   world:
     script:
       plans:
-        - - { prompt: "enfoque fallido", domain_hint: general }
-        - - { prompt: "enfoque corregido", domain_hint: razonamiento }
+        - - { prompt: "enfoque fallido", domain: general }
+        - - { prompt: "enfoque corregido", domain: razonamiento }
       responses:
         fake_general: "MALO"
         fake_reason: "BUENO"
@@ -205,8 +205,8 @@
   world:
     script:
       plans:
-        - - { prompt: "v1", domain_hint: general }
-        - - { prompt: "v2", domain_hint: general }
+        - - { prompt: "v1", domain: general }
+        - - { prompt: "v2", domain: general }
       responses:
         fake_general: "X"
         fake_combiner: "COMBINADO_X"
@@ -225,7 +225,7 @@
   world:
     script:
       plans:
-        - - { prompt: "s1", domain_hint: general }
+        - - { prompt: "s1", domain: general }
       responses:
         fake_general: "R"
         fake_combiner: "C"
@@ -245,7 +245,7 @@
   world:
     script:
       plans:
-        - - { prompt: "s1", domain_hint: general }
+        - - { prompt: "s1", domain: general }
       responses:
         fake_general: "R"
         fake_combiner: "C"
@@ -265,8 +265,8 @@
   world:
     script:
       plans:
-        - - { prompt: "razona", domain_hint: razonamiento }
-          - { prompt: "codifica", domain_hint: codigo }
+        - - { prompt: "razona", domain: razonamiento }
+          - { prompt: "codifica", domain: codigo }
       responses:
         fake_reason: "A"
         fake_code: "B"
@@ -279,27 +279,6 @@
       session_id: s7
     subtask_traces_share_task_id: true
     subtask_traces_link_parent: true
-
-- id: task_subtask_unknown_hint
-  track: conformance
-  description: "Un domain_hint NO declarado se ignora (pista consultiva): la subtarea se enruta por el router y queda domain_hint_ignored en el arbol. Enmienda aprobada 2026-07-16."
-  capability: task.run
-  fixture: eval/fixtures/orchestration.yaml
-  input:
-    prompt: "tarea con pista inventada"
-    identity: { user_id: u1, service: local_cli }
-  world:
-    script:
-      plans:
-        - - { prompt: "razona esta parte", domain_hint: "Filosofía" }
-      responses:
-        fake_reason: "R"
-        fake_combiner: "C"
-      evaluate_decisions: [done]
-  expect:
-    stop_reason: task_done
-    subtasks:
-      - { domain: razonamiento, model: fake_reason, domain_hint_ignored: "Filosofía" }
 
 - id: task_smoke_complex
   track: smoke

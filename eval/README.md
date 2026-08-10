@@ -67,7 +67,8 @@ Scripting determinista adicional en `world.script` (lo realiza
 
 - `plans`: planes que devuelve el fake planner, en orden (uno por
   re-planificacion); cada plan es una lista de subtareas
-  `{prompt, domain_hint?, depends_on?}`.
+  `{prompt, domain?, domain_hint?, depends_on?}`. `domain` fija el dominio;
+  `domain_hint` solo aporta contexto asesor al router semantico.
 - `responses`: respuesta fija por modelo fake (workers y combiner).
 - `evaluate_decisions`: decision de EVALUATE por iteracion (`done | rerun |
   replan`).
@@ -113,6 +114,12 @@ conformidad totales):
 Digest de conformidad declarado tras integrar los 5 casos de `prompt.run` y
 `task.run` de la fase 3b-i (43 casos de conformidad totales):
 `e3ea47ed3d1e30d8de9dd1b5c01fcad28fff2e7a858c3e60ef871ab7583ea13e`.
+
+Digest de conformidad declarado tras retirar el modo keyword (fase 3b-ii):
+42 casos totales. Los casos de orquestacion y coverage fijan `domain`; el caso
+historico de hint desconocido pasa a la bateria del router como hint asesor, y
+los dos casos keyword salen de `conformance.yaml`:
+`6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708`.
 
 Tests pytest requeridos para los aspectos no expresables end-to-end por la
 bateria declarativa:

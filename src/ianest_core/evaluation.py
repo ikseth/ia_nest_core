@@ -96,6 +96,7 @@ def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | Non
     )
     route = runtime.route(
         prompt=case["input"].get("prompt", ""),
+        tags=case["input"].get("tags", []),
         identity_override=case["input"].get("identity", {}),
         request_id=case["id"],
     )

@@ -51,31 +51,10 @@ class DomainRouter:
         self.adapter_factory = adapter_factory
 
     def route(self, prompt: str, tags: list[str] | None = None) -> RouteResult:
-        if self.config.router is not None:
-            return self._route_semantic(prompt)
-        return self._route_keywords(prompt, tags)
-
-    def _route_keywords(self, prompt: str, tags: list[str] | None) -> RouteResult:
-        tags = tags or []
-        matches = self._matches(prompt, tags)
-        selected = matches[0][0] if matches else self._default_domain()
-        reason = matches[0][1] if matches else "default domain"
-        confidence = 1.0 if matches else 0.0
-        resolved = self.registry.resolve_domain_model(selected.id)
-        alternatives = [
-            {"domain": domain.id, "confidence": 1.0, "reason": match_reason}
-            for domain, match_reason in matches[1:]
-        ]
-        return RouteResult(
-            domain=selected.id,
-            model=resolved.model.id,
-            confidence=confidence,
-            reason=reason,
-            alternatives=alternatives,
-            resolved=resolved,
-            substituted=resolved.substituted,
-            preferred_model=resolved.preferred_model,
-        )
+        del tags
+        if self.config.router is None:
+            raise RoutingError("routing requires config.router", "router")
+        return self._route_semantic(prompt)
 
     def _route_semantic(self, prompt: str) -> RouteResult:
         selected = self._default_domain()
@@ -151,22 +130,6 @@ class DomainRouter:
         if model.provider == "fake" or model.endpoint.startswith("fake://"):
             return FakeAdapter(model=model.id)
         return OpenAICompatibleAdapter(endpoint=model.endpoint, model_name=model.model_name)
-
-    def _matches(self, prompt: str, tags: list[str]) -> list[tuple[DomainConfig, str]]:
-        prompt_text = prompt.lower()
-        tag_set = {tag.lower() for tag in tags}
-        matches: list[tuple[DomainConfig, str]] = []
-        for domain in self.registry.list_domains():
-            rules = domain.routing_rules
-            for keyword in rules.get("keywords", []):
-                if str(keyword).lower() in prompt_text:
-                    matches.append((domain, f"keyword:{keyword}"))
-                    break
-            else:
-                rule_tags = {str(tag).lower() for tag in rules.get("tags", [])}
-                if rule_tags and rule_tags.intersection(tag_set):
-                    matches.append((domain, "tag match"))
-        return matches
 
     def _default_domain(self) -> DomainConfig:
         if self.config.default_domain is not None:

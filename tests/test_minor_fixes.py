@@ -5,10 +5,10 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
-from ianest_core.adapters import Event, ModelRequest
+from ianest_core.adapters import Event, ModelRequest, ScriptedFakeAdapter
 from ianest_core.cli import main
 from ianest_core.config import load_config
-from ianest_core.config.schema import ProfileConfig, TelemetryConfig
+from ianest_core.config.schema import ProfileConfig, RouterConfig, TelemetryConfig
 from ianest_core.registry import StaticAvailabilityProvider
 from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime
 
@@ -57,10 +57,19 @@ profiles:
 
 
 def test_domain_route_exposes_fallback_substitution(tmp_path) -> None:
-    config = _config_with_tmp_telemetry(tmp_path)
+    config = replace(
+        _config_with_tmp_telemetry(tmp_path),
+        router=RouterConfig(model="fake_b", domain=None, profile="default"),
+        default_domain="general",
+    )
+    router_adapter = ScriptedFakeAdapter(
+        "fake_b",
+        ['{"domain": "support", "confidence": 0.9, "reason": "support"}'],
+    )
     runtime = DomainRuntime(
         config,
         availability=StaticAvailabilityProvider(unavailable_models={"fake_a"}),
+        adapter_factory=lambda _model: router_adapter,
     )
 
     result = runtime.route(prompt="tengo un error", tags=["support"])

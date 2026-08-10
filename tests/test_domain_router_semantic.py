@@ -7,6 +7,7 @@ import pytest
 from ianest_core.adapters import ScriptedFakeAdapter
 from ianest_core.config import load_config
 from ianest_core.domain_router import DomainRouter
+from ianest_core.errors import RoutingError
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
 
 
@@ -50,17 +51,17 @@ def test_semantic_router_parses_tolerantly_and_falls_back(
     assert result.confidence == expected_confidence
 
 
-def test_router_without_config_keeps_keyword_routing() -> None:
+def test_router_without_config_raises_clear_error() -> None:
     config = load_config(Path("eval/fixtures/config.yaml"))
     assert config.router is None
     router = DomainRouter(
         ModelRegistry(config, availability=StaticAvailabilityProvider()),
         config,
-        adapter_factory=lambda _model: pytest.fail("keyword routing invoked an adapter"),
+        adapter_factory=lambda _model: pytest.fail("routing invoked an adapter"),
     )
 
-    result = router.route("tengo un error en el sistema")
+    with pytest.raises(RoutingError) as exc:
+        router.route("tengo un error en el sistema")
 
-    assert result.domain == "support"
-    assert result.confidence == 1.0
-    assert result.reason == "keyword:error"
+    assert str(exc.value) == "routing requires config.router"
+    assert exc.value.field == "router"

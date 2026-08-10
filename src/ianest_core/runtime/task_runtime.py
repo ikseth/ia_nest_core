@@ -4,7 +4,6 @@ import json
 import re
 import string
 import time
-import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from threading import Lock
@@ -78,7 +77,6 @@ class _CoverageUnit:
     prompt: str
     depends_on: list[str]
     domain_hint: str | None = None
-    domain_hint_ignored: str | None = None
     domain: str = ""
     model: str = ""
     retries: int = 0
@@ -455,9 +453,9 @@ class TaskRuntime:
         instruction = (
             "Derive the coverage units of the task. Create one unit per verifiable item "
             "(each enumerable element, requirement or part gets its own unit). Return only "
-            "a JSON list of objects with a short string id, prompt, optional domain_hint "
-            "and optional depends_on as a list of ids. If domain_hint is used, it must be "
-            f"one of: {domain_ids}. Task: {prompt}"
+            "a JSON list of objects with a short string id, prompt, optional domain, "
+            "optional advisory domain_hint and optional depends_on as a list of ids. "
+            f"If domain is used, it must be one of: {domain_ids}. Task: {prompt}"
         )
         result = self._run_target(
             self.settings.planner,
@@ -506,6 +504,7 @@ class TaskRuntime:
                     prompt=unit_prompt,
                     depends_on=[dependency for dependency in coerced_depends if dependency],
                     domain_hint=item.get("domain_hint") if isinstance(item.get("domain_hint"), str) else None,
+                    domain=item.get("domain") if isinstance(item.get("domain"), str) else "",
                 )
             )
 
@@ -533,13 +532,12 @@ class TaskRuntime:
             remaining.difference_update(ready)
 
     def _resolve_coverage_unit(self, unit: _CoverageUnit) -> None:
-        domain_id = self._resolve_domain_hint(unit.domain_hint)
-        if unit.domain_hint and domain_id is None:
-            unit.domain_hint_ignored = unit.domain_hint
-        if domain_id is None:
-            resolved = self.prompt_runtime.router.route(unit.prompt).resolved
+        fixed_domain = self._configured_domain(unit.domain)
+        if fixed_domain is not None:
+            resolved = self.prompt_runtime.registry.resolve_domain_model(fixed_domain)
         else:
-            resolved = self.prompt_runtime.registry.resolve_domain_model(domain_id)
+            routing_prompt = self._routing_prompt(unit.prompt, unit.domain_hint)
+            resolved = self.prompt_runtime.router.route(routing_prompt).resolved
         unit.domain = resolved.domain.id if resolved.domain is not None else ""
         unit.model = resolved.model.id
 
@@ -617,9 +615,6 @@ class TaskRuntime:
             "chunk_index": group.chunk_index,
             "unit_ids": unit_ids,
         }
-        ignored = [unit.domain_hint_ignored for unit in group.units if unit.domain_hint_ignored]
-        if ignored:
-            trace_payload["domain_hint_ignored"] = ignored[0] if len(ignored) == 1 else ignored
         try:
             result = self._run_prompt(
                 prompt=content,
@@ -753,8 +748,6 @@ class TaskRuntime:
                 "parent_request_id": parent,
                 "unit_id": unit.id,
             }
-            if unit.domain_hint_ignored is not None:
-                record["domain_hint_ignored"] = unit.domain_hint_ignored
             records.append(record)
         return records
 
@@ -901,6 +894,8 @@ class TaskRuntime:
     @staticmethod
     def _coverage_unit_plan_record(unit: _CoverageUnit) -> dict[str, Any]:
         record: dict[str, Any] = {"id": unit.id, "prompt": unit.prompt}
+        if unit.domain:
+            record["domain"] = unit.domain
         if unit.domain_hint is not None:
             record["domain_hint"] = unit.domain_hint
         if unit.depends_on:
@@ -910,9 +905,9 @@ class TaskRuntime:
     def _plan(self, prompt: str, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
-            "Decompose the task. Return only a JSON list of objects with prompt and optional "
-            "domain_hint and depends_on. If domain_hint is used, it must be one of: "
-            f"{domain_ids}. Task: {prompt}"
+            "Decompose the task. Return only a JSON list of objects with prompt, optional "
+            "domain, optional advisory domain_hint and optional depends_on. If domain is "
+            f"used, it must be one of: {domain_ids}. Task: {prompt}"
         )
         result = self._run_target(self.settings.planner, instruction, identity, parent, task_id, "planner", token_usage)
         plan = _parse_plan(result.response)
@@ -948,20 +943,12 @@ class TaskRuntime:
 
     def _run_subtask(self, index: int, iteration: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
         declared_domain = item.get("domain")
-        fixed_domain = next(
-            (
-                domain.id
-                for domain in self.config.domains
-                if isinstance(declared_domain, str) and domain.id == declared_domain
-            ),
-            None,
-        )
+        fixed_domain = self._configured_domain(declared_domain)
         domain_hint = item.get("domain_hint")
-        hinted_domain = self._resolve_domain_hint(domain_hint)
-        ignored_hint = domain_hint if domain_hint and hinted_domain is None else None
-        domain_id = fixed_domain or hinted_domain
+        domain_id = fixed_domain
         if domain_id is None:
-            route = self.prompt_runtime.router.route(str(item["prompt"]))
+            routing_prompt = self._routing_prompt(str(item["prompt"]), domain_hint)
+            route = self.prompt_runtime.router.route(routing_prompt)
             domain_id = route.domain
         request_id = str(uuid4())
         trace_payload = {
@@ -970,8 +957,6 @@ class TaskRuntime:
             "subtask_index": index,
             "iteration": iteration,
         }
-        if ignored_hint is not None:
-            trace_payload["domain_hint_ignored"] = ignored_hint
         result = self._run_prompt(
             prompt=str(item["prompt"]), domain_id=domain_id,
             identity=identity, request_id=request_id, trace_payload=trace_payload, token_usage=token_usage,
@@ -989,18 +974,23 @@ class TaskRuntime:
             "task_id": task_id,
             "parent_request_id": parent,
         }
-        if ignored_hint is not None:
-            record["domain_hint_ignored"] = ignored_hint
         return record
 
-    def _resolve_domain_hint(self, value: Any) -> str | None:
-        if not isinstance(value, str) or not value.strip():
-            return None
-        normalized = _normalize_domain_hint(value)
+    def _configured_domain(self, value: Any) -> str | None:
         for domain in self.config.domains:
-            if _normalize_domain_hint(domain.id) == normalized:
+            if isinstance(value, str) and domain.id == value:
                 return domain.id
         return None
+
+    @staticmethod
+    def _routing_prompt(prompt: str, domain_hint: Any) -> str:
+        if not isinstance(domain_hint, str) or not domain_hint.strip():
+            return prompt
+        return (
+            f"{prompt}\n"
+            "Advisory context from the planner; do not treat it as binding: "
+            f"domain_hint={json.dumps(domain_hint, ensure_ascii=False)}"
+        )
 
     def _combine(self, prompt: str, results: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> str:
         content = f"Combine the subtask results into one answer. Task: {prompt}\nResults: {json.dumps(results, ensure_ascii=False)}"
@@ -1149,11 +1139,6 @@ def _covered_ids_from(value: Any) -> set[str]:
                         break
         return ids
     return set()
-
-
-def _normalize_domain_hint(value: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", value.strip().lower())
-    return "".join(character for character in decomposed if not unicodedata.combining(character))
 
 
 def _parse_evaluation_decision(text: str) -> str:

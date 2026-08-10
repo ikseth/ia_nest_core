@@ -31,17 +31,22 @@ def test_evaluation_parser_accepts_surrounding_prose() -> None:
     assert _parse_evaluation_decision("La respuesta es: done") == "done"
 
 
-def test_domain_hint_normalizes_case_and_accents(tmp_path) -> None:
-    runtime = TaskRuntime(_config(tmp_path))
-
-    assert runtime._resolve_domain_hint("  RAZONAMIÉNTO ") == "razonamiento"
-
-
-def test_unknown_domain_hint_is_ignored_and_routed(tmp_path) -> None:
-    config = _config(tmp_path)
+def test_domain_hint_is_advisory_context_for_router(tmp_path) -> None:
+    config = replace(
+        load_config("eval/fixtures/router.yaml"),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+        ),
+    )
+    router_adapter = CountingScriptedAdapter(
+        "fake_router",
+        ['{"domain": "codigo", "confidence": 0.9, "reason": "codigo"}'],
+    )
     adapters = {
+        "fake_router": router_adapter,
         "fake_planner": ScriptedFakeAdapter(
-            "fake_planner", [json.dumps([{"prompt": "escribe una funcion", "domain_hint": "inventado"}]), "done"]
+            "fake_planner", [json.dumps([{"prompt": "escribe una funcion", "domain_hint": "Filosofia"}]), "done"]
         ),
         "fake_code": ScriptedFakeAdapter("fake_code", ["FUNCION"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
@@ -49,13 +54,44 @@ def test_unknown_domain_hint_is_ignored_and_routed(tmp_path) -> None:
     result = TaskRuntime(config, adapter_factory=adapters.get).run(prompt="tarea", request_id="parent")
 
     assert result.subtasks[0]["domain"] == "codigo"
-    assert result.subtasks[0]["domain_hint_ignored"] == "inventado"
+    assert "domain_hint_ignored" not in result.subtasks[0]
+    assert router_adapter.calls == 1
+    assert 'domain_hint="Filosofia"' in router_adapter.prompts[0]
     events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
     subtask_done = next(
         event for event in events
         if event["event"] == "done" and event["payload"].get("subtask_index") == 0
     )
-    assert subtask_done["payload"]["domain_hint_ignored"] == "inventado"
+    assert "domain_hint_ignored" not in subtask_done["payload"]
+
+
+def test_subtask_declared_domain_bypasses_router(tmp_path) -> None:
+    config = replace(
+        load_config("eval/fixtures/router.yaml"),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+        ),
+    )
+    router_adapter = CountingScriptedAdapter("fake_router", [])
+    adapters = {
+        "fake_router": router_adapter,
+        "fake_planner": ScriptedFakeAdapter(
+            "fake_planner",
+            [json.dumps([{"prompt": "escribe una funcion", "domain": "codigo"}]), "done"],
+        ),
+        "fake_code": ScriptedFakeAdapter("fake_code", ["FUNCION"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
+    }
+
+    result = TaskRuntime(config, adapter_factory=adapters.get).run(
+        prompt="tarea",
+        request_id="parent",
+    )
+
+    assert result.subtasks[0]["domain"] == "codigo"
+    assert result.subtasks[0]["model"] == "fake_code"
+    assert router_adapter.calls == 0
 
 
 def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
@@ -63,7 +99,7 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     adapters = {
         "fake_planner": ScriptedFakeAdapter(
             "fake_planner",
-            [json.dumps([{"prompt": "razona", "domain_hint": "razonamiento"}, {"prompt": "codifica", "domain_hint": "codigo"}]), "done"],
+            [json.dumps([{"prompt": "razona", "domain": "razonamiento"}, {"prompt": "codifica", "domain": "codigo"}]), "done"],
         ),
         "fake_reason": ScriptedFakeAdapter("fake_reason", ["A"]),
         "fake_code": ScriptedFakeAdapter("fake_code", ["B"], finish_reason="length"),
@@ -104,7 +140,7 @@ def test_task_runtime_rerun_records_unique_iteration_and_index_pairs(tmp_path) -
     adapters = {
         "fake_planner": ScriptedFakeAdapter(
             "fake_planner",
-            [json.dumps([{"prompt": "primera"}, {"prompt": "segunda"}]), "rerun", "done"],
+            [json.dumps([{"prompt": "primera", "domain": "general"}, {"prompt": "segunda", "domain": "general"}]), "rerun", "done"],
         ),
         "fake_general": ScriptedFakeAdapter("fake_general", ["A"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["AB"]),
@@ -139,7 +175,7 @@ def test_task_runtime_requires_orchestration_config() -> None:
 
 def test_task_runtime_propagates_subtask_model_unavailable(tmp_path) -> None:
     config = _config(tmp_path)
-    planner = ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "razona", "domain_hint": "razonamiento"}])])
+    planner = ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "razona", "domain": "razonamiento"}])])
     runtime = TaskRuntime(
         config,
         availability=StaticAvailabilityProvider(unavailable_models={"fake_reason"}),
@@ -156,7 +192,7 @@ def test_task_runtime_limits_real_accumulated_tokens_and_traces_them(tmp_path) -
         orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
     )
     adapters = {
-        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea"}]), "done"]),
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
         "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
     }
@@ -180,7 +216,7 @@ def test_task_runtime_simulated_context_tokens_override_real_accumulation(tmp_pa
         orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
     )
     adapters = {
-        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea"}]), "done"]),
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
         "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
     }
@@ -198,3 +234,15 @@ def _config(tmp_path):
         load_config("eval/fixtures/orchestration.yaml"),
         telemetry=TelemetryConfig(csv_path=str(tmp_path / "trace.csv"), jsonl_path=str(tmp_path / "trace.jsonl")),
     )
+
+
+class CountingScriptedAdapter(ScriptedFakeAdapter):
+    def __init__(self, model: str, responses: list[str]) -> None:
+        super().__init__(model, responses)
+        self.calls = 0
+        self.prompts: list[str] = []
+
+    def stream(self, req):
+        self.calls += 1
+        self.prompts.append(req.messages[-1]["content"])
+        yield from super().stream(req)

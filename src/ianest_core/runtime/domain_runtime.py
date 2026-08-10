@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
-from ianest_core.config.schema import CoreConfig
+from ianest_core.adapters import ModelAdapter
+from ianest_core.config.schema import CoreConfig, ModelConfig
 from ianest_core.domain_router import DomainRouter
 from ianest_core.identity import Identity
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
@@ -42,10 +43,11 @@ class DomainRuntime:
         config: CoreConfig,
         telemetry: TelemetryWriter | None = None,
         availability: AvailabilityProvider | None = None,
+        adapter_factory: Callable[[ModelConfig], ModelAdapter | None] | None = None,
     ) -> None:
         self.config = config
         self.registry = ModelRegistry(config, availability=availability)
-        self.router = DomainRouter(self.registry)
+        self.router = DomainRouter(self.registry, config, adapter_factory=adapter_factory)
         self.telemetry = telemetry or TelemetryWriter(config.telemetry)
 
     def route(

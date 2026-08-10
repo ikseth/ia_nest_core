@@ -17,8 +17,6 @@ domains:
     preferred_model: local_llama
     fallback_models: []
     profile: default
-    routing_rules:
-      keywords: []
     status: active
 
 profiles:
@@ -30,7 +28,11 @@ profiles:
     max_time_s: 60
     max_context_tokens: 4096
 
-# Con un solo modelo no hay reparto por dominio; la plantilla lab muestra el reparto real.
+# Con un solo modelo el router clasifica los dominios contra ese mismo modelo.
+router: { model: local_llama, profile: default }
+default_domain: general
+
+# La plantilla lab muestra el reparto multi-modelo.
 orchestration:
   planner: { model: local_llama, profile: default }
   combiner: { model: local_llama, profile: default }

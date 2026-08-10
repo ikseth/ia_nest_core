@@ -98,6 +98,13 @@ def test_run_and_stream_help_include_quiet(
     assert "--quiet" in _help(list(action), capsys)
 
 
+@pytest.mark.parametrize("action", QUIET_ACTIONS)
+def test_run_and_stream_help_include_verbose(
+    action: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert "--verbose" in _help(list(action), capsys)
+
+
 def test_help_does_not_load_environment(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     def fail_if_called(*args: object, **kwargs: object) -> None:
         raise AssertionError("load_dotenv must not run while rendering help")

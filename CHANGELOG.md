@@ -50,6 +50,12 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   Impacto: patch.
 
 ### Cambiado
+- Router semantico, fase 3b-i (ADR 0043): `prompt.run` sin modelo ni dominio
+  resuelve directamente el dominio por defecto, y `task.run` enruta de forma
+  explicita cada subtarea que no tenga `domain` ni un `domain_hint` resoluble.
+  El modo keyword se conserva transitoriamente para configuraciones sin
+  `router`. Conformance 43/43 y digest recalculado. Impacto: minor, como parte
+  del cambio de contrato de config ya declarado por ADR 0043.
 - Salida de la CLI: stdout lleva solo la respuesta, el progreso va a stderr
   como linea concisa, `--json` intacto y nueva bandera `--quiet`; uniforme en
   `prompt.run`, `reasoning.run` y `task.run` (ADR 0039). Impacto: patch.

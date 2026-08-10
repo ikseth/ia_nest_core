@@ -264,6 +264,30 @@ def test_prompt_runtime_propagates_identity_to_trace(tmp_path) -> None:
     assert done_json["user_id"] == "u42"
 
 
+def test_prompt_runtime_undeclared_uses_default_without_invoking_router(tmp_path) -> None:
+    config = replace(
+        load_config(Path("eval/fixtures/router.yaml")),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+            strict_mode=False,
+        ),
+    )
+    router_adapter = CountingScriptedAdapter("fake_router", [])
+    runtime = PromptRuntime(
+        config,
+        adapter_factory=lambda model: router_adapter if model.id == "fake_router" else None,
+    )
+
+    result = runtime.run(prompt="escribe una funcion", request_id="direct-default")
+
+    assert result.domain == "general"
+    assert result.model == "fake_general"
+    assert router_adapter.calls == 0
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    assert all(event["event"] != "route" for event in events)
+
+
 def test_telemetry_non_serializable_payload_is_best_effort(tmp_path) -> None:
     writer = TelemetryWriter(
         TelemetryConfig(
@@ -320,6 +344,16 @@ class ReasoningAdapter:
                 "reasoning": "del cable",
             },
         )
+
+
+class CountingScriptedAdapter(ScriptedFakeAdapter):
+    def __init__(self, model: str, responses: list[str]) -> None:
+        super().__init__(model, responses)
+        self.calls = 0
+
+    def stream(self, req: ModelRequest):
+        self.calls += 1
+        yield from super().stream(req)
 
 
 class _StreamResponse:

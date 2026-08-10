@@ -168,9 +168,9 @@ def test_coverage_assembly_separates_and_strips_chunks() -> None:
 
 def test_coverage_adapter_error_retries_only_affected_unit(tmp_path) -> None:
     units = [
-        {"id": "code", "prompt": "codigo", "domain_hint": "codigo"},
-        {"id": "reason", "prompt": "razona", "domain_hint": "razonamiento"},
-        {"id": "general", "prompt": "explica", "domain_hint": "general"},
+        {"id": "code", "prompt": "codigo", "domain": "codigo"},
+        {"id": "reason", "prompt": "razona", "domain": "razonamiento"},
+        {"id": "general", "prompt": "explica", "domain": "general"},
     ]
     code = FailOnceAdapter("fake_code", ["CODE"])
     reason = CapturingAdapter("fake_reason", ["REASON"])
@@ -203,9 +203,9 @@ def test_coverage_adapter_error_retries_only_affected_unit(tmp_path) -> None:
 def test_coverage_independent_groups_respect_max_parallel(tmp_path) -> None:
     state = ParallelState()
     units = [
-        {"id": "code", "prompt": "codigo", "domain_hint": "codigo"},
-        {"id": "reason", "prompt": "razona", "domain_hint": "razonamiento"},
-        {"id": "general", "prompt": "explica", "domain_hint": "general"},
+        {"id": "code", "prompt": "codigo", "domain": "codigo"},
+        {"id": "reason", "prompt": "razona", "domain": "razonamiento"},
+        {"id": "general", "prompt": "explica", "domain": "general"},
     ]
     runtime = _runtime(
         tmp_path,
@@ -355,8 +355,8 @@ def test_coverage_run_and_stream_produce_same_result(tmp_path) -> None:
 
 def test_coverage_jsonl_reconstructs_units_chunks_and_models(tmp_path) -> None:
     units = [
-        {"id": "code", "prompt": "codigo", "domain_hint": "codigo"},
-        {"id": "general", "prompt": "explica", "domain_hint": "general"},
+        {"id": "code", "prompt": "codigo", "domain": "codigo"},
+        {"id": "general", "prompt": "explica", "domain": "general"},
     ]
     runtime = _runtime(
         tmp_path,
@@ -486,6 +486,10 @@ def _runtime(
     simulated=None,
 ):
     tmp_path.mkdir(parents=True, exist_ok=True)
+    units = [
+        {**unit, "domain": unit.get("domain", "general")}
+        for unit in units
+    ]
     config = replace(
         load_config("eval/fixtures/orchestration_coverage.yaml"),
         telemetry=TelemetryConfig(

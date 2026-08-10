@@ -1,40 +1,7 @@
-# Bateria del router semantico (ADR 0043). CRITERIO DE ACEPTACION escrito y
-# CONGELADO ANTES de implementar (fase 2 de la linea del router). El runner NO
-# la carga mientras conserve el sufijo .frozen; se integra renombrandola a
-# .yaml, con el digest recalculado y declarado (ADR 0017, patron v0.2-3/v0.3-2).
-#
-# Esta bateria SUPERSEDE los casos de domain.route por keywords de
-# eval/battery/conformance.yaml: el enrutado deja de ser lexico.
-#
-# --- Forma de config que asume esta bateria (fase 2) ---
-#
-# Nuevo, de nivel superior:
-#   router:                 objetivo del clasificador (como orchestration.planner)
-#     model | domain: <id>
-#     profile: <id>
-#   default_domain: <id>    designa EXPLICITAMENTE el dominio por defecto
-#                           (sustituye al nombre magico "general"); es lo unico
-#                           arquitectura, el resto de dominios es config libre.
-#
-# En cada dominio: se RETIRA routing_rules; `description` pasa a ser la entrada
-# normativa del router (texto que el clasificador lee para decidir).
-#
-# --- Formato de salida del router (lo que el modelo devuelve) ---
-#
-# El modelo router recibe el prompt y el catalogo de dominios (id + description)
-# y devuelve JSON:
-#   {"domain": "<id>", "confidence": <0..1>, "reason": "<breve>",
-#    "alternatives": [{"domain": "<id>", "confidence": <0..1>}]}   # opcional
-# El core valida que domain este en el catalogo; si no (o si el modelo falla),
-# cae al default_domain con confidence 0.0. En conformance el router es un
-# ScriptedFakeAdapter que devuelve ese JSON fijo por llamada.
-#
-# Scripting (world.script):
-#   router_responses: lista de respuestas del router fake, en orden de llamada.
-
-# ---------------------------------------------------------------------------
-# domain.route: la capacidad, ahora semantica
-# ---------------------------------------------------------------------------
+# Casos de domain.route de la bateria del router semantico (ADR 0043),
+# integrados en la fase 3a. El modelo router recibe el prompt y el catalogo de
+# dominios (id + description) y devuelve JSON con domain, confidence, reason y
+# alternatives opcional. world.script.router_responses alimenta el fake.
 
 - id: router_domain_route_semantic_pick
   track: conformance
@@ -84,6 +51,38 @@
     model: fake_general
     confidence: 0.82
 
+- id: router_respects_model_per_domain
+  track: conformance
+  description: "ADR 0043: el modelo que sirve un dominio es el declarado en config; el core no opina."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "administra un servicio systemd"
+  world:
+    script:
+      router_responses:
+        - '{"domain": "linux", "confidence": 0.88, "reason": "administracion de sistemas"}'
+  expect:
+    domain: linux
+    model: fake_tech
+
+- id: router_domain_route_tags_do_not_route
+  track: conformance
+  description: "ADR 0043 fase 3b-ii: los tags no fuerzan dominio; decide el clasificador semantico."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "interpreta este poema"
+    tags: [codigo]
+  world:
+    script:
+      router_responses:
+        - '{"domain": "humanidades", "confidence": 0.87, "reason": "interpretacion literaria"}'
+  expect:
+    domain: humanidades
+    model: fake_general
+    confidence: 0.87
+
 # ---------------------------------------------------------------------------
 # prompt.run: va DIRECTO, no invoca el router
 # ---------------------------------------------------------------------------
@@ -101,7 +100,6 @@
   expect:
     domain: general
     model: fake_general
-    # No debe existir ninguna llamada al router en la traza de esta ejecucion.
     router_invoked: false
 
 - id: router_prompt_run_declared_domain_no_router
@@ -166,6 +164,29 @@
       - { domain: codigo, model: fake_code }
       - { domain: razonamiento, model: fake_reason }
 
+- id: router_task_subtask_domain_hint_is_advisory
+  track: conformance
+  description: "ADR 0043 fase 3b-ii: domain_hint llega como contexto asesor y el router conserva la decision."
+  capability: task.run
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "tarea con pista asesora"
+    mode: pipeline
+  world:
+    script:
+      plans:
+        - - { prompt: "razona esta parte", domain_hint: "Filosofia" }
+      router_responses:
+        - '{"domain": "razonamiento", "confidence": 0.84, "reason": "la subtarea pide deduccion"}'
+      responses:
+        fake_reason: "R"
+        fake_combiner: "C"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    subtasks:
+      - { domain: razonamiento, model: fake_reason }
+
 - id: router_task_subtask_declared_domain_bypasses_router
   track: conformance
   description: "ADR 0043/0019: una subtarea con dominio fijado en el plan no invoca el router."
@@ -187,22 +208,3 @@
     stop_reason: task_done
     subtasks:
       - { domain: codigo, model: fake_code }
-
-# ---------------------------------------------------------------------------
-# El core es agnostico: respeta la asignacion de modelo por dominio
-# ---------------------------------------------------------------------------
-
-- id: router_respects_model_per_domain
-  track: conformance
-  description: "ADR 0043: el modelo que sirve un dominio es el declarado en config; el core no opina."
-  capability: domain.route
-  fixture: eval/fixtures/router.yaml
-  input:
-    prompt: "administra un servicio systemd"
-  world:
-    script:
-      router_responses:
-        - '{"domain": "linux", "confidence": 0.88, "reason": "administracion de sistemas"}'
-  expect:
-    domain: linux
-    model: fake_tech

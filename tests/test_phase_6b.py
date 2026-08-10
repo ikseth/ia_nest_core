@@ -8,7 +8,7 @@ import pytest
 from ianest_core.config import load_config, validate_config_dict
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.domain_router import DomainRouter
-from ianest_core.errors import ConfigValidationError, ModelUnavailable
+from ianest_core.errors import ConfigValidationError, ModelUnavailable, RoutingError
 from ianest_core.evaluation import run_eval
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
 from ianest_core.runtime import PromptRuntime
@@ -16,19 +16,17 @@ from ianest_core.telemetry.trace import ROTATE_SIZE_BYTES, TelemetryWriter
 from ianest_core.identity import Identity
 
 
-def test_domain_router_matches_keyword_and_default() -> None:
+def test_domain_router_requires_semantic_router_config() -> None:
     config = load_config(Path("eval/fixtures/config.yaml"))
-    router = DomainRouter(ModelRegistry(config, availability=StaticAvailabilityProvider()))
+    router = DomainRouter(
+        ModelRegistry(config, availability=StaticAvailabilityProvider()),
+        config,
+    )
 
-    support = router.route("tengo un error en el sistema")
-    general = router.route("hola, buenos dias")
+    with pytest.raises(RoutingError) as exc:
+        router.route("tengo un error en el sistema")
 
-    assert support.domain == "support"
-    assert support.model == "fake_a"
-    assert support.reason == "keyword:error"
-    assert general.domain == "general"
-    assert general.model == "fake_b"
-    assert general.reason == "default domain"
+    assert str(exc.value) == "routing requires config.router"
 
 
 def test_prompt_runtime_uses_fallback_and_traces_substitution(tmp_path) -> None:
@@ -99,16 +97,16 @@ def test_eval_conformance_digest_is_stable() -> None:
     first = run_eval(track="conformance")
     second = run_eval(track="conformance")
 
-    assert first["totals"]["conformance"] == {"pass": 34, "fail": 0}
-    assert second["totals"]["conformance"] == {"pass": 34, "fail": 0}
+    assert first["totals"]["conformance"] == {"pass": 42, "fail": 0}
+    assert second["totals"]["conformance"] == {"pass": 42, "fail": 0}
     assert first["conformance_digest"] == second["conformance_digest"]
-    assert first["conformance_digest"] == "eb0113e69fdc9fc4674332995afc8950a8acc165bcc65cfa26bec4ed7d02f3c4"
+    assert first["conformance_digest"] == "6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708"
 
 
 def test_eval_v02_task_cases_still_pass() -> None:
     result = run_eval(battery_dir="eval/battery/v0.2", track="conformance")
 
-    assert result["totals"]["conformance"] == {"pass": 13, "fail": 0}
+    assert result["totals"]["conformance"] == {"pass": 12, "fail": 0}
 
 
 def test_eval_v03_coverage_cases_pass() -> None:

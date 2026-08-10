@@ -37,51 +37,40 @@ models:
 
 domains:
   - id: general
-    description: "Dominio general por defecto (sesgo-sensible: modelo occidental)"
+    description: "Consultas generales que no encajan claramente en otro dominio configurado."
     preferred_model: mistral_nemo
     fallback_models: [mistral_7b]
     profile: default
-    routing_rules: { keywords: [] }
     status: active
   - id: humanidades
-    description: "Filosofia, etica, historia, politica (sesgo-sensible: occidental)"
+    description: "Filosofia, etica, historia, politica, religion, literatura y analisis cultural."
     preferred_model: mistral_nemo
     fallback_models: [mistral_7b]
     profile: default
-    routing_rules:
-      keywords: [filosofia, filosofico, etica, moral, historia, politica, religion]
     status: active
   - id: matematicas
-    description: "Matematica y calculo"
+    description: "Calculo numerico y simbolico, algebra, geometria, estadistica y demostraciones matematicas."
     preferred_model: qwen_tech
     fallback_models: [deepseek_reason]
     profile: default
-    routing_rules:
-      keywords: [matematica, matematicas, ecuacion, integral, derivada, algebra, calcula, demuestra]
     status: active
   - id: codigo
-    description: "Programacion y codigo"
+    description: "Diseno, escritura, revision, depuracion y explicacion de codigo fuente y software."
     preferred_model: qwen_tech
     fallback_models: [deepseek_reason]
     profile: default
-    routing_rules:
-      keywords: [codigo, programa, funcion, python, script, bug, compila]
     status: active
   - id: linux
-    description: "Administracion Linux / sistemas"
+    description: "Administracion y diagnostico de Linux, shell, servicios, permisos, redes y sistemas."
     preferred_model: qwen_tech
     fallback_models: [deepseek_reason]
     profile: default
-    routing_rules:
-      keywords: [linux, bash, systemd, kernel, permisos, sudo, comando, shell]
     status: active
   - id: razonamiento
-    description: "Razonamiento paso a paso / logica"
+    description: "Deduccion logica, problemas abstractos, planificacion y razonamiento paso a paso."
     preferred_model: deepseek_reason
     fallback_models: [qwen_tech]
     profile: default
-    routing_rules:
-      keywords: [razona, razonamiento, deduce, logica]
     status: active
 
 profiles:
@@ -93,6 +82,9 @@ profiles:
     max_time_s: 60
     max_context_tokens: 4096
     system: "Responde siempre en espanol, de forma clara y concisa."
+
+router: { model: mistral_nemo, profile: default }
+default_domain: general
 
 orchestration:
   planner: { model: deepseek_reason, profile: default }

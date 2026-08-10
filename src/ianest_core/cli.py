@@ -108,6 +108,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_inference_arguments(run_parser)
     _add_json_argument(run_parser, "resultado")
     _add_quiet_argument(run_parser)
+    _add_verbose_argument(run_parser)
     _add_identity_arguments(run_parser)
     prompt_stream_parser = prompt_subparsers.add_parser(
         "stream",
@@ -118,6 +119,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_inference_arguments(prompt_stream_parser)
     _add_json_argument(prompt_stream_parser, "cada evento como JSONL")
     _add_quiet_argument(prompt_stream_parser)
+    _add_verbose_argument(prompt_stream_parser)
     _add_identity_arguments(prompt_stream_parser)
 
     reasoning_parser = _group_parser(
@@ -136,6 +138,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_inference_arguments(reasoning_run_parser)
     _add_json_argument(reasoning_run_parser, "resultado")
     _add_quiet_argument(reasoning_run_parser)
+    _add_verbose_argument(reasoning_run_parser)
     _add_identity_arguments(reasoning_run_parser)
     reasoning_stream_parser = reasoning_subparsers.add_parser(
         "stream",
@@ -146,6 +149,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_inference_arguments(reasoning_stream_parser)
     _add_json_argument(reasoning_stream_parser, "cada evento como JSONL")
     _add_quiet_argument(reasoning_stream_parser)
+    _add_verbose_argument(reasoning_stream_parser)
     _add_identity_arguments(reasoning_stream_parser)
 
     task_parser = _group_parser(
@@ -170,6 +174,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_json_argument(task_run_parser, "cada checkpoint como JSONL")
     _add_quiet_argument(task_run_parser)
+    _add_verbose_argument(task_run_parser)
     _add_identity_arguments(task_run_parser)
 
     domain_parser = _group_parser(
@@ -304,6 +309,14 @@ def _add_quiet_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_verbose_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="enriquece el progreso en stderr; no afecta a la respuesta",
+    )
+
+
 def _add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     identity = parser.add_argument_group("identidad del request")
     identity.add_argument("--user-id", metavar="ID", help="identificador de usuario; sobrescribe el valor configurado")
@@ -405,7 +418,7 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
         elif event["type"] == "token":
             print(event["data"]["text"], end="", flush=True)
         else:
-            _emit_progress(_reasoning_progress(event), quiet=args.quiet)
+            _emit_progress(_reasoning_progress(event, verbose=args.verbose), quiet=args.quiet)
     return 0
 
 
@@ -435,7 +448,7 @@ def _task_run(args: argparse.Namespace) -> int:
             print(event["data"]["text"].strip(), end="", flush=True)
             answer_was_streamed = True
         else:
-            _emit_progress(_task_progress(event), quiet=args.quiet)
+            _emit_progress(_task_progress(event, verbose=args.verbose), quiet=args.quiet)
     return exit_code
 
 
@@ -453,15 +466,18 @@ def _emit_task_stop(stop_reason: str, response: object) -> None:
     print(message, file=sys.stderr)
 
 
-def _reasoning_progress(event: dict[str, object]) -> str:
+def _reasoning_progress(event: dict[str, object], *, verbose: bool = False) -> str:
     if event["type"] == "step":
         data = event.get("data")
         iteration = data.get("iteration") if isinstance(data, dict) else None
+        if verbose:
+            done = data.get("done") if isinstance(data, dict) else None
+            return f"Paso {iteration} (done={done})"
         return f"Paso {iteration} completado" if iteration is not None else "Paso completado"
     return "Razonamiento en curso"
 
 
-def _task_progress(event: dict[str, object]) -> str:
+def _task_progress(event: dict[str, object], *, verbose: bool = False) -> str:
     event_type = event["type"]
     data = event.get("data")
     payload = data if isinstance(data, dict) else {}
@@ -470,8 +486,16 @@ def _task_progress(event: dict[str, object]) -> str:
     if event_type == "plan_ready":
         items = payload.get("units", payload.get("plan", []))
         count = len(items) if isinstance(items, list) else 0
+        if verbose:
+            noun = "unidades" if "units" in payload else "subtareas"
+            return f"Plan: {count} {noun}"
         return f"Plan listo: {count} unidades"
     if event_type == "subtask_done":
+        if verbose:
+            return (
+                f"  subtarea {payload.get('index')} (iter {payload.get('iteration')}) "
+                f"-> {payload.get('domain')} / {payload.get('model')}"
+            )
         return "Subtarea completada"
     if event_type == "coverage_updated":
         completed = payload.get("completed", [])
@@ -481,9 +505,16 @@ def _task_progress(event: dict[str, object]) -> str:
         pending_count = len(pending) if isinstance(pending, list) else 0
         failed_count = len(failed) if isinstance(failed, list) else 0
         total = completed_count + pending_count + failed_count
+        if verbose:
+            return (
+                f"  cobertura {completed_count}/{total} "
+                f"(pendientes {pending_count}, fallidas {failed_count})"
+            )
         return f"Cobertura actualizada: {completed_count}/{total}"
     if event_type == "iteration_end":
         iteration = payload.get("iteration")
+        if verbose:
+            return f"Iteracion {iteration}: {payload.get('decision')}"
         return f"Iteracion {iteration} completada" if iteration is not None else "Iteracion completada"
     if event_type == "combine_ready":
         return "Respuesta preparada" if payload.get("response") else "Combinacion sin respuesta"

@@ -18,7 +18,10 @@ from ianest_core.identity import Identity
 
 def test_domain_router_matches_keyword_and_default() -> None:
     config = load_config(Path("eval/fixtures/config.yaml"))
-    router = DomainRouter(ModelRegistry(config, availability=StaticAvailabilityProvider()))
+    router = DomainRouter(
+        ModelRegistry(config, availability=StaticAvailabilityProvider()),
+        config,
+    )
 
     support = router.route("tengo un error en el sistema")
     general = router.route("hola, buenos dias")
@@ -99,10 +102,10 @@ def test_eval_conformance_digest_is_stable() -> None:
     first = run_eval(track="conformance")
     second = run_eval(track="conformance")
 
-    assert first["totals"]["conformance"] == {"pass": 34, "fail": 0}
-    assert second["totals"]["conformance"] == {"pass": 34, "fail": 0}
+    assert first["totals"]["conformance"] == {"pass": 38, "fail": 0}
+    assert second["totals"]["conformance"] == {"pass": 38, "fail": 0}
     assert first["conformance_digest"] == second["conformance_digest"]
-    assert first["conformance_digest"] == "eb0113e69fdc9fc4674332995afc8950a8acc165bcc65cfa26bec4ed7d02f3c4"
+    assert first["conformance_digest"] == "42146c0cfe52f5a1ab8f290173458fa1f28b8b5d90e6a0a101d8e282369f0226"
 
 
 def test_eval_v02_task_cases_still_pass() -> None:

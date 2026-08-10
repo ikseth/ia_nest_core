@@ -1,0 +1,67 @@
+# Casos de domain.route de la bateria del router semantico (ADR 0043),
+# integrados en la fase 3a. El modelo router recibe el prompt y el catalogo de
+# dominios (id + description) y devuelve JSON con domain, confidence, reason y
+# alternatives opcional. world.script.router_responses alimenta el fake.
+
+- id: router_domain_route_semantic_pick
+  track: conformance
+  description: "ADR 0043: domain.route devuelve el dominio, confianza y motivo del clasificador."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "escribe una funcion en python que ordene una lista"
+  world:
+    script:
+      router_responses:
+        - '{"domain": "codigo", "confidence": 0.91, "reason": "pide escribir codigo"}'
+  expect:
+    domain: codigo
+    model: fake_code
+    confidence: 0.91
+
+- id: router_domain_route_invalid_falls_back_to_default
+  track: conformance
+  description: "ADR 0043: si el router propone un dominio inexistente, cae al default con confianza 0."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "algo que el modelo clasifica mal"
+  world:
+    script:
+      router_responses:
+        - '{"domain": "inventado", "confidence": 0.8, "reason": "dominio que no existe"}'
+  expect:
+    domain: general
+    model: fake_general
+    confidence: 0.0
+
+- id: router_domain_route_by_meaning_not_keyword
+  track: conformance
+  description: "ADR 0043: un texto con la palabra 'logica' se enruta por sentido, no por keyword."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "un mar de logica y magia: interpreta este texto poetico"
+  world:
+    script:
+      router_responses:
+        - '{"domain": "humanidades", "confidence": 0.82, "reason": "interpretacion de un texto"}'
+  expect:
+    domain: humanidades
+    model: fake_general
+    confidence: 0.82
+
+- id: router_respects_model_per_domain
+  track: conformance
+  description: "ADR 0043: el modelo que sirve un dominio es el declarado en config; el core no opina."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "administra un servicio systemd"
+  world:
+    script:
+      router_responses:
+        - '{"domain": "linux", "confidence": 0.88, "reason": "administracion de sistemas"}'
+  expect:
+    domain: linux
+    model: fake_tech

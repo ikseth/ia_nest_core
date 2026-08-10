@@ -84,7 +84,16 @@ def _execute_case(case: dict[str, Any], *, config_path: str | Path | None) -> di
 
 def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
     config = _case_config(case, config_path=config_path)
-    runtime = DomainRuntime(config, availability=_case_availability(case))
+    script = case.get("world", {}).get("script", {})
+    router_adapter = ScriptedFakeAdapter(
+        "router",
+        [str(response) for response in script.get("router_responses", [])],
+    )
+    runtime = DomainRuntime(
+        config,
+        availability=_case_availability(case),
+        adapter_factory=lambda _model: router_adapter,
+    )
     route = runtime.route(
         prompt=case["input"].get("prompt", ""),
         identity_override=case["input"].get("identity", {}),
@@ -94,6 +103,7 @@ def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | Non
         {
             "domain": route.domain,
             "model": route.model,
+            "confidence": route.confidence,
         },
         case.get("expect", {}),
     )

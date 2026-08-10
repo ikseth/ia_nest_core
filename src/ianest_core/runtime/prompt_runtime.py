@@ -63,7 +63,7 @@ class PromptRuntime:
     ) -> None:
         self.config = config
         self.registry = ModelRegistry(config, availability=availability)
-        self.router = DomainRouter(self.registry)
+        self.router = DomainRouter(self.registry, config, adapter_factory=adapter_factory)
         self.telemetry = telemetry or TelemetryWriter(config.telemetry)
         self.adapter_factory = adapter_factory
 

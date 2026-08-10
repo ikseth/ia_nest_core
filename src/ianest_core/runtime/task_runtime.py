@@ -231,11 +231,11 @@ class TaskRuntime:
                 {"iteration": iterations, "decision": decision},
             )
 
-            stop_reason = self._limit_reason(started, token_usage)
-            if stop_reason:
-                break
             if decision == "done":
                 stop_reason = "task_done"
+                break
+            stop_reason = self._limit_reason(started, token_usage)
+            if stop_reason:
                 break
             if decision == "replan":
                 if replans >= self.settings.max_replans:

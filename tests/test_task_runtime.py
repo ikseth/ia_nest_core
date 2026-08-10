@@ -192,7 +192,7 @@ def test_task_runtime_limits_real_accumulated_tokens_and_traces_them(tmp_path) -
         orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
     )
     adapters = {
-        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "rerun"]),
         "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
     }
@@ -208,6 +208,40 @@ def test_task_runtime_limits_real_accumulated_tokens_and_traces_them(tmp_path) -
     assert result.trace["tokens_in"] == sum(int(event["tokens_in"]) for event in prompt_events)
     assert result.trace["tokens_out"] == sum(int(event["tokens_out"]) for event in prompt_events)
     assert result.trace["tokens_in"] + result.trace["tokens_out"] > config.orchestration.max_context_tokens
+
+
+def test_task_runtime_done_beats_exceeded_context_budget(tmp_path) -> None:
+    config = replace(
+        _config(tmp_path),
+        orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
+    )
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
+    }
+
+    result = TaskRuntime(config, adapter_factory=adapters.get).run(prompt="tarea", request_id="parent")
+
+    assert result.stop_reason == "task_done"
+    assert result.trace["tokens_in"] + result.trace["tokens_out"] > config.orchestration.max_context_tokens
+
+
+def test_task_runtime_done_beats_exceeded_time_limit(tmp_path) -> None:
+    config = _config(tmp_path)
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
+    }
+
+    result = TaskRuntime(
+        config,
+        adapter_factory=adapters.get,
+        simulated={"elapsed_s": config.orchestration.max_time_s + 1},
+    ).run(prompt="tarea", request_id="parent")
+
+    assert result.stop_reason == "task_done"
 
 
 def test_task_runtime_simulated_context_tokens_override_real_accumulation(tmp_path) -> None:

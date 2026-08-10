@@ -40,7 +40,7 @@ orchestration:
   max_iterations: 2
   max_replans: 1
   max_time_s: 30
-  max_context_tokens: 4096
+  max_context_tokens: 16384
   max_parallel: 2
   coverage:
     validator: { model: local_llama, profile: default }

@@ -5,6 +5,8 @@ from copy import deepcopy
 import pytest
 
 from ianest_core.config import load_config, load_config_data, validate_config_dict
+from ianest_core.config.loader import _load_orchestration
+from ianest_core.config.schema import OrchestrationConfig
 from ianest_core.errors import ConfigValidationError
 
 
@@ -16,6 +18,19 @@ def test_orchestration_config_loads_frozen_fixture() -> None:
     assert config.orchestration.combiner.model == "fake_combiner"
     assert config.orchestration.max_replans == 1
     assert config.orchestration.max_parallel == 2
+
+
+def test_orchestration_loader_defaults_match_the_schema() -> None:
+    minimal = {
+        "planner": {"model": "fake_planner"},
+        "combiner": {"model": "fake_combiner"},
+    }
+    loaded = _load_orchestration(minimal)
+    declared = OrchestrationConfig(planner=loaded.planner, combiner=loaded.combiner)
+
+    for field in ("max_subtasks", "max_iterations", "max_replans", "max_time_s",
+                  "max_context_tokens", "max_parallel"):
+        assert getattr(loaded, field) == getattr(declared, field), field
 
 
 def test_orchestration_config_is_optional() -> None:

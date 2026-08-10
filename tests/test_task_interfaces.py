@@ -89,7 +89,8 @@ def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys
     assert calls[0]["mode"] == "coverage"
 
 
-def test_cli_task_run_quiet_suppresses_progress(monkeypatch, capsys) -> None:
+@pytest.mark.parametrize("verbose", [False, True])
+def test_cli_task_run_quiet_suppresses_progress(monkeypatch, capsys, verbose) -> None:
     events = [
         {"type": "task_received", "data": {"prompt": "tarea"}},
         {"type": "answer_chunk", "data": {"text": "FIRST"}},
@@ -98,10 +99,13 @@ def test_cli_task_run_quiet_suppresses_progress(monkeypatch, capsys) -> None:
     ]
     monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
 
-    exit_code = main([
+    argv = [
         "--config", "unused", "task", "run", "--prompt", "tarea",
         "--mode", "coverage", "--quiet",
-    ])
+    ]
+    if verbose:
+        argv.append("--verbose")
+    exit_code = main(argv)
     captured = capsys.readouterr()
 
     assert exit_code == 0
@@ -127,13 +131,15 @@ def test_cli_task_run_limit_stop_returns_error_and_preserves_partial_response(mo
     )
 
 
-def test_cli_task_run_quiet_does_not_suppress_limit_stop(monkeypatch, capsys) -> None:
+@pytest.mark.parametrize("verbose", [False, True])
+def test_cli_task_run_quiet_does_not_suppress_limit_stop(monkeypatch, capsys, verbose) -> None:
     events = [{"type": "task_done", "data": {"response": "", "stop_reason": "max_subtasks"}}]
     monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
 
-    exit_code = main([
-        "--config", "unused", "task", "run", "--prompt", "tarea", "--quiet",
-    ])
+    argv = ["--config", "unused", "task", "run", "--prompt", "tarea", "--quiet"]
+    if verbose:
+        argv.append("--verbose")
+    exit_code = main(argv)
     captured = capsys.readouterr()
 
     assert exit_code == 1
@@ -182,6 +188,60 @@ def test_cli_task_pipeline_prints_final_response_once(monkeypatch, capsys) -> No
     assert "Plan listo" in captured.err
 
 
+def test_cli_task_run_default_progress_is_concise(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(EVENTS))
+
+    exit_code = main(["--config", "unused", "task", "run", "--prompt", "tarea"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.err == "Tarea recibida\nPlan listo: 1 unidades\n"
+
+
+def test_cli_task_run_verbose_renders_subtask_and_iteration_details(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "task_received", "data": {"prompt": "tarea"}},
+        {"type": "plan_ready", "data": {"plan": [{"prompt": "s1"}]}},
+        {
+            "type": "subtask_done",
+            "data": {"index": 2, "iteration": 3, "domain": "analysis", "model": "local_llama"},
+        },
+        {"type": "iteration_end", "data": {"iteration": 3, "decision": "combine"}},
+        {"type": "combine_ready", "data": {"response": "FINAL"}},
+        {"type": "task_done", "data": {"response": "FINAL"}},
+    ]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main(["--config", "unused", "task", "run", "--prompt", "tarea", "--verbose"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.err == (
+        "Tarea recibida\n"
+        "Plan: 1 subtareas\n"
+        "  subtarea 2 (iter 3) -> analysis / local_llama\n"
+        "Iteracion 3: combine\n"
+        "Respuesta preparada\n"
+    )
+
+
+def test_cli_task_run_verbose_renders_coverage_details(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "plan_ready", "data": {"units": ["u1", "u2", "u3"]}},
+        {"type": "coverage_updated", "data": {"completed": ["u1"], "pending": ["u2"], "failed": ["u3"]}},
+        {"type": "task_done", "data": {"response": "FINAL"}},
+    ]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "task", "run", "--prompt", "tarea", "--mode", "coverage", "--verbose",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.err == "Plan: 3 unidades\n  cobertura 1/3 (pendientes 1, fallidas 1)\n"
+
+
 def test_cli_reasoning_stream_separates_output_and_steps(monkeypatch, capsys) -> None:
     events = [
         {"type": "step", "data": {"iteration": 1, "output": "draft"}},
@@ -200,6 +260,24 @@ def test_cli_reasoning_stream_separates_output_and_steps(monkeypatch, capsys) ->
     assert "Paso 1" in captured.err
     assert "Paso 2" in captured.err
     assert "step" not in captured.out
+
+
+def test_cli_reasoning_stream_verbose_includes_done(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "step", "data": {"iteration": 1, "done": False, "output": "draft"}},
+        {"type": "step", "data": {"iteration": 2, "done": True, "output": "final"}},
+        {"type": "done", "data": {"output": "FINAL"}},
+    ]
+    monkeypatch.setattr(service, "stream_reasoning", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "reasoning", "stream", "--prompt", "tarea", "--verbose",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out == "FINAL\n"
+    assert captured.err == "Paso 1 (done=False)\nPaso 2 (done=True)\n"
 
 
 def test_cli_reasoning_stream_quiet_suppresses_steps(monkeypatch, capsys) -> None:

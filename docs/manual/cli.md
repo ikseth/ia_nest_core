@@ -39,9 +39,11 @@ e [instalacion.md](instalacion.md).
 `--config RUTA` es una opcion global, se escribe antes del grupo y usa
 `config/core.yaml` por defecto. Las acciones operativas aceptan `--json` para
 obtener salida estructurada; `init` no produce salida JSON. En acciones con
-flujo, stdout contiene la respuesta y stderr el progreso; `--quiet` suprime
-ese progreso sin afectar a la respuesta. Con `--json`, stdout contiene los
-eventos estructurados completos.
+flujo, stdout contiene la respuesta y stderr el progreso. El espectro de salida
+es: `--quiet` suprime el progreso, por defecto se muestran hitos concisos,
+`--verbose` muestra modelo, dominio e iteracion por paso, y `--json` emite los
+eventos estructurados completos a stdout. Ninguno de `--quiet` ni `--verbose`
+afecta a la respuesta.
 
 ## Inicializar (crear config)
 

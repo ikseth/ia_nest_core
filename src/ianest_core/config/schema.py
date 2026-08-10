@@ -74,7 +74,7 @@ class OrchestrationConfig:
     max_iterations: int = 2
     max_replans: int = 1
     max_time_s: float = 30
-    max_context_tokens: int = 4096
+    max_context_tokens: int = 16384
     max_parallel: int = 2
     coverage: CoverageConfig | None = None
 

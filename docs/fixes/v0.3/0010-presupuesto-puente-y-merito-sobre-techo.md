@@ -1,6 +1,6 @@
 # 0010: el merito gana al techo, y presupuesto puente de task.run
 
-Estado: propuesta
+Estado: implementada
 Tipo: correccion (dos defectos independientes del mismo sintoma)
 Impacto de version: patch
 Version objetivo: v0.3.x, ANTES de la linea MINOR de ADR 0044/0045
@@ -130,4 +130,39 @@ pertenece a la linea de ADR 0044/0045.
 
 ## Resultado
 
-(pendiente de implementacion)
+Pipeline comprueba `done` antes de los limites de contexto y tiempo, sin tocar
+coverage. El presupuesto por defecto de `orchestration.max_context_tokens` pasa
+a 16384 en el esquema y las dos plantillas; el manual documenta el valor.
+
+El test de acumulado real conserva su cobertura con evaluador `rerun`; se
+anaden pruebas para `done` con presupuesto y tiempo excedidos.
+
+Verificacion: pytest 187/187 con extras en el venv del repo; instalacion
+minima sin extras de interfaz, 183/183 y 4 omitidos. Las dos plantillas validan
+con `OPENAI_COMPAT_BASE_URL` de prueba. Conformance conserva 42/42 y el digest
+`6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708`.
+
+### Hallazgo de la revision cruzada (2026-08-10)
+
+La revision independiente encontro un SEGUNDO default del mismo campo que esta
+ficha no habia nombrado: `_load_orchestration` en `config/loader.py` repetia
+`max_context_tokens=4096` como valor de respaldo. Con el esquema en 16384 y el
+cargador en 4096, una config que omitiese el campo habria recibido el valor
+viejo, y el default del esquema habria quedado muerto para la unica via que se
+usa en la practica -cargar YAML-.
+
+Corregido en la revision: el cargador pasa a 16384 y se anade
+`test_orchestration_loader_defaults_match_the_schema`, que compara TODOS los
+limites de `OrchestrationConfig` entre cargador y esquema. La divergencia no
+puede reabrirse en silencio, ni en este campo ni en los otros cinco.
+
+Es la misma clase de invariante que la ficha v0.3/0007 fijo entre plantillas y
+esquema; faltaba el tercer vertice.
+
+Verificacion final tras la correccion: pytest 188/188 con extras; conformance
+42/42 con el digest intacto. En instalacion minima sin extras quedan 180
+pasados, 4 omitidos y 4 fallos de `test_init.py` que son PREEXISTENTES y ajenos
+a esta ficha: reproducidos identicos sobre el arbol limpio, provienen de que
+`ianest init` busca `config/core.example.yaml` junto al paquete instalado y las
+plantillas no viajan como datos de paquete en una instalacion no editable. Es un
+defecto de empaquetado, con ficha propia si se decide atacarlo.

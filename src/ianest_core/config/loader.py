@@ -122,7 +122,7 @@ def _load_orchestration(raw: dict[str, Any] | None) -> OrchestrationConfig | Non
         max_iterations=int(raw.get("max_iterations", 2)),
         max_replans=int(raw.get("max_replans", 1)),
         max_time_s=float(raw.get("max_time_s", 30)),
-        max_context_tokens=int(raw.get("max_context_tokens", 4096)),
+        max_context_tokens=int(raw.get("max_context_tokens", 16384)),
         max_parallel=int(raw.get("max_parallel", 2)),
         coverage=_load_coverage(raw.get("coverage")),
     )

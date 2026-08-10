@@ -57,6 +57,15 @@ Parametros de generacion, limites y `system` opcional. Campos: `id`,
         max_context_tokens: 4096
         system: "Responde siempre en espanol."
 
+### orchestration
+Limites y objetivos de `task.run`. `max_context_tokens` es el presupuesto
+global de una tarea en modo pipeline; su valor por defecto es `16384`.
+
+    orchestration:
+      planner: { model: local_llama, profile: default }
+      combiner: { model: local_llama, profile: default }
+      max_context_tokens: 16384
+
 ### identity_defaults
 `user_id`, `service` por defecto.
 

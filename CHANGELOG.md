@@ -37,6 +37,11 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   patch.
 
 ### Corregido
+- En modo pipeline, una decision `done` de `task.run` prevalece sobre los
+  limites de contexto y tiempo alcanzados al completar esa pasada; el
+  presupuesto por defecto de orquestacion pasa a `16384`
+  ([ficha v0.3/0010](docs/fixes/v0.3/0010-presupuesto-puente-y-merito-sobre-techo.md)).
+  Impacto: patch.
 - Los cortes por `max_context_tokens` de `task.run` evaluan el acumulado
   real de tokens de todas las llamadas (antes solo el override
   `simulated`, inoperante con backend real); el acumulado queda expuesto

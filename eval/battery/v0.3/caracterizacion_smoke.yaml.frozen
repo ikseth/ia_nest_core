@@ -1,0 +1,271 @@
+# Matriz de caracterizacion (pista smoke, backend real).
+#
+# Que es: la linea base de COMPORTAMIENTO del despliegue. Cuatro caminos por
+# cuatro categorias de extension, con el MISMO prompt dentro de cada categoria,
+# para poder comparar que hace cada camino ante la misma peticion.
+#
+# Que NO es: un veredicto. La pista smoke no da resultado reproducible
+# (eval/README.md) y queda FUERA del `conformance_digest`. Su valor es el
+# REGISTRO comparable entre versiones, no el aprobado.
+#
+# Congelada mientras `finish_reason` no sea observable en la pista smoke: hoy
+# las metricas de smoke son latency_ms, tokens_in, tokens_out y chars, y esta
+# matriz lo necesita (ver mas abajo). Se integra renombrando a .yaml cuando
+# exista. No toca el digest ni al integrarse.
+#
+# CAMINOS (4)
+# - prompt.run          : una llamada, sin orquestacion.
+# - reasoning.run       : bucle de refinamiento sobre una sola linea.
+# - task.run pipeline   : descomponer, repartir, combinar.
+# - task.run coverage   : trocear por unidades verificables y ensamblar.
+#
+# CATEGORIAS DE EXTENSION (4)
+# - corta   : una definicion. Cabe de sobra en cualquier perfil.
+# - media   : una explicacion con ejemplos.
+# - larga   : un documento con secciones.
+# - extrema : un manual. Se espera que NO quepa en una sola llamada.
+#
+# POR QUE EL MISMO PROMPT EN LOS CUATRO CAMINOS
+# Es lo que hace comparable la matriz. Con la misma peticion se ve, con numeros,
+# que `prompt.run` trunca donde `coverage` completa, y cuanto cuesta esa
+# diferencia. Sin prompt comun, cada camino se mide contra si mismo y no se
+# puede decidir cual usar.
+#
+# LA METRICA QUE JUSTIFICA LA MATRIZ: `finish_reason`
+# `finish_reason: length` significa que el modelo se quedo a medias. Cruzarlo
+# con la categoria de extension da el MAPA DE TRUNCAMIENTO del despliegue: donde
+# empieza a cortar, en que camino y a partir de que extension pedida. Esa es la
+# pregunta que origino la linea del presupuesto (ADR 0044) y que hasta ahora se
+# ha respondido por anecdota.
+#
+# Requisito de implementacion, declarado aqui como criterio: la pista smoke debe
+# recoger `finish_reason` entre sus metricas -para `task.run`, el del ultimo
+# fragmento o el peor de ellos, y declarar cual- y admitir el umbral
+# `finish_reason_not`. Sin eso, esta matriz registra pero no puede fallar.
+#
+# UMBRALES: FLOJOS Y A PROPOSITO
+# Nada de `latency_ms_max`. Los umbrales de latencia dependen de la maquina, y
+# una bateria que se pone roja al cambiar de GPU acaba ignorandose, que es peor
+# que no tenerla. Aqui solo se afirma lo que es verdad o mentira en cualquier
+# maquina: que hay respuesta, que alcanza una extension minima, y que no trunca
+# donde no debe truncar. Los tokens y la latencia se REGISTRAN para comparar
+# entre versiones; no se juzgan.
+#
+# COMO SE USA
+# Se corre en los cierres de version, no en cada cambio: es caro (las categorias
+# larga y extrema en `task.run` se van a minutos por caso) y su valor esta en la
+# serie historica. Se guarda el resultado junto al digest de la version.
+
+# --------------------------------------------------------------------------
+# Categoria CORTA - "define en una frase"
+# --------------------------------------------------------------------------
+
+- id: caracterizacion_corta_prompt
+  track: smoke
+  description: "Corta / prompt.run: una llamada, sin orquestacion."
+  capability: prompt.run
+  input:
+    prompt: "Define en una frase que es el kernel de un sistema operativo."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 40
+    finish_reason_not: length
+
+- id: caracterizacion_corta_reasoning
+  track: smoke
+  description: "Corta / reasoning.run: el bucle no deberia aportar nada aqui."
+  capability: reasoning.run
+  input:
+    prompt: "Define en una frase que es el kernel de un sistema operativo."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 40
+    finish_reason_not: length
+
+- id: caracterizacion_corta_pipeline
+  track: smoke
+  description: "Corta / task.run pipeline: orquestar algo que no se descompone."
+  capability: task.run
+  input:
+    prompt: "Define en una frase que es el kernel de un sistema operativo."
+    mode: pipeline
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 40
+    finish_reason_not: length
+
+- id: caracterizacion_corta_coverage
+  track: smoke
+  description: "Corta / task.run coverage: trocear algo que no tiene unidades."
+  capability: task.run
+  input:
+    prompt: "Define en una frase que es el kernel de un sistema operativo."
+    mode: coverage
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 40
+    finish_reason_not: length
+
+# --------------------------------------------------------------------------
+# Categoria MEDIA - "explica con ejemplos"
+# --------------------------------------------------------------------------
+
+- id: caracterizacion_media_prompt
+  track: smoke
+  description: "Media / prompt.run."
+  capability: prompt.run
+  input:
+    prompt: "Explica que es el kernel de un sistema operativo, que funciones cumple y como se relaciona con el resto del sistema, con ejemplos concretos."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 400
+    finish_reason_not: length
+
+- id: caracterizacion_media_reasoning
+  track: smoke
+  description: "Media / reasoning.run."
+  capability: reasoning.run
+  input:
+    prompt: "Explica que es el kernel de un sistema operativo, que funciones cumple y como se relaciona con el resto del sistema, con ejemplos concretos."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 400
+    finish_reason_not: length
+
+- id: caracterizacion_media_pipeline
+  track: smoke
+  description: "Media / task.run pipeline."
+  capability: task.run
+  input:
+    prompt: "Explica que es el kernel de un sistema operativo, que funciones cumple y como se relaciona con el resto del sistema, con ejemplos concretos."
+    mode: pipeline
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 400
+    finish_reason_not: length
+
+- id: caracterizacion_media_coverage
+  track: smoke
+  description: "Media / task.run coverage."
+  capability: task.run
+  input:
+    prompt: "Explica que es el kernel de un sistema operativo, que funciones cumple y como se relaciona con el resto del sistema, con ejemplos concretos."
+    mode: coverage
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 400
+    finish_reason_not: length
+
+# --------------------------------------------------------------------------
+# Categoria LARGA - "un documento con secciones"
+# --------------------------------------------------------------------------
+
+- id: caracterizacion_larga_prompt
+  track: smoke
+  description: "Larga / prompt.run: aqui es donde se espera que una sola llamada empiece a quedarse corta."
+  capability: prompt.run
+  input:
+    prompt: "Escribe una guia de introduccion a Linux con estas cuatro secciones desarrolladas: el kernel, las distribuciones, el gestor de paquetes y el sistema de ficheros. Cada seccion con varios parrafos y ejemplos."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 1500
+    # SIN finish_reason_not: aqui truncar es un RESULTADO que se registra, no un
+    # fallo. Es justamente el dato que la matriz existe para capturar.
+
+- id: caracterizacion_larga_reasoning
+  track: smoke
+  description: "Larga / reasoning.run."
+  capability: reasoning.run
+  input:
+    prompt: "Escribe una guia de introduccion a Linux con estas cuatro secciones desarrolladas: el kernel, las distribuciones, el gestor de paquetes y el sistema de ficheros. Cada seccion con varios parrafos y ejemplos."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 1500
+
+- id: caracterizacion_larga_pipeline
+  track: smoke
+  description: "Larga / task.run pipeline."
+  capability: task.run
+  input:
+    prompt: "Escribe una guia de introduccion a Linux con estas cuatro secciones desarrolladas: el kernel, las distribuciones, el gestor de paquetes y el sistema de ficheros. Cada seccion con varios parrafos y ejemplos."
+    mode: pipeline
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 1500
+
+- id: caracterizacion_larga_coverage
+  track: smoke
+  description: "Larga / task.run coverage: el modo disenado para salida larga enumerable."
+  capability: task.run
+  input:
+    prompt: "Escribe una guia de introduccion a Linux con estas cuatro secciones desarrolladas: el kernel, las distribuciones, el gestor de paquetes y el sistema de ficheros. Cada seccion con varios parrafos y ejemplos."
+    mode: coverage
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 1500
+    # coverage trocea por unidades y ensambla, asi que aqui SI se le exige no
+    # truncar: si trunca, su razon de ser no se esta cumpliendo.
+    finish_reason_not: length
+
+# --------------------------------------------------------------------------
+# Categoria EXTREMA - "un manual"
+# --------------------------------------------------------------------------
+
+- id: caracterizacion_extrema_prompt
+  track: smoke
+  description: "Extrema / prompt.run: se espera truncamiento. El dato es CUANTO alcanza antes."
+  capability: prompt.run
+  input:
+    prompt: "Escribe un manual extenso de administracion de Linux con estas ocho secciones, cada una desarrollada en profundidad y con ejemplos de comandos y casos de uso: el kernel, las distribuciones, el gestor de paquetes, systemd, el sistema de ficheros, los procesos, las variables de entorno y los enlaces simbolicos."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+
+- id: caracterizacion_extrema_reasoning
+  track: smoke
+  description: "Extrema / reasoning.run: el bucle no aumenta la ventana; se espera que tampoco lo resuelva."
+  capability: reasoning.run
+  input:
+    prompt: "Escribe un manual extenso de administracion de Linux con estas ocho secciones, cada una desarrollada en profundidad y con ejemplos de comandos y casos de uso: el kernel, las distribuciones, el gestor de paquetes, systemd, el sistema de ficheros, los procesos, las variables de entorno y los enlaces simbolicos."
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+
+- id: caracterizacion_extrema_pipeline
+  track: smoke
+  description: "Extrema / task.run pipeline."
+  capability: task.run
+  input:
+    prompt: "Escribe un manual extenso de administracion de Linux con estas ocho secciones, cada una desarrollada en profundidad y con ejemplos de comandos y casos de uso: el kernel, las distribuciones, el gestor de paquetes, systemd, el sistema de ficheros, los procesos, las variables de entorno y los enlaces simbolicos."
+    mode: pipeline
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 3000
+
+- id: caracterizacion_extrema_coverage
+  track: smoke
+  description: "Extrema / task.run coverage: el caso que justifica que el modo exista."
+  capability: task.run
+  input:
+    prompt: "Escribe un manual extenso de administracion de Linux con estas ocho secciones, cada una desarrollada en profundidad y con ejemplos de comandos y casos de uso: el kernel, las distribuciones, el gestor de paquetes, systemd, el sistema de ficheros, los procesos, las variables de entorno y los enlaces simbolicos."
+    mode: coverage
+    identity: { user_id: lab, service: caracterizacion }
+  thresholds:
+    must_be_nonempty: true
+    min_chars: 3000
+    # Si algun caso de esta matriz debe completar sin truncar, es este: es la
+    # razon por la que el modo coverage se construyo (ADR 0038).
+    finish_reason_not: length

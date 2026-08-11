@@ -46,6 +46,12 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   patch.
 
 ### Corregido
+- En modo pipeline, cada subtarea recibe el objetivo global solo como contexto
+  y conserva su enunciado como unico contenido a producir; el enrutado y el
+  registro mantienen el enunciado pelado. COMBINE ahora estructura resultados
+  divergentes sin juzgar su exactitud ni introducir matices sin divergencia
+  ([ficha v0.3/0012](docs/fixes/v0.3/0012-subtareas-con-contexto-y-combinado-coherente.md)).
+  Impacto: patch.
 - En modo pipeline, `depends_on` declara y tolera indices enteros base 0: se
   aceptan enteros y cadenas de digitos, se rechazan booleanos y formas
   invalidas, y los indices fuera de rango se distinguen de los ciclos antes del

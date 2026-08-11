@@ -42,6 +42,24 @@
 #   ejercita el fallo de parseo del evaluador tal como se observo en
 #   laboratorio.
 #
+# SERIALIZACION de un intento, congelada aqui para que la implementacion no
+# tenga que inventarla:
+#
+# - intento con `requirements`: el fake planificador emite un OBJETO JSON
+#   {"requirements": [...], "subtasks": [...]} -o "units" en coverage-, que es
+#   la forma que I1 exige: las dos listas en la MISMA respuesta.
+# - intento SIN `requirements`: emite la LISTA pelada de siempre. Es la forma
+#   pre-I1 y la representacion fiel de un planificador que ignora la
+#   instruccion, que es justo lo que D-AUSENCIA describe.
+# - intento `{ raw: "<texto>" }`: se emite literal, sin serializar nada.
+#
+# Orden de las respuestas del modelo planificador dentro de un caso: primero
+# TODOS los intentos de `derivations`, en orden, y despues TODAS las entradas de
+# `evaluate_decisions`, en orden. El modelo planificador atiende los dos roles
+# -derivar y evaluar- y los atiende en ese orden. La clave `plans` de las
+# baterias v0.2/v0.3 ya integradas conserva su comportamiento intercalado sin
+# cambio alguno.
+#
 # Semantica congelada, vinculante para la implementacion:
 #
 # - El contador de re-derivacion es UNICO y vale 1 por tarea, lo dispare I1

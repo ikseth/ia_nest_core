@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from ianest_core.errors import CoreError
@@ -372,6 +373,7 @@ def _prompt_run(args: argparse.Namespace) -> int:
 
 
 def _prompt_stream(args: argparse.Namespace) -> int:
+    started_at: float | None = None
     for event in service.stream_prompt(
         config_path=args.config,
         prompt=args.prompt,
@@ -379,12 +381,19 @@ def _prompt_stream(args: argparse.Namespace) -> int:
         domain=args.domain,
         identity=_identity_override(args),
     ):
+        if args.verbose and started_at is None:
+            started_at = time.monotonic()
         if args.json:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
         elif event["type"] == "token":
             print(event["data"]["text"], end="", flush=True)
         elif event["type"] != "done":
-            _emit_progress("Prompt en curso", quiet=args.quiet)
+            _emit_progress(
+                "Prompt en curso",
+                quiet=args.quiet,
+                verbose=args.verbose,
+                started_at=started_at,
+            )
     return 0
 
 
@@ -404,6 +413,7 @@ def _reasoning_run(args: argparse.Namespace) -> int:
 
 
 def _reasoning_stream(args: argparse.Namespace) -> int:
+    started_at: float | None = None
     for event in service.stream_reasoning(
         config_path=args.config,
         prompt=args.prompt,
@@ -411,6 +421,8 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
         domain=args.domain,
         identity=_identity_override(args),
     ):
+        if args.verbose and started_at is None:
+            started_at = time.monotonic()
         if args.json:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True))
         elif event["type"] == "done":
@@ -418,19 +430,27 @@ def _reasoning_stream(args: argparse.Namespace) -> int:
         elif event["type"] == "token":
             print(event["data"]["text"], end="", flush=True)
         else:
-            _emit_progress(_reasoning_progress(event, verbose=args.verbose), quiet=args.quiet)
+            _emit_progress(
+                _reasoning_progress(event, verbose=args.verbose),
+                quiet=args.quiet,
+                verbose=args.verbose,
+                started_at=started_at,
+            )
     return 0
 
 
 def _task_run(args: argparse.Namespace) -> int:
     answer_was_streamed = False
     exit_code = 0
+    started_at: float | None = None
     for event in service.stream_task(
         config_path=args.config,
         prompt=args.prompt,
         mode=args.mode,
         identity=_identity_override(args),
     ):
+        if args.verbose and started_at is None:
+            started_at = time.monotonic()
         if event["type"] == "task_done":
             if args.json:
                 print(json.dumps(event, ensure_ascii=False, sort_keys=True))
@@ -451,12 +471,26 @@ def _task_run(args: argparse.Namespace) -> int:
             print(event["data"]["text"].strip(), end="", flush=True)
             answer_was_streamed = True
         else:
-            _emit_progress(_task_progress(event, verbose=args.verbose), quiet=args.quiet)
+            _emit_progress(
+                _task_progress(event, verbose=args.verbose),
+                quiet=args.quiet,
+                verbose=args.verbose,
+                started_at=started_at,
+            )
     return exit_code
 
 
-def _emit_progress(message: str, *, quiet: bool) -> None:
+def _emit_progress(
+    message: str,
+    *,
+    quiet: bool,
+    verbose: bool = False,
+    started_at: float | None = None,
+) -> None:
     if not quiet:
+        if verbose and started_at is not None:
+            elapsed_s = time.monotonic() - started_at
+            message = f"[{elapsed_s:5.1f}s] {message}"
         print(message, file=sys.stderr)
 
 
@@ -503,8 +537,9 @@ def _task_progress(event: dict[str, object], *, verbose: bool = False) -> str:
         return f"Plan listo: {count} unidades"
     if event_type == "subtask_done":
         if verbose:
+            iteration = f" (iter {payload['iteration']})" if "iteration" in payload else ""
             return (
-                f"  subtarea {payload.get('index')} (iter {payload.get('iteration')}) "
+                f"  subtarea {payload.get('index')}{iteration} "
                 f"-> {payload.get('domain')} / {payload.get('model')}"
             )
         return "Subtarea completada"
@@ -525,7 +560,8 @@ def _task_progress(event: dict[str, object], *, verbose: bool = False) -> str:
     if event_type == "iteration_end":
         iteration = payload.get("iteration")
         if verbose:
-            return f"Iteracion {iteration}: {payload.get('decision')}"
+            decision = f": {payload['decision']}" if "decision" in payload else ""
+            return f"Iteracion {iteration}{decision}"
         return f"Iteracion {iteration} completada" if iteration is not None else "Iteracion completada"
     if event_type == "combine_ready":
         return "Respuesta preparada" if payload.get("response") else "Combinacion sin respuesta"

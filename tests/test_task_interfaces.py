@@ -2,12 +2,22 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 
 import pytest
 
 from ianest_core import service
 from ianest_core.adapters import Event
 from ianest_core.cli import main
+
+
+def _assert_timed_progress(error: str, expected_messages: list[str]) -> None:
+    matches = [re.fullmatch(r"\[\s*(\d+\.\d)s\] (.+)", line) for line in error.splitlines()]
+
+    assert all(matches)
+    assert [match.group(2) for match in matches if match] == expected_messages
+    elapsed_s = [float(match.group(1)) for match in matches if match]
+    assert elapsed_s == sorted(elapsed_s)
 
 
 EVENTS = [
@@ -170,7 +180,7 @@ def test_cli_task_run_warns_for_each_degradation_without_failing(monkeypatch, ca
     monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
 
     exit_code = main([
-        "--config", "unused", "task", "run", "--prompt", "tarea", "--quiet",
+        "--config", "unused", "task", "run", "--prompt", "tarea", "--quiet", "--verbose",
     ])
     captured = capsys.readouterr()
 
@@ -267,19 +277,21 @@ def test_cli_task_run_verbose_renders_subtask_and_iteration_details(monkeypatch,
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert captured.err == (
-        "Tarea recibida\n"
-        "Plan: 1 subtareas\n"
-        "  subtarea 2 (iter 3) -> analysis / local_llama\n"
-        "Iteracion 3: combine\n"
-        "Respuesta preparada\n"
-    )
+    _assert_timed_progress(captured.err, [
+        "Tarea recibida",
+        "Plan: 1 subtareas",
+        "  subtarea 2 (iter 3) -> analysis / local_llama",
+        "Iteracion 3: combine",
+        "Respuesta preparada",
+    ])
 
 
 def test_cli_task_run_verbose_renders_coverage_details(monkeypatch, capsys) -> None:
     events = [
         {"type": "plan_ready", "data": {"units": ["u1", "u2", "u3"]}},
+        {"type": "subtask_done", "data": {"index": 0, "domain": "humanidades", "model": "mistral_nemo"}},
         {"type": "coverage_updated", "data": {"completed": ["u1"], "pending": ["u2"], "failed": ["u3"]}},
+        {"type": "iteration_end", "data": {"iteration": 1}},
         {"type": "task_done", "data": {"response": "FINAL"}},
     ]
     monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
@@ -290,7 +302,13 @@ def test_cli_task_run_verbose_renders_coverage_details(monkeypatch, capsys) -> N
     captured = capsys.readouterr()
 
     assert exit_code == 0
-    assert captured.err == "Plan: 3 unidades\n  cobertura 1/3 (pendientes 1, fallidas 1)\n"
+    assert "None" not in captured.err
+    _assert_timed_progress(captured.err, [
+        "Plan: 3 unidades",
+        "  subtarea 0 -> humanidades / mistral_nemo",
+        "  cobertura 1/3 (pendientes 1, fallidas 1)",
+        "Iteracion 1",
+    ])
 
 
 def test_cli_reasoning_stream_separates_output_and_steps(monkeypatch, capsys) -> None:
@@ -328,7 +346,25 @@ def test_cli_reasoning_stream_verbose_includes_done(monkeypatch, capsys) -> None
 
     assert exit_code == 0
     assert captured.out == "FINAL\n"
-    assert captured.err == "Paso 1 (done=False)\nPaso 2 (done=True)\n"
+    _assert_timed_progress(captured.err, ["Paso 1 (done=False)", "Paso 2 (done=True)"])
+
+
+def test_cli_prompt_stream_verbose_prefixes_progress(monkeypatch, capsys) -> None:
+    events = [
+        {"type": "token", "data": {"text": "FINAL"}},
+        {"type": "trace", "data": {}},
+        {"type": "done", "data": {}},
+    ]
+    monkeypatch.setattr(service, "stream_prompt", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "prompt", "stream", "--prompt", "tarea", "--verbose",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out == "FINAL"
+    _assert_timed_progress(captured.err, ["Prompt en curso"])
 
 
 def test_cli_reasoning_stream_quiet_suppresses_steps(monkeypatch, capsys) -> None:

@@ -1,6 +1,6 @@
 # 0013: --verbose sin campos fantasma y con reloj
 
-Estado: propuesta
+Estado: implementada
 Tipo: correccion y mejora pequena (render de CLI, extiende la ficha v0.3/0009)
 Impacto de version: patch
 Version objetivo: v0.3.x
@@ -118,4 +118,8 @@ Decisiones, y sus motivos:
 
 ## Resultado
 
-(pendiente de implementacion)
+Implementado en `src/ianest_core/cli.py`. El render verbose omite `iteration`
+y `decision` cuando el evento no los trae, y prefija cada linea de progreso con
+el tiempo acumulado desde el primer evento mediante `time.monotonic()`:
+`[  0.0s]`. El cambio se cubre con pruebas de forma y monotonia del prefijo,
+coverage sin `None`, y la preservacion de los detalles de pipeline.

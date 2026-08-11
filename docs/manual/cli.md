@@ -41,9 +41,11 @@ e [instalacion.md](instalacion.md).
 obtener salida estructurada; `init` no produce salida JSON. En acciones con
 flujo, stdout contiene la respuesta y stderr el progreso. El espectro de salida
 es: `--quiet` suprime el progreso, por defecto se muestran hitos concisos,
-`--verbose` muestra modelo, dominio e iteracion por paso, y `--json` emite los
-eventos estructurados completos a stdout. Ninguno de `--quiet` ni `--verbose`
-afecta a la respuesta.
+`--verbose` muestra el detalle por paso y antepone a cada linea de progreso en
+stderr el tiempo acumulado desde el primer evento (`[  0.0s]`), y `--json`
+emite los eventos estructurados completos a stdout. Ninguno de `--quiet` ni
+`--verbose` afecta a la respuesta. El reloj no se aplica a stdout, JSON ni a
+los avisos de corte o degradacion.
 
 ## Inicializar (crear config)
 

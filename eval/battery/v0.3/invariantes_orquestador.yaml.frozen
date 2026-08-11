@@ -67,8 +67,26 @@
 # - I1 se comprueba en codigo por operacion de conjuntos sobre `covers`. No
 #   hay llamada de modelo adicional: requirements y unidades vienen en la
 #   MISMA respuesta del planificador.
-# - Orden de comprobacion dentro de un intento: primero I2 (cabe?), luego I1
-#   (cubre?). Un plan que ni cabe ni cubre consume UNA sola re-derivacion.
+# - Orden de comprobacion dentro de un intento: primero la FORMA (es un plan
+#   utilizable?), luego I2 (cabe?), luego I1 (cubre?). No se puede preguntar si
+#   cabe o si cubre algo que todavia no es un plan. Un intento que falla en
+#   varias de las tres consume UNA sola re-derivacion, no una por defecto.
+# - Sobre que se TOLERA en la forma, precisado el 2026-08-11 al detectarse la
+#   ambiguedad: se desenvuelve un objeto ENVOLTORIO que trae la lista dentro de
+#   una clave conocida (subtasks, units, plan, steps), porque ahi no se pierde
+#   nada. NO se tolera un objeto suelto que sea el mismo una subtarea: ese caso
+#   renegocia, y si persiste degrada.
+#
+#   El motivo esta medido. En laboratorio (2026-08-11), ante la pregunta de
+#   cuatro partes sobre la leyenda del numero en el cine, el planificador
+#   devolvia 10 de 10 veces {"prompt": "Investigar la leyenda del numero que
+#   aparece en multiples peliculas"}: un objeto suelto cuyo prompt es una
+#   REDUCCION de la tarea que pierde tres de las cuatro cosas pedidas.
+#   Aceptarlo como plan de un elemento seria responder a una pregunta mutilada
+#   con sello verde, que es exactamente el modo de fallo que I1 existe para
+#   cerrar. Por eso la degradacion de I4 usa el prompt INTEGRO de la tarea y no
+#   el que el planificador propuso: la reduccion del planificador ya demostro
+#   no ser de fiar.
 # - `requirements_covered` es independiente de `coverage_complete` (ADR 0038):
 #   ninguno implica al otro. El primero dice si el PLAN cubria la peticion; el
 #   segundo, si las unidades del plan quedaron respondidas.

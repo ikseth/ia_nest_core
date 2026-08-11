@@ -305,6 +305,17 @@ doctrina del repo:
 
 1. **Tolerar** lo que tenga significado recuperable (fichas v0.3/0001, 0002 y
    0011). No se toca.
+
+   Precision anadida el 2026-08-11, porque la frontera resulto ambigua al
+   implementar: "recuperable" es lo que no pierde contenido. Un objeto
+   ENVOLTORIO que trae la lista dentro de una clave conocida se desenvuelve. Un
+   objeto suelto que es el mismo una subtarea NO se tolera: su `prompt` es una
+   REDUCCION de la tarea escrita por el planificador, y en laboratorio esa
+   reduccion perdia tres de las cuatro cosas pedidas. Aceptarla como plan de un
+   elemento seria responder una pregunta mutilada con sello verde -el modo de
+   fallo que I1 existe para cerrar-. Ese caso renegocia y, si persiste, degrada
+   al prompt INTEGRO, que es la unica version de la peticion que no ha pasado
+   por un planificador que ya demostro no ser de fiar.
 2. **Renegociar UNA vez POR ETAPA**, con el defecto explicito en la
    instruccion. Ver mas abajo la seccion "Contador por etapa", que es donde se
    fija la regla. No se anade ningun parametro de configuracion: el 1 es de

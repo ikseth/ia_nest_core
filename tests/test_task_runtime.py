@@ -31,6 +31,90 @@ def test_evaluation_parser_accepts_surrounding_prose() -> None:
     assert _parse_evaluation_decision("La respuesta es: done") == "done"
 
 
+@pytest.mark.parametrize("depends_on", [[1], ["1"], "1"])
+def test_pipeline_accepts_integer_and_numeric_string_dependencies(tmp_path, depends_on) -> None:
+    planner = CountingScriptedAdapter(
+        "fake_planner",
+        [json.dumps([{"prompt": "first", "domain": "general", "depends_on": depends_on}, {"prompt": "second", "domain": "general"}]), "done"],
+    )
+    general = CountingScriptedAdapter("fake_general", ["SECOND", "FIRST"])
+    adapters = {
+        "fake_planner": planner,
+        "fake_general": general,
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
+    }
+
+    result = TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(prompt="task", request_id="parent")
+
+    assert result.response == "FINAL"
+    assert [item["response"] for item in result.subtasks] == ["FIRST", "SECOND"]
+    assert general.calls == 2
+    assert "zero-based integer indexes into this same list" in planner.prompts[0]
+
+
+def test_pipeline_rejects_non_numeric_dependency_string(tmp_path) -> None:
+    planner = CountingScriptedAdapter(
+        "fake_planner", [json.dumps([{"prompt": "subtask", "domain": "general", "depends_on": ["a"]}])]
+    )
+    with pytest.raises(CoreError) as exc:
+        TaskRuntime(_config(tmp_path), adapter_factory={"fake_planner": planner}.get).run(prompt="task", request_id="parent")
+
+    assert exc.value.type == "PlanDependencyError"
+    assert exc.value.field == "depends_on"
+
+
+def test_pipeline_rejects_boolean_dependency(tmp_path) -> None:
+    planner = CountingScriptedAdapter(
+        "fake_planner",
+        [json.dumps([
+            {"prompt": "first", "domain": "general", "depends_on": [True]},
+            {"prompt": "second", "domain": "general"},
+        ])],
+    )
+    general = CountingScriptedAdapter("fake_general", [])
+    adapters = {"fake_planner": planner, "fake_general": general}
+    with pytest.raises(CoreError) as exc:
+        TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(prompt="task", request_id="parent")
+
+    assert exc.value.type == "PlanDependencyError"
+    assert exc.value.field == "depends_on"
+    assert general.calls == 0
+
+
+def test_pipeline_rejects_out_of_range_dependency_before_subtasks_run(tmp_path) -> None:
+    planner = CountingScriptedAdapter(
+        "fake_planner", [json.dumps([{"prompt": "subtask", "domain": "general", "depends_on": [1]}])]
+    )
+    general = CountingScriptedAdapter("fake_general", [])
+    adapters = {"fake_planner": planner, "fake_general": general}
+
+    with pytest.raises(CoreError, match="valid indexes") as exc:
+        TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(prompt="task", request_id="parent")
+
+    assert exc.value.type == "PlanDependencyError"
+    assert exc.value.field == "depends_on"
+    assert general.calls == 0
+
+
+def test_pipeline_rejects_cyclic_dependencies_before_subtasks_run(tmp_path) -> None:
+    planner = CountingScriptedAdapter(
+        "fake_planner",
+        [json.dumps([
+            {"prompt": "first", "domain": "general", "depends_on": [1]},
+            {"prompt": "second", "domain": "general", "depends_on": [0]},
+        ])],
+    )
+    general = CountingScriptedAdapter("fake_general", [])
+    adapters = {"fake_planner": planner, "fake_general": general}
+
+    with pytest.raises(CoreError, match="cycle") as exc:
+        TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(prompt="task", request_id="parent")
+
+    assert exc.value.type == "PlanDependencyError"
+    assert exc.value.field == "depends_on"
+    assert general.calls == 0
+
+
 def test_domain_hint_is_advisory_context_for_router(tmp_path) -> None:
     config = replace(
         load_config("eval/fixtures/router.yaml"),

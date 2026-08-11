@@ -1,0 +1,226 @@
+# 0011: el contrato de dependencias de pipeline, dicho y tolerado
+
+Estado: implementada
+Tipo: correccion (robustez del planificador, modo pipeline)
+Impacto de version: patch
+Version objetivo: v0.3.x
+
+## Problema
+
+`task.run` en modo `pipeline` pierde tareas enteras porque el planificador
+devuelve `depends_on` en una forma que el codigo rechaza. Muere en la primera
+llamada, con `exit != 0` y sin producir nada.
+
+### La causa raiz es nuestra instruccion, no el modelo
+
+Las dos etapas de planificacion piden `depends_on` de forma MUY distinta:
+
+- `_plan_coverage`: "...optional `depends_on` **as a list of ids**", y su parseo
+  tiene `_coerce_unit_id`, que acepta entero y cadena.
+- `_plan` (pipeline): "...optional `depends_on`", y nada mas. No dice que
+  contiene, ni de que tipo, ni en que base.
+
+Y despues `_dependencies` exige `int` estricto y lanza `PlanDependencyError` si
+no lo es. Le pedimos al planificador un campo sin decirle su forma y lo matamos
+por no adivinarla.
+
+### La evidencia
+
+Telemetria del laboratorio, 2026-08-10, sobre los planes de PIPELINE parseables
+acumulados (24 planes; los de coverage se excluyen porque su contrato es otro):
+
+- 11 de 24 declaran dependencias;
+- dentro de `depends_on`: **35 valores enteros y 4 cadenas** (`"1"`, `"2"`,
+  `"3"`).
+
+Es decir: el modelo acierta el SIGNIFICADO -el indice correcto- y falla el TIPO,
+porque lo entrecomilla. En la puerta de laboratorio de la ficha 0010, 1 de 9
+ejecuciones reales de `task.run` murio por esta causa.
+
+La muestra es corta para acreditar una mejora, y por eso esta ficha lleva puerta
+de medicion propia (mas abajo); es suficiente para acreditar el DIAGNOSTICO,
+porque la forma del fallo es inequivoca.
+
+### Un segundo problema, latente y NO medido
+
+La instruccion tampoco dice si el indice es base 0 o base 1. Los valores
+observados (aparece el `0`, y un patron de pares 2-4-6-8 coherente con planes de
+16 unidades) sugieren que el modelo usa base 0, pero eso es inferencia, no
+medicion.
+
+Importa porque falla en SILENCIO: un indice base 1 dentro de rango no da error,
+solo ordena mal las dependencias y nadie se entera. Uno fuera de rango si
+revienta, pero con el mensaje equivocado -"plan contains cyclic or invalid
+dependencies", emitido desde `_fan_out` cuando ningun subtarea queda lista-,
+que manda a diagnosticar un ciclo donde hay un indice invalido.
+
+### Asimetria de fondo
+
+`coverage` ya recibio dos veces este mismo tratamiento (fichas v0.3/0001 y
+v0.3/0002, ambas "tolerante"): instruccion explicita y parseo que acepta las
+formas razonables. `pipeline` se quedo estricto. Esta ficha le da el mismo
+trato, sin inventar diseno nuevo: reutiliza el patron que coverage ya tiene.
+
+## Cambio
+
+### A. Decir la forma en la instruccion
+
+`_plan` declara explicitamente que `depends_on` es una lista de indices ENTEROS
+en BASE 0 sobre esa misma lista. Cierra la ambiguedad en origen y cubre de paso
+el problema de la base, que no tiene otra defensa posible: un indice base 1
+dentro de rango es indetectable desde el codigo.
+
+### B. Tolerancia simetrica en `_dependencies`
+
+Una cadena que sea un digito se acepta y se convierte, igual que
+`_coerce_unit_id` de coverage acepta el entero. Aplica tanto a la lista como al
+valor suelto, que ya se aceptaba en su forma entera.
+
+Una cadena NO numerica sigue siendo `PlanDependencyError`: en `pipeline` no hay
+ids a los que referirse, asi que no hay nada que interpretar. La tolerancia
+llega hasta donde hay significado recuperable, y ni un paso mas.
+
+Se anade ademas la guarda de booleanos que coverage ya tiene: en Python
+`isinstance(True, int)` es cierto, y hoy un `depends_on: [true]` pasaria por
+indice 1.
+
+### C. Validar las dependencias al planificar, no a mitad del fan-out
+
+`pipeline` gana el equivalente de `_validate_coverage_dependencies`: tras
+parsear el plan se comprueba que todo indice este dentro de rango y que el grafo
+no tenga ciclos, con `PlanDependencyError` y mensajes que distingan un caso del
+otro.
+
+Dos ganancias: el error dice lo que pasa de verdad -indice invalido deja de
+disfrazarse de ciclo- y la tarea no gasta llamadas antes de descubrir que su
+plan no era ejecutable. El tipo de error no cambia (`PlanDependencyError`, campo
+`depends_on`); cambia el mensaje, que no es contrato (ADR 0020).
+
+## Criterios de aceptacion
+
+- Un plan con `depends_on: ["1"]` se ejecuta igual que con `[1]` (test).
+- Un plan con `depends_on: "1"` (valor suelto) se comporta como `[1]` (test).
+- Un plan con `depends_on: ["a"]` sigue dando `PlanDependencyError` con campo
+  `depends_on` (test).
+- Un plan con `depends_on: [true]` da `PlanDependencyError` y NO se interpreta
+  como indice 1 (test).
+- Un plan con un indice fuera de rango da `PlanDependencyError` con mensaje de
+  indice invalido, ANTES de ejecutar ninguna subtarea (test que cuenta las
+  llamadas al adaptador).
+- Un plan con ciclo da `PlanDependencyError` con mensaje de ciclo (test).
+- La instruccion de `_plan` menciona indices enteros base 0 (test de unidad
+  sobre el texto, patron de la ficha v0.3/0003).
+- Un plan valido sin dependencias y uno con dependencias enteras se comportan
+  EXACTAMENTE igual que hoy (no regresion).
+- **Digest de conformance SIN cambio**: la bateria no tiene ningun caso de
+  dependencias de pipeline -verificado sobre `conformance.yaml`,
+  `v0.2/orchestration.yaml` y `router/domain_route.yaml`-, asi que este cambio
+  no puede moverlo. Si se mueve, el cambio se fue de alcance.
+- pytest en verde con y sin extras; sin dependencias nuevas.
+- No toca `coverage` ni `_coerce_unit_id`.
+
+## Puerta de laboratorio (medicion, no impresion)
+
+El diagnostico se midio; la mejora tambien debe medirse, y sin pagar tareas
+completas a ~52 s.
+
+Se aisla el planificador lanzando su instruccion tal cual con `prompt run`
+contra el modelo planificador, N=20 antes y N=20 despues, y se cuenta la
+distribucion de formas de `depends_on` (entero, cadena numerica, cadena no
+numerica, ausente). Criterio: la proporcion de valores en cadena baja de forma
+visible; ninguna forma nueva aparece.
+
+La segunda mitad de la puerta la cubre el codigo: aunque el planificador siga
+entrecomillando de vez en cuando, la tolerancia de B hace que ya no cueste la
+tarea. Son dos defensas independientes y se verifican por separado.
+
+## Archivos previstos
+
+- `src/ianest_core/runtime/task_runtime.py` (`_plan`, `_dependencies`,
+  validacion nueva de dependencias de pipeline)
+- `tests/test_task_runtime.py`
+- `docs/fixes/v0.3/0011-dependencias-de-pipeline-tolerantes.md`
+- `CHANGELOG.md`
+
+## No cubre
+
+- **Que un plan malformado deje de matar la tarea.** Es lo que la doctrina de
+  ADR 0041 pide ("un limite negocia antes de matar"): gastar la re-derivacion
+  unica de I1/I2 tambien cuando el plan no es ejecutable. Pero ADR 0041 fijo ese
+  contador como uno por tarea compartido entre I1 e I2, y anadir una TERCERA
+  causa es una decision, no una inferencia. Ademas I1/I2 siguen sin implementar
+  (fase B, con su bateria congelada). Entra como extension de ADR 0041 cuando se
+  implemente esa fase, no como ADR suelto.
+- El indice base 1 DENTRO de rango: indetectable desde el codigo. La unica
+  defensa es la instruccion del cambio A.
+- `PlanParseError` por JSON invalido, que es otra familia de fallo del
+  planificador.
+- El contrato de `depends_on` de `task.plan` (ADR 0040, sin implementar): esta
+  ficha no lo fija, solo alinea la forma que el planificador propio produce.
+
+## Resultado
+
+Implementado en modo pipeline. La instruccion del planificador declara que
+`depends_on` usa indices enteros base 0 sobre el propio plan. El parser acepta
+enteros y cadenas de digitos, tanto sueltas como en lista, y rechaza booleanos
+y formas sin significado recuperable.
+
+Las dependencias se validan antes del fan-out: los indices fuera de rango y los
+ciclos producen `PlanDependencyError` con mensajes distintos, sin ejecutar
+subtareas. Coverage no cambia.
+
+Pruebas anadidas para las formas toleradas, los rechazos, la instruccion y la
+validacion previa. El digest de conformance permanece intacto:
+`6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708`.
+
+### Revision cruzada (2026-08-10)
+
+Verificacion independiente: pytest 195/195 con extras y digest confirmado. La
+pasada SIN extras, que el codificador no pudo ejecutar por no tener red en su
+sandbox, se hizo aparte: 187 pasados, 4 omitidos y los 4 fallos PREEXISTENTES de
+`test_init.py` -los mismos que la ficha 0010 ya documento como defecto de
+empaquetado ajeno, reproducidos sobre arbol limpio-.
+
+### Puerta de laboratorio: medida, y corrige el diagnostico al alza
+
+Ejecutada el 2026-08-10 aislando el planificador (las dos instrucciones contra
+el MISMO codigo y la misma tarea, elegida para inducir dependencias):
+
+| | instruccion vieja | instruccion nueva |
+|---|---|---|
+| planes con dependencias | 10/20 y 11/20 | 6/20 y 9/20 |
+| valores en prosa | 26 y 23 (el 100%) | 0 |
+| valores enteros | 0 | 16 y 27 (el 100%) |
+| planes ejecutables de los que tienen dependencias | 0 | 9 de 9 |
+
+Con la instruccion vieja el planificador referencia las dependencias por el
+TEXTO de la otra subtarea (`'Prepara el sistema'`, `'Instala el paquete'`), no
+por indice: ni un entero ni una cadena numerica. El diagnostico de esta ficha,
+apoyado en telemetria acumulada, veia sobre todo cadenas numericas; la medicion
+dirigida muestra que esas son el caso BENIGNO, y que el dominante en tareas
+secuenciales es la prosa. El fallo era por tanto mas grave de lo estimado -en
+torno a la mitad de las tareas de esa forma-, y el cambio A, no el B, es el que
+lo resuelve.
+
+Los indices producidos son ademas validos: 0 fuera de rango, 0
+autorreferencias, y una distribucion `{0: 9, 1: 9, 2: 9}` en la que el `0`
+aparece con la misma frecuencia que el resto. Eso confirma empiricamente la base
+0 y descarta el riesgo latente que esta ficha declaraba -que el modelo usara
+base 1 y cambiasemos un fallo ruidoso por uno silencioso-.
+
+Alcance de la puerta: valida el cambio A con medida. B y C no tienen caso real
+que medir una vez A esta puesto -el planificador deja de producir las formas que
+B tolera-, y quedan cubiertos por pytest y por el digest. B sigue justificada
+por la telemetria acumulada, donde esas cadenas SI aparecen con otras formas de
+tarea: A reduce la frecuencia del fallo, B evita que las que se cuelen cuesten
+la tarea. Detalle en `local/lab/2026-08-10_puerta_0011_dependencias.md` (no
+versionado).
+
+Consecuencia conocida del cambio C, anotada para que no sorprenda: un plan con
+dependencias invalidas ahora falla DENTRO de `_plan`, es decir ANTES de que se
+emita el checkpoint `plan_ready`; antes fallaba durante el fan-out, con el
+`plan_ready` ya emitido. Se pierde por tanto la ocasion de ver el plan malo en
+un checkpoint. Es lo que la ficha pedia -validar al planificar, sin gastar
+llamadas- y el diagnostico no se resiente: la respuesta cruda del planificador
+sigue en la telemetria JSONL, que es justamente de donde salio la evidencia de
+esta ficha.

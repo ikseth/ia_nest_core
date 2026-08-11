@@ -1,0 +1,596 @@
+# Bateria de presupuesto de tokens y niveles de esfuerzo (ADR 0044 y ADR 0045).
+# CRITERIO DE ACEPTACION escrito y CONGELADO ANTES de implementar. El runner NO
+# carga este archivo mientras conserve el sufijo .frozen; se integra
+# renombrandolo a .yaml, con el digest recalculado y declarado (ADR 0017,
+# patron de v0.2-3, v0.3-2 y de la bateria de invariantes).
+#
+# Fixture: eval/fixtures/orchestration_effort.yaml.
+#
+# ESTA BATERIA FIJA SEMANTICA, NO CALIBRACION. Sus numeros son pequenos y
+# redondos para que cada caso se lea de un vistazo: base 100, per_subtask 10.
+# Los valores que se publiquen en esquema, cargador y plantillas salen de la
+# puerta de laboratorio (ADR 0044 D5 y ADR 0045 D7) y son otra cosa: cambiarlos
+# alli NO debe tocar esta bateria.
+#
+# Lo que cubre:
+#
+# ADR 0044 - el presupuesto lo dimensiona el plan
+# - concesion por pasada: base + per_subtask * n, acumulada;
+# - el presupuesto decide la PROXIMA pasada, nunca mutila la que esta en curso;
+# - el merito gana al techo;
+# - corte tipado unico `max_total_tokens` para los dos modos;
+# - `max_context_tokens` fuera de `orchestration` y `coverage.max_total_tokens`
+#   retirado: ambos ignorados si aparecen.
+#
+# ADR 0045 - niveles de esfuerzo
+# - `effort` low|medium|high, vocabulario fijo y valores del operador;
+# - precedencia campo a campo: lo que el nivel declara sustituye, lo que no cae
+#   a la base; el bloque base ES medium;
+# - el nivel gobierna trabajo autorizado, NO la medicion del coste.
+#
+# Scripting: el ya existente (`derivations`, `responses`, `evaluate_decisions`,
+# `generator_responses`, `validator_decisions`, `simulated`). `simulated`
+# conserva la clave `context_tokens`, que significa "tokens ACUMULADOS
+# simulados" y no el nombre del limite: el limite se llama ahora
+# `max_total_tokens`, el acumulado sigue siendo el acumulado.
+#
+# Entrada nueva del caso: `input.effort`, con el identificador del nivel.
+#
+# Semantica congelada, vinculante para la implementacion:
+#
+# - Presupuesto de una pasada de pipeline: `base + per_subtask * len(plan)`.
+# - Presupuesto de coverage: `base + per_subtask * n_unidades *
+#   (1 + max_retries_per_unit)`; los reintentos son gasto autorizado por
+#   contrato y un presupuesto que los ignora miente.
+# - Una re-derivacion de I1/I2/I4 gasta de la concesion EN CURSO; no concede
+#   otra. Un `replan` de EVALUATE y una iteracion nueva SI conceden.
+# - El corte se decide en el LIMITE entre pasadas. La pasada en curso termina
+#   entera: nunca se corta entre el fan-out y el combinado.
+# - Si el evaluador dice `done`, no hay proxima pasada que vetar: el corte es
+#   `task_done` aunque el gasto haya superado el presupuesto.
+# - `effort` fuera de {low, medium, high} es `ConfigError` con field `effort`.
+# - Un nivel no declarado en la config resuelve a la base, sin error.
+
+# --------------------------------------------------------------------------
+# ADR 0044: el presupuesto lo dimensiona el plan
+# --------------------------------------------------------------------------
+
+- id: presupuesto_plan_pequeno_no_vinculante
+  track: conformance
+  description: "ADR 0044 D2: plan de 1 subtarea; el gasto cabe en su concesion y no corta."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+      # Concesion = 100 + 10*1 = 110. Gasto simulado por debajo.
+      simulated: { context_tokens: 105 }
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    token_budget_total: 110
+
+- id: presupuesto_crece_con_el_plan
+  track: conformance
+  description: "ADR 0044 D2: con el MISMO gasto, un plan de 6 subtareas cabe donde el de 1 no cabria."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "seis cosas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer las seis" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+            - { prompt: "s3", domain: general, covers: [r1] }
+            - { prompt: "s4", domain: general, covers: [r1] }
+            - { prompt: "s5", domain: general, covers: [r1] }
+            - { prompt: "s6", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+      # Concesion = 100 + 10*6 = 160. El mismo gasto que corta al plan de 1.
+      simulated: { context_tokens: 150 }
+  expect:
+    stop_reason: task_done
+    token_budget_total: 160
+
+- id: presupuesto_plan_pequeno_corta_con_el_mismo_gasto
+  track: conformance
+  description: "ADR 0044 D2: par del caso anterior; mismo gasto, plan de 1, y ahora SI corta."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      # El evaluador pide otra pasada: hay algo que vetar.
+      evaluate_decisions: [rerun]
+      simulated: { context_tokens: 150 }
+  expect:
+    # Este par es la prueba de que el presupuesto CRECE: mismo gasto, distinto
+    # plan, distinto desenlace. Con un techo constante los dos casos coincidirian.
+    stop_reason: max_total_tokens
+    token_budget_total: 110
+    response: "COMBINADO_FINAL"
+
+- id: presupuesto_merito_gana_al_techo
+  track: conformance
+  description: "ADR 0044 D1: evaluador done con el gasto por encima del presupuesto; no hay pasada que vetar."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+      simulated: { context_tokens: 150 }
+  expect:
+    # Agotar el presupuesto DESPUES de terminar bien no es un corte.
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+
+- id: presupuesto_la_pasada_termina_entera
+  track: conformance
+  description: "ADR 0044 D1: el corte se decide en el limite; nunca entre el fan-out y el combinado."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "tres cosas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer las tres" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+            - { prompt: "s3", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [rerun]
+      simulated: { context_tokens: 500 }
+  expect:
+    stop_reason: max_total_tokens
+    # Las TRES subtareas se ejecutaron y el combinado se produjo, pese a que el
+    # gasto ya excedia la concesion a mitad de pasada. I3: el corte no devuelve
+    # la cadena vacia.
+    response: "COMBINADO_FINAL"
+    checkpoint_counts: { subtask_done: 3, combine_ready: 1 }
+
+- id: presupuesto_rederivacion_no_concede
+  track: conformance
+  description: "ADR 0044 D2: una re-derivacion gasta de la concesion en curso; no concede otra."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "dos cosas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Primer intento: forma invalida, dispara la renegociacion de PLAN.
+        - raw: '{"prompt": "una sola cosa"}'
+        - requirements: [{ id: r1, text: "hacer las dos" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    plan_attempts: 2
+    # 100 + 10*2 = 120, NO 240. Renegociar corrige el plan de la pasada; no
+    # compra una pasada mas.
+    token_budget_total: 120
+
+- id: presupuesto_coverage_cuenta_los_reintentos
+  track: conformance
+  description: "ADR 0044 D2: la concesion de coverage incluye (1 + max_retries_per_unit)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "dos puntos"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "cubrir los dos puntos" }]
+          units:
+            - { id: u1, prompt: "punto 1", domain: general, covers: [r1] }
+            - { id: u2, prompt: "punto 2", domain: general, covers: [r1] }
+      generator_responses:
+        fake_general: [A, B]
+      validator_decisions:
+        - [u1]
+        - [u2]
+  expect:
+    stop_reason: task_done
+    coverage_complete: true
+    # 100 + 10*2*(1+2) = 160. Los reintentos son gasto autorizado por contrato:
+    # un presupuesto que los ignora miente sobre lo que la tarea puede gastar.
+    token_budget_total: 160
+
+- id: presupuesto_coverage_desbocado_corta
+  track: conformance
+  description: "ADR 0044 D3: coverage corta con el MISMO corte tipado que pipeline."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "dos puntos"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "cubrir los dos puntos" }]
+          units:
+            - { id: u1, prompt: "punto 1", domain: general, covers: [r1] }
+            - { id: u2, prompt: "punto 2", domain: general, covers: [r1] }
+      generator_responses:
+        fake_general: [A, B]
+      validator_decisions:
+        - [u1]
+      simulated: { context_tokens: 500 }
+  expect:
+    # `max_total_tokens` es el unico nombre del corte por presupuesto en los DOS
+    # modos: es lo que retira la discrepancia que tenia `max_context_tokens`.
+    stop_reason: max_total_tokens
+    coverage_complete: false
+
+- id: presupuesto_campos_retirados_se_ignoran
+  track: conformance
+  description: "ADR 0044 D3: una config con los campos retirados valida y los ignora."
+  capability: config.validate
+  config_inline:
+    models:
+      - { id: m1, provider: fake, adapter: openai_compatible, endpoint: "fake://m1", model_name: m1, capabilities: [chat], profile: default }
+    domains:
+      - { id: general, description: "general", preferred_model: m1, fallback_models: [], profile: default, status: active }
+    profiles:
+      - { id: default, temperature: 0.2, max_tokens: 512, top_p: 1.0 }
+    identity_defaults: { user_id: local, service: local_cli }
+    orchestration:
+      planner: { model: m1, profile: default }
+      combiner: { model: m1, profile: default }
+      # Los dos campos retirados por ADR 0044, presentes en una config antigua.
+      max_context_tokens: 4096
+      token_budget: { base: 100, per_subtask: 10 }
+      coverage:
+        validator: { model: m1, profile: default }
+        max_total_tokens: 16384
+  input: {}
+  expect:
+    # Se ignoran, como `routing_rules` tras ADR 0043: una config vieja no se
+    # rompe, simplemente deja de significar.
+    valid: true
+
+# --------------------------------------------------------------------------
+# ADR 0045: niveles de esfuerzo
+# --------------------------------------------------------------------------
+
+- id: esfuerzo_sin_bandera_es_el_bloque_base
+  track: conformance
+  description: "ADR 0045 D3/D5: sin effort declarado se aplica el bloque base, que ES medium."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    effort: medium
+    max_subtasks: 6
+    max_iterations: 2
+    max_replans: 1
+
+- id: esfuerzo_low_aplica_sus_valores
+  track: conformance
+  description: "ADR 0045 D1: --effort low usa los limites declarados para ese nivel."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    effort: low
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    effort: low
+    max_subtasks: 3
+    max_iterations: 1
+    max_replans: 0
+    max_time_s: 30
+
+- id: esfuerzo_high_salva_un_plan_que_low_cortaria
+  track: conformance
+  description: "ADR 0045 D2: un plan de 8 subtareas no cabe en low (3) y si en high (12)."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "ocho cosas"
+    effort: high
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer las ocho" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+            - { prompt: "s3", domain: general, covers: [r1] }
+            - { prompt: "s4", domain: general, covers: [r1] }
+            - { prompt: "s5", domain: general, covers: [r1] }
+            - { prompt: "s6", domain: general, covers: [r1] }
+            - { prompt: "s7", domain: general, covers: [r1] }
+            - { prompt: "s8", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    effort: high
+    max_subtasks: 12
+
+- id: esfuerzo_nivel_a_medias_hereda_de_la_base
+  track: conformance
+  description: "ADR 0045 D3: lo que el nivel NO declara cae a la base, campo a campo."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    effort: low
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    # `low` no declara max_parallel: lo hereda del bloque base.
+    max_parallel: 2
+    # ...y si declara max_iterations, que sustituye al de la base.
+    max_iterations: 1
+
+- id: esfuerzo_nivel_no_declarado_resuelve_a_la_base
+  track: conformance
+  description: "ADR 0045 D3: un nivel del vocabulario que la config no declara resuelve a la base, sin error."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    # El fixture declara low y high; medium no se declara porque ES la base.
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    effort: medium
+    max_subtasks: 6
+
+- id: esfuerzo_vocabulario_invalido_es_error_tipado
+  track: conformance
+  description: "ADR 0045 D4: un effort fuera del vocabulario es ConfigError con field effort."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    effort: xxl
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+  expect:
+    # El consumidor elige un identificador del catalogo; no inventa niveles.
+    error_type: ConfigError
+    error_field: effort
+
+- id: esfuerzo_aplica_en_coverage
+  track: conformance
+  description: "ADR 0045 D2/D6: en coverage el nivel gobierna tambien max_chunks y max_retries_per_unit."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "dos puntos"
+    mode: coverage
+    effort: low
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "cubrir los dos puntos" }]
+          units:
+            - { id: u1, prompt: "punto 1", domain: general, covers: [r1] }
+            - { id: u2, prompt: "punto 2", domain: general, covers: [r1] }
+      generator_responses:
+        fake_general: [A, B]
+      validator_decisions:
+        - [u1]
+        - [u2]
+  expect:
+    stop_reason: task_done
+    effort: low
+    max_chunks: 4
+    max_retries_per_unit: 1
+
+- id: esfuerzo_no_toca_los_ejes_de_maquina
+  track: conformance
+  description: "ADR 0045 D2, guarda: max_parallel, units_per_chunk y max_no_progress_iterations NO cambian con el nivel."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "dos puntos"
+    mode: coverage
+    effort: high
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "cubrir los dos puntos" }]
+          units:
+            - { id: u1, prompt: "punto 1", domain: general, covers: [r1] }
+            - { id: u2, prompt: "punto 2", domain: general, covers: [r1] }
+      generator_responses:
+        fake_general: [A, B]
+      validator_decisions:
+        - [u1]
+        - [u2]
+  expect:
+    stop_reason: task_done
+    effort: high
+    # Ejes de MAQUINA: son forma del despliegue, no ganas de trabajar, y son
+    # territorio de pulse (ADR 0037). El nivel alto no los mueve.
+    max_parallel: 2
+    units_per_chunk: 3
+    max_no_progress_iterations: 2
+
+- id: esfuerzo_no_toca_la_medicion_del_coste
+  track: conformance
+  description: "ADR 0045 D2, guarda: para el MISMO n, el token_budget resuelto es identico en los tres niveles."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    effort: high
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    effort: high
+    # 110, el MISMO que en el caso de nivel base con un plan de 1. El nivel
+    # autoriza mas TRABAJO; el coste de una subtarea es una MEDICION que el
+    # perfil fija, no una politica que el nivel mueva. Sin esta guarda, alguien
+    # reintroduce el multiplicador sobre per_subtask y nadie se entera.
+    token_budget_total: 110
+
+- id: esfuerzo_default_configurable
+  track: conformance
+  description: "ADR 0045 D5: default_effort decide que nivel se aplica sin bandera."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort_default_low.yaml
+  input:
+    prompt: "una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    # El operador que quiere ser conservador lo escribe; no se lo imponemos por
+    # omision (ADR 0045 D5).
+    effort: low
+    max_subtasks: 3
+
+- id: esfuerzo_nivel_resuelto_visible_en_parametros
+  track: conformance
+  description: "ADR 0045: el nivel resuelto y el presupuesto viajan en los parametros efectivos."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "una cosa"
+    effort: low
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "hacer la cosa" }]
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    # "Parametros efectivos" ya es lo que CORE_CONTRACT.md promete devolver; lo
+    # que se anade es que el nivel y el presupuesto esten entre ellos.
+    effort: low
+    token_budget_total: 110

@@ -200,3 +200,38 @@ decision, su motivo y las dos alternativas descartadas.
 
 Claves en ingles snake_case (ADR 0016). El esquema de config sigue el ADR
 0014; el de traza, el ADR 0015.
+
+## Bateria de presupuesto y esfuerzo (ADR 0044 y 0045)
+
+`eval/battery/v0.3/presupuesto_y_esfuerzo.yaml.frozen`: 20 casos de conformidad
+-9 del presupuesto dimensionado por el plan (ADR 0044) y 11 de los niveles de
+esfuerzo (ADR 0045)-, sobre las fixtures
+`eval/fixtures/orchestration_effort.yaml` y su variante
+`..._default_low.yaml`. Escrita y CONGELADA antes de implementar; el runner no
+la carga mientras conserve el sufijo `.frozen`.
+
+Las fixtures declaran `token_budget`, `effort` y `default_effort`, que hoy son
+claves INERTES: el validador no rechaza claves desconocidas y el cargador aun no
+las lee. Eso es lo que permite congelar el criterio antes de que exista el
+esquema.
+
+**Esta bateria fija SEMANTICA, no calibracion.** Sus numeros son pequenos y
+redondos -`base: 100`, `per_subtask: 10`- para que cada caso se lea de un
+vistazo. Los valores que se publiquen en esquema, cargador y plantillas salen de
+la puerta de laboratorio (ADR 0044 D5 y ADR 0045 D7) y son otra cosa: cambiarlos
+alli no debe tocar esta bateria.
+
+Dos casos son guardas contra regresiones de diseno, no contra regresiones de
+codigo, y conviene no borrarlos aunque parezcan redundantes:
+
+- `esfuerzo_no_toca_los_ejes_de_maquina`: `max_parallel`, `units_per_chunk` y
+  `max_no_progress_iterations` no cambian con el nivel. Son forma del
+  despliegue, territorio de `pulse` (ADR 0037), no ganas de trabajar.
+- `esfuerzo_no_toca_la_medicion_del_coste`: para el mismo `n`, el
+  `token_budget` resuelto es identico en los tres niveles. Sin esta guarda,
+  alguien reintroduce el multiplicador sobre `per_subtask` -que es la lectura
+  intuitiva de "nivel de esfuerzo" y la que traia el primer borrador del ADR- y
+  nadie se entera.
+
+Al integrarla (rename a `.yaml`) el digest se recalcula y se DECLARA, con el
+patron de siempre. El recuento pasara de 61 a 81 casos de conformidad.

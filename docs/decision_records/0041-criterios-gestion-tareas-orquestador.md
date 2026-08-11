@@ -305,10 +305,21 @@ doctrina del repo:
 
 1. **Tolerar** lo que tenga significado recuperable (fichas v0.3/0001, 0002 y
    0011). No se toca.
-2. **Renegociar UNA vez**, con el defecto explicito en la instruccion. Es el
-   MISMO contador unico de re-derivacion de I1/I2, que pasa a tener una tercera
-   causa: sigue siendo **una sola renegociacion por tarea**, la comparta quien la
-   comparta. No se anade contador ni parametro.
+
+   Precision anadida el 2026-08-11, porque la frontera resulto ambigua al
+   implementar: "recuperable" es lo que no pierde contenido. Un objeto
+   ENVOLTORIO que trae la lista dentro de una clave conocida se desenvuelve. Un
+   objeto suelto que es el mismo una subtarea NO se tolera: su `prompt` es una
+   REDUCCION de la tarea escrita por el planificador, y en laboratorio esa
+   reduccion perdia tres de las cuatro cosas pedidas. Aceptarla como plan de un
+   elemento seria responder una pregunta mutilada con sello verde -el modo de
+   fallo que I1 existe para cerrar-. Ese caso renegocia y, si persiste, degrada
+   al prompt INTEGRO, que es la unica version de la peticion que no ha pasado
+   por un planificador que ya demostro no ser de fiar.
+2. **Renegociar UNA vez POR ETAPA**, con el defecto explicito en la
+   instruccion. Ver mas abajo la seccion "Contador por etapa", que es donde se
+   fija la regla. No se anade ningun parametro de configuracion: el 1 es de
+   contrato, como en I1/I2.
 3. **Degradar de forma declarada**, nunca morir:
    - **plan inservible** tras renegociar -> plan de UNA subtarea que es el prompt
      integro. La tarea se comporta como un `prompt.run` caro, que es exactamente
@@ -318,6 +329,42 @@ doctrina del repo:
    - **ids del validador de coverage** ilegibles -> el fragmento no acredita
      ninguna unidad y se reintenta segun `max_retries_per_unit`.
 4. **Marcar** siempre. Ninguna degradacion es silenciosa (I3).
+
+### Contador por etapa, no por tarea (reconciliado 2026-08-11)
+
+La primera redaccion de I4 hacia que la renegociacion del EVALUADOR gastase el
+mismo contador unico de re-derivacion de I1/I2. Se corrige aqui, a instancia del
+usuario, porque contradecia un razonamiento que este mismo ADR ya tenia
+registrado en sus alternativas descartadas: "la re-planificacion de EVALUATE es
+un juicio sobre contenido ya producido; la re-derivacion de I1/I2 es una
+correccion estructural previa a producir nada. Compartir contador haria que una
+consumiese el presupuesto de la otra".
+
+Regla vigente: **una renegociacion por ETAPA**, fijada en 1 por contrato.
+
+- **Etapa PLAN**: una sola renegociacion, compartida por I1 (requisitos
+  huerfanos), I2 (plan que no cabe) y I4 en su causa de FORMA del plan. Aqui
+  compartir es lo correcto y el razonamiento original de I1/I2 se conserva
+  intacto: son el mismo artefacto en el mismo momento, y un plan que ni cabe ni
+  cubre ni parsea es UN solo plan malo.
+- **Etapa EVALUATE**: renegociacion propia, independiente de la anterior.
+- **Validador de coverage**: conserva la suya, que ya existe y se llama
+  `max_retries_per_unit`.
+
+Tres razones, ademas de la coherencia con el ADR:
+
+1. Con contador unico, un hipo del planificador al principio se gasta la segunda
+   oportunidad de un evaluador que falla al final. Son sucesos causalmente
+   independientes, en llamadas y momentos distintos, y el comportamiento pasa a
+   ser NO LOCAL: si el evaluador se reintenta o no depende de lo que ocurrio en
+   otra etapa. Es dificil de razonar y dificil de probar.
+2. El contador unico no tiene observable coherente. Este ADR publica
+   `plan_attempts`; un reintento del evaluador no puede incrementarlo sin que el
+   campo deje de significar lo que dice. Por etapa sale limpio:
+   `plan_attempts` conserva su sentido y se anade `evaluation_attempts`.
+3. El peor caso son DOS llamadas de recuperacion por tarea, una por etapa.
+   Acotado y pequeno; no hay cascada posible con dos etapas y una cada una, que
+   era lo unico que el contador unico protegia.
 
 ### Precedente interno: coverage ya lo hace
 
@@ -338,6 +385,8 @@ I4 cubre lo que un modelo DICE, no que el modelo este.
 
 - En el resultado de `task.run`: `degradations`, lista de degradaciones
   declaradas -etapa, causa y accion tomada-. Lista vacia cuando no hubo ninguna.
+- En el resultado y en `iteration_end`: `evaluation_attempts` (1 o 2), gemelo de
+  `plan_attempts` para la etapa EVALUATE.
 - En `plan_ready`: `plan_source` (ADR 0040) admite el valor que declara el plan
   degradado a una subtarea.
 - La CLI avisa por stderr de cada degradacion, con el patron de I3.
@@ -376,9 +425,12 @@ la tarea.
   que la renegociacion NO corrige -degrada a una subtarea y lo declara-;
   evaluador con decision ilegible que la renegociacion corrige; evaluador
   ilegible que no se corrige -se asume `done` y se declara-; una sola
-  renegociacion cuando concurren I1, I2 e I4; `ModelUnavailable` en una subtarea
-  sigue matando la tarea (guarda de la frontera); y no regresion, con
-  `degradations` vacia en el camino sano.
+  renegociacion de PLAN cuando concurren I1, I2 e I4 de forma; una tarea que
+  renegocia PLAN y ademas EVALUATE, para fijar que los contadores son
+  INDEPENDIENTES (`plan_attempts: 2` y `evaluation_attempts: 2` a la vez);
+  `ModelUnavailable` en una subtarea sigue matando la tarea (guarda de la
+  frontera); y no regresion, con `degradations` vacia y ambos contadores en 1 en
+  el camino sano.
 - Digest de conformance: cambia, y se declara con el patron de siempre.
 - Paridad CLI/REST/MCP para el campo nuevo y para el aviso.
 - Se implementa junto a I1/I2 en la fase B, que sigue pendiente: extender ahora
@@ -389,6 +441,11 @@ la tarea.
 - **Un ADR nuevo y paralelo.** Habria dejado dos doctrinas de resiliencia del
   orquestador en documentos distintos, con dos contadores de renegociacion que
   tarde o temprano se pisan. La costura es distinta, la doctrina es la misma.
+- **Un solo contador de renegociacion para toda la tarea.** Era la primera
+  redaccion de I4. Mas simple de contar y con un tope duro sobre las llamadas de
+  recuperacion, pero hace que una etapa se coma el presupuesto de otra, deja el
+  comportamiento sin observable coherente y contradice el razonamiento que este
+  ADR ya habia registrado contra compartir contadores entre PLAN y EVALUATE.
 - **Degradar sin renegociar antes.** Mas simple y mas barato, pero convierte
   `task.run` en `prompt.run` al primer hipo del planificador, sin gastar el
   intento que casi siempre lo arregla.

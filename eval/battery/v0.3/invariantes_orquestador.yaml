@@ -1,0 +1,782 @@
+# Bateria de los invariantes de gestion de tareas (ADR 0041). CRITERIO DE
+# ACEPTACION escrito y CONGELADO ANTES de implementar. Integrado tras pasar
+# 19/19 casos, con el digest conjunto recalculado y declarado en eval/README.md
+# (ADR 0017, patron v0.2-3 y v0.3-2).
+#
+# Cubre los CUATRO invariantes del ADR 0041, en los DOS modos:
+# - I1 adecuacion semantica: todo requisito del prompt tiene unidad.
+# - I2 el techo negocia antes de matar.
+# - I3 ningun corte por limite se presenta como exito.
+# - I4 ninguna salida malformada mata la tarea (extension de 2026-08-11).
+#
+# RECONCILIACION CON ADR 0043 (2026-08-11). Esta bateria se congelo el
+# 2026-08-06, antes de que entrase el router semantico. Sus subtareas y unidades
+# declaraban solo `domain_hint`, que bajo ADR 0043 dejo de decidir: el camino sin
+# `domain` va al router, y estos fixtures no lo configuran, con lo que los casos
+# habrian muerto con RoutingError. Se fija `domain` en todas ellas, que es lo
+# mismo que la linea del router hizo con las baterias ya integradas. La semantica
+# ASESORA del hint se prueba en la bateria del router, no aqui: esta bateria
+# existe para los invariantes, y el clasificador no debe ser una variable dentro
+# de ella.
+#
+# Scripting determinista (world.script). Extiende el de v0.2 y v0.3:
+#
+# - derivations: lista de INTENTOS de planificacion, en orden. El primero es
+#   la derivacion inicial; el segundo, la unica re-derivacion que el ADR 0041
+#   permite. Cada intento es un mapa:
+#     requirements: [{id, text}]   requisitos que el planificador extrae
+#     subtasks | units: [...]      con covers: [ids de requisito]
+#   `subtasks` en modo pipeline, `units` en modo coverage.
+#   Si el guion aporta un solo intento y la implementacion re-deriva, el fake
+#   repite el ultimo intento (comportamiento de ScriptedFakeAdapter).
+# - responses, generator_responses, validator_decisions, evaluate_decisions y
+#   simulated: sin cambios respecto a v0.2 y v0.3.
+# - Un intento de `derivations` puede ser, en vez del mapa estructurado,
+#   `{ raw: "<texto>" }`: el fake planificador devuelve ESE TEXTO literal, sin
+#   serializar nada. Es la primitiva que I4 necesita, porque I4 se prueba contra
+#   salidas MALFORMADAS y el guion estructurado solo sabe emitir planes bien
+#   formados.
+# - `evaluate_decisions` no necesita primitiva nueva: ya transporta texto
+#   literal, asi que una entrada como "Para verificar si un servidor web..."
+#   ejercita el fallo de parseo del evaluador tal como se observo en
+#   laboratorio.
+#
+# SERIALIZACION de un intento, congelada aqui para que la implementacion no
+# tenga que inventarla:
+#
+# - intento con `requirements`: el fake planificador emite un OBJETO JSON
+#   {"requirements": [...], "subtasks": [...]} -o "units" en coverage-, que es
+#   la forma que I1 exige: las dos listas en la MISMA respuesta.
+# - intento SIN `requirements`: emite la LISTA pelada de siempre. Es la forma
+#   pre-I1 y la representacion fiel de un planificador que ignora la
+#   instruccion, que es justo lo que D-AUSENCIA describe.
+# - intento `{ raw: "<texto>" }`: se emite literal, sin serializar nada.
+#
+# Orden de las respuestas del modelo planificador dentro de un caso: primero
+# TODOS los intentos de `derivations`, en orden, y despues TODAS las entradas de
+# `evaluate_decisions`, en orden. El modelo planificador atiende los dos roles
+# -derivar y evaluar- y los atiende en ese orden. La clave `plans` de las
+# baterias v0.2/v0.3 ya integradas conserva su comportamiento intercalado sin
+# cambio alguno.
+#
+# Semantica congelada, vinculante para la implementacion:
+#
+# - El contador de re-derivacion es UNICO y vale 1 por tarea, lo dispare I1
+#   (requisitos huerfanos), I2 (plan que no cabe) o ambos a la vez.
+# - I1 se comprueba en codigo por operacion de conjuntos sobre `covers`. No
+#   hay llamada de modelo adicional: requirements y unidades vienen en la
+#   MISMA respuesta del planificador.
+# - Orden de comprobacion dentro de un intento: primero la FORMA (es un plan
+#   utilizable?), luego I2 (cabe?), luego I1 (cubre?). No se puede preguntar si
+#   cabe o si cubre algo que todavia no es un plan. Un intento que falla en
+#   varias de las tres consume UNA sola re-derivacion, no una por defecto.
+# - Sobre que se TOLERA en la forma, precisado el 2026-08-11 al detectarse la
+#   ambiguedad: se desenvuelve un objeto ENVOLTORIO que trae la lista dentro de
+#   una clave conocida (subtasks, units, plan, steps), porque ahi no se pierde
+#   nada. NO se tolera un objeto suelto que sea el mismo una subtarea: ese caso
+#   renegocia, y si persiste degrada.
+#
+#   El motivo esta medido. En laboratorio (2026-08-11), ante la pregunta de
+#   cuatro partes sobre la leyenda del numero en el cine, el planificador
+#   devolvia 10 de 10 veces {"prompt": "Investigar la leyenda del numero que
+#   aparece en multiples peliculas"}: un objeto suelto cuyo prompt es una
+#   REDUCCION de la tarea que pierde tres de las cuatro cosas pedidas.
+#   Aceptarlo como plan de un elemento seria responder a una pregunta mutilada
+#   con sello verde, que es exactamente el modo de fallo que I1 existe para
+#   cerrar. Por eso la degradacion de I4 usa el prompt INTEGRO de la tarea y no
+#   el que el planificador propuso: la reduccion del planificador ya demostro
+#   no ser de fiar.
+# - `requirements_covered` es independiente de `coverage_complete` (ADR 0038):
+#   ninguno implica al otro. El primero dice si el PLAN cubria la peticion; el
+#   segundo, si las unidades del plan quedaron respondidas.
+# - Bajo I1, un requisito que sigue huerfano tras la re-derivacion NO corta la
+#   tarea: se ejecuta el plan y el resultado sale marcado.
+# - Bajo I3, un corte por limite nunca devuelve exito: `stop_reason` distinto
+#   de task_done, y la CLI termina con codigo distinto de cero.
+# - Bajo I4, el contador de renegociacion es POR ETAPA, cada uno fijado en 1:
+#   la etapa PLAN tiene el suyo -compartido por I1, I2 e I4 de forma, y contado
+#   en `plan_attempts`- y la etapa EVALUATE tiene el suyo, contado en
+#   `evaluation_attempts`. Son INDEPENDIENTES: gastar uno no gasta el otro.
+# - Bajo I4, una degradacion NO es un corte: `stop_reason` sigue siendo
+#   task_done y el codigo de salida es cero. Lo que ocurrio viaja en
+#   `degradations`, nunca en silencio.
+# - Bajo I4, un error de INFRAESTRUCTURA (ModelUnavailable, AdapterError) sigue
+#   matando la tarea. I4 cubre lo que un modelo DICE, no que el modelo ESTE.
+
+# --------------------------------------------------------------------------
+# I1: adecuacion semantica
+# --------------------------------------------------------------------------
+
+- id: invariantes_requisitos_cubiertos_a_la_primera
+  track: conformance
+  description: "ADR 0041 I1: plan que cubre todos los requisitos; no se re-deriva."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "enumera dos cosas y explica cada una"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "enumerar las dos cosas" }
+            - { id: r2, text: "explicar cada una" }
+          subtasks:
+            - { prompt: "enumera", domain: razonamiento, covers: [r1] }
+            - { prompt: "explica", domain: codigo, covers: [r2] }
+      responses:
+        fake_reason: "ENUMERADO"
+        fake_code: "EXPLICADO"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    requirements_covered: true
+    uncovered_requirements: []
+    plan_attempts: 1
+    checkpoint_counts: { plan_ready: 1 }
+
+- id: invariantes_requisito_huerfano_corregido_en_segunda
+  track: conformance
+  description: "ADR 0041 I1: requisito sin unidad; la re-derivacion lo corrige y la tarea sigue."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "enumera dos cosas y explica cada una"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Primer intento: pierde r2, exactamente el fallo observado en
+        # laboratorio con los ocho planetas (2026-08-05).
+        - requirements:
+            - { id: r1, text: "enumerar las dos cosas" }
+            - { id: r2, text: "explicar cada una" }
+          subtasks:
+            - { prompt: "enumera", domain: razonamiento, covers: [r1] }
+        # Segundo intento: ya cubre los dos.
+        - requirements:
+            - { id: r1, text: "enumerar las dos cosas" }
+            - { id: r2, text: "explicar cada una" }
+          subtasks:
+            - { prompt: "enumera", domain: razonamiento, covers: [r1] }
+            - { prompt: "explica", domain: codigo, covers: [r2] }
+      responses:
+        fake_reason: "ENUMERADO"
+        fake_code: "EXPLICADO"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    requirements_covered: true
+    uncovered_requirements: []
+    plan_attempts: 2
+    # El checkpoint se emite una vez por intento: el observador debe poder ver
+    # que hubo re-derivacion.
+    checkpoint_counts: { plan_ready: 2 }
+    subtasks:
+      - { domain: razonamiento, model: fake_reason }
+      - { domain: codigo, model: fake_code }
+
+- id: invariantes_requisito_huerfano_persistente_continua_y_marca
+  track: conformance
+  description: "ADR 0041 I1: la segunda derivacion tampoco cubre; la tarea CONTINUA y lo declara."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "enumera dos cosas y explica cada una"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "enumerar las dos cosas" }
+            - { id: r2, text: "explicar cada una" }
+          subtasks:
+            - { prompt: "enumera", domain: razonamiento, covers: [r1] }
+        - requirements:
+            - { id: r1, text: "enumerar las dos cosas" }
+            - { id: r2, text: "explicar cada una" }
+          subtasks:
+            - { prompt: "enumera", domain: razonamiento, covers: [r1] }
+      responses:
+        fake_reason: "ENUMERADO"
+        fake_combiner: "COMBINADO_PARCIAL"
+      evaluate_decisions: [done]
+  expect:
+    # Decision del usuario (2026-08-06): no corta. task_done sigue siendo
+    # terminacion por merito propio del bucle; lo que no se cumplio viaja en
+    # requirements_covered, no en stop_reason.
+    stop_reason: task_done
+    response: "COMBINADO_PARCIAL"
+    requirements_covered: false
+    uncovered_requirements: [r2]
+    plan_attempts: 2
+    checkpoint_counts: { plan_ready: 2 }
+
+# --------------------------------------------------------------------------
+# I2: el techo negocia antes de matar
+# --------------------------------------------------------------------------
+
+- id: invariantes_presupuesto_negociado_cabe_en_segunda
+  track: conformance
+  description: "ADR 0041 I2: plan que excede max_subtasks (4); la re-derivacion agrupa y cabe."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea grande"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Cinco subtareas contra un techo de 4: hoy esto es muerte subita con
+        # respuesta vacia. Bajo I2 vuelve al planificador con el presupuesto.
+        - requirements:
+            - { id: r1, text: "resolver la tarea" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+            - { prompt: "s3", domain: general, covers: [r1] }
+            - { prompt: "s4", domain: general, covers: [r1] }
+            - { prompt: "s5", domain: general, covers: [r1] }
+        - requirements:
+            - { id: r1, text: "resolver la tarea" }
+          subtasks:
+            - { prompt: "s1 y s2 agrupadas", domain: general, covers: [r1] }
+            - { prompt: "s3 y s4 agrupadas", domain: general, covers: [r1] }
+            - { prompt: "s5", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    requirements_covered: true
+    plan_attempts: 2
+    checkpoint_counts: { plan_ready: 2 }
+
+- id: invariantes_presupuesto_agotado_corta_sin_exito_aparente
+  track: conformance
+  description: "ADR 0041 I2/I3: ni el segundo plan cabe; corta con max_subtasks y sin exito aparente."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea enorme"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "resolver la tarea" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+            - { prompt: "s3", domain: general, covers: [r1] }
+            - { prompt: "s4", domain: general, covers: [r1] }
+            - { prompt: "s5", domain: general, covers: [r1] }
+        - requirements:
+            - { id: r1, text: "resolver la tarea" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+            - { prompt: "s3", domain: general, covers: [r1] }
+            - { prompt: "s4", domain: general, covers: [r1] }
+            - { prompt: "s5", domain: general, covers: [r1] }
+  expect:
+    stop_reason: max_subtasks
+    plan_attempts: 2
+    checkpoint_counts: { plan_ready: 2 }
+    # I3: el corte no se disfraza. La respuesta vacia sigue siendo vacia -no
+    # hubo nada que producir- pero el motivo viaja tipado y la CLI termina con
+    # codigo distinto de cero. La verificacion del codigo de salida es un test
+    # de CLI, no de esta bateria (ver eval/README.md).
+    response: ""
+
+- id: invariantes_una_sola_rederivacion_cuando_concurren_i1_e_i2
+  track: conformance
+  description: "ADR 0041: plan que ni cabe ni cubre consume UNA sola re-derivacion, no dos."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea grande con dos requisitos"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Cinco subtareas (no cabe en 4) Y r2 huerfano (no cubre).
+        - requirements:
+            - { id: r1, text: "resolver la tarea" }
+            - { id: r2, text: "justificar la solucion" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+            - { prompt: "s3", domain: general, covers: [r1] }
+            - { prompt: "s4", domain: general, covers: [r1] }
+            - { prompt: "s5", domain: general, covers: [r1] }
+        - requirements:
+            - { id: r1, text: "resolver la tarea" }
+            - { id: r2, text: "justificar la solucion" }
+          subtasks:
+            - { prompt: "s1 a s4 agrupadas", domain: general, covers: [r1] }
+            - { prompt: "justifica", domain: general, covers: [r2] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    requirements_covered: true
+    # La clave del caso: 2, nunca 3. Un plan con dos defectos no compra dos
+    # re-derivaciones.
+    plan_attempts: 2
+    checkpoint_counts: { plan_ready: 2 }
+
+# --------------------------------------------------------------------------
+# No regresion
+# --------------------------------------------------------------------------
+
+- id: invariantes_no_regresion_pipeline
+  track: conformance
+  description: "ADR 0041: con un plan correcto a la primera, el flujo v0.2 no cambia."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "analiza el problema y propon una funcion"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "analizar el problema" }
+            - { id: r2, text: "proponer una funcion" }
+          subtasks:
+            - { prompt: "razona el enfoque", domain: razonamiento, covers: [r1] }
+            - { prompt: "escribe la funcion", domain: codigo, covers: [r2] }
+      responses:
+        fake_reason: "ENFOQUE_OK"
+        fake_code: "FUNCION_OK"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    # Identico a task_happy_path de la bateria v0.2, mas los campos aditivos.
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    requirements_covered: true
+    plan_attempts: 1
+    subtasks:
+      - { domain: razonamiento, model: fake_reason }
+      - { domain: codigo, model: fake_code }
+    checkpoints:
+      - task_received
+      - plan_ready
+      - subtask_done
+      - subtask_done
+      - combine_ready
+      - iteration_end
+      - task_done
+
+# --------------------------------------------------------------------------
+# Modo coverage: los mismos invariantes por su propio camino
+# --------------------------------------------------------------------------
+
+- id: invariantes_coverage_requisito_huerfano_corregido
+  track: conformance
+  description: "ADR 0041 I1 en coverage: DERIVE pierde un requisito y la re-derivacion lo recupera."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "enumera dos planetas y describe cada uno"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # El fallo real de laboratorio: solo se derivan los nombres.
+        - requirements:
+            - { id: r1, text: "enumerar los planetas en orden" }
+            - { id: r2, text: "describir cada uno" }
+          units:
+            - { id: p1, prompt: "primer planeta", domain: general, covers: [r1] }
+            - { id: p2, prompt: "segundo planeta", domain: general, covers: [r1] }
+        - requirements:
+            - { id: r1, text: "enumerar los planetas en orden" }
+            - { id: r2, text: "describir cada uno" }
+          units:
+            - { id: p1, prompt: "primer planeta", domain: general, covers: [r1] }
+            - { id: d1, prompt: "descripcion del primero", domain: general, covers: [r2] }
+            - { id: p2, prompt: "segundo planeta", domain: general, covers: [r1] }
+            - { id: d2, prompt: "descripcion del segundo", domain: general, covers: [r2] }
+      generator_responses:
+        fake_general: [A, B, C, D]
+      validator_decisions:
+        - [p1]
+        - [d1]
+        - [p2]
+        - [d2]
+  expect:
+    stop_reason: task_done
+    requirements_covered: true
+    uncovered_requirements: []
+    plan_attempts: 2
+    coverage_complete: true
+    completed_units: [p1, d1, p2, d2]
+    failed_units: []
+
+- id: invariantes_coverage_sellos_independientes
+  track: conformance
+  description: "ADR 0041: coverage_complete=true con requirements_covered=false; los dos sellos no se implican."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_coverage.yaml
+  input:
+    prompt: "enumera dos planetas y describe cada uno"
+    mode: coverage
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Las dos derivaciones pierden r2. Es EXACTAMENTE la ejecucion de
+        # laboratorio del 2026-08-05 08:40: todas las unidades respondidas,
+        # media peticion sin atender, y sello verde.
+        - requirements:
+            - { id: r1, text: "enumerar los planetas en orden" }
+            - { id: r2, text: "describir cada uno" }
+          units:
+            - { id: p1, prompt: "primer planeta", domain: general, covers: [r1] }
+            - { id: p2, prompt: "segundo planeta", domain: general, covers: [r1] }
+        - requirements:
+            - { id: r1, text: "enumerar los planetas en orden" }
+            - { id: r2, text: "describir cada uno" }
+          units:
+            - { id: p1, prompt: "primer planeta", domain: general, covers: [r1] }
+            - { id: p2, prompt: "segundo planeta", domain: general, covers: [r1] }
+      generator_responses:
+        fake_general: [A, B]
+      validator_decisions:
+        - [p1]
+        - [p2]
+  expect:
+    stop_reason: task_done
+    # Las unidades del plan SI quedaron respondidas...
+    coverage_complete: true
+    completed_units: [p1, p2]
+    # ...pero el plan no cubria la peticion. Este par es el que hace que el
+    # resultado deje de enganar.
+    requirements_covered: false
+    uncovered_requirements: [r2]
+    plan_attempts: 2
+
+# --------------------------------------------------------------------------
+# D-AUSENCIA (ADR 0041, reconciliado 2026-08-06)
+# --------------------------------------------------------------------------
+
+- id: invariantes_planificador_no_declara_requisitos
+  track: conformance
+  description: "ADR 0041 D-AUSENCIA: el planificador omite requirements; se trata como huerfanos."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz algo"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - subtasks:
+            - { prompt: "s1", domain: general }
+        - subtasks:
+            - { prompt: "s1", domain: general }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    # ADR 0041, decision D-AUSENCIA: la ausencia de requirements se trata
+    # igual que un requisito huerfano -dispara la unica re-derivacion y, si
+    # persiste, continua y marca-. Si este comportamiento no convence en uso,
+    # la etiqueta D-AUSENCIA localiza la decision y sus dos alternativas.
+    stop_reason: task_done
+    requirements_covered: false
+    plan_attempts: 2
+
+# --------------------------------------------------------------------------
+# I4: ninguna salida malformada mata la tarea (extension ADR 0041, 2026-08-11)
+# --------------------------------------------------------------------------
+
+- id: invariantes_i4_plan_objeto_suelto_corregido_en_segunda
+  track: conformance
+  description: "ADR 0041 I4: el planificador devuelve un objeto en vez de una lista; la renegociacion lo corrige."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz dos cosas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # El fallo medido en laboratorio (2026-08-11, 10 de 10 con una pregunta
+        # no separable): JSON valido, forma equivocada. _parse_plan lo parsea y
+        # es _plan quien lo rechaza; por eso el error era "invalid plan" y no
+        # "invalid JSON".
+        - raw: '{"prompt": "una sola cosa", "domain": "general"}'
+        - requirements:
+            - { id: r1, text: "hacer las dos cosas" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_attempts: 2
+    evaluation_attempts: 1
+    # La renegociacion basto: no hubo que degradar.
+    degradations: []
+    checkpoint_counts: { plan_ready: 2 }
+
+- id: invariantes_i4_plan_irrecuperable_degrada_a_una_subtarea
+  track: conformance
+  description: "ADR 0041 I4: el plan sigue inservible tras renegociar; degrada a UNA subtarea con el prompt integro y lo declara."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "hay una leyenda sobre un numero que aparece en muchas peliculas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - raw: '{"prompt": "investigar la leyenda", "domain": "general"}'
+        - raw: '{"prompt": "investigar la leyenda", "domain": "general"}'
+      responses:
+        fake_general: "RESPUESTA_UNICA"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    # NO es un corte: la tarea termina por merito propio, con menos
+    # orquestacion de la pedida y diciendolo.
+    stop_reason: task_done
+    plan_attempts: 2
+    # La subtarea unica lleva el prompt INTEGRO de la tarea, no el fragmento
+    # que el planificador propuso: la degradacion es a prompt.run, no a un
+    # trozo elegido por un plan que ya demostro no servir.
+    subtasks:
+      - { prompt: "hay una leyenda sobre un numero que aparece en muchas peliculas", domain: general, model: fake_general }
+    degradations:
+      - { stage: plan, reason: unparseable_shape, action: single_subtask }
+
+- id: invariantes_i4_evaluador_ilegible_corregido_en_segunda
+  track: conformance
+  description: "ADR 0041 I4: el evaluador no devuelve decision; la renegociacion de EVALUATE la obtiene."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "hacer la cosa" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      # Primera respuesta: el evaluador se pone a RESPONDER la tarea, que es
+      # literalmente lo observado en laboratorio el 2026-08-11.
+      evaluate_decisions:
+        - "Para verificar si un servidor web esta respondiendo correctamente, puedes utilizar curl."
+        - done
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_attempts: 1
+    evaluation_attempts: 2
+    degradations: []
+
+- id: invariantes_i4_evaluador_irrecuperable_asume_done
+  track: conformance
+  description: "ADR 0041 I4: el evaluador sigue ilegible tras renegociar; se asume done y se declara."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "hacer la cosa" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions:
+        - "Para verificar si un servidor web esta respondiendo correctamente, puedes utilizar curl."
+        - "El resultado parece razonable y bastante completo."
+  expect:
+    # Lo conservador es PARAR, no destruir: la respuesta combinada ya existe.
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    evaluation_attempts: 2
+    degradations:
+      - { stage: evaluate, reason: undecipherable_decision, action: assume_done }
+
+- id: invariantes_i4_una_sola_rederivacion_de_plan_con_i1_i2_e_i4
+  track: conformance
+  description: "ADR 0041 I4: forma mala, no cabe y no cubre consumen UNA sola renegociacion de PLAN."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "tarea grande con dos requisitos"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Primer intento: ni siquiera es una lista. La etapa PLAN gasta su
+        # unica renegociacion aqui, no una por cada defecto.
+        - raw: '{"prompt": "todo junto"}'
+        - requirements:
+            - { id: r1, text: "resolver la tarea" }
+            - { id: r2, text: "justificar la solucion" }
+          subtasks:
+            - { prompt: "resuelve", domain: general, covers: [r1] }
+            - { prompt: "justifica", domain: general, covers: [r2] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    requirements_covered: true
+    # 2, nunca 3: un plan con varios defectos no compra varias renegociaciones.
+    plan_attempts: 2
+    degradations: []
+
+- id: invariantes_i4_contadores_de_etapa_independientes
+  track: conformance
+  description: "ADR 0041 I4: renegociar PLAN no gasta la renegociacion de EVALUATE; los contadores son independientes."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz dos cosas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - raw: '{"prompt": "una sola cosa"}'
+        - requirements:
+            - { id: r1, text: "hacer las dos cosas" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions:
+        - "No estoy seguro de como valorar esto."
+        - done
+  expect:
+    # El caso que impide volver a fusionar los contadores sin que nada lo
+    # detecte: la etapa PLAN ya habia gastado el suyo y EVALUATE conserva el
+    # suyo intacto.
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_attempts: 2
+    evaluation_attempts: 2
+    degradations: []
+
+- id: invariantes_i4_infraestructura_sigue_matando
+  track: conformance
+  description: "ADR 0041 I4, frontera: un modelo no disponible NO degrada; la tarea muere con error tipado."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    unavailable_models: [fake_general]
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "hacer la cosa" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+  expect:
+    # I4 cubre lo que un modelo DICE, no que el modelo ESTE. Degradar esto
+    # esconderia un despliegue roto detras de respuestas peores.
+    error_type: ModelUnavailable
+    error_field: model
+
+- id: invariantes_i4_no_regresion_camino_sano
+  track: conformance
+  description: "ADR 0041 I4: sin salidas malformadas, nada cambia y degradations viaja vacia."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "analiza el problema y propon una funcion"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "analizar el problema" }
+            - { id: r2, text: "proponer una funcion" }
+          subtasks:
+            - { prompt: "razona el enfoque", domain: razonamiento, covers: [r1] }
+            - { prompt: "escribe la funcion", domain: codigo, covers: [r2] }
+      responses:
+        fake_reason: "ENFOQUE_OK"
+        fake_code: "FUNCION_OK"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_attempts: 1
+    evaluation_attempts: 1
+    degradations: []
+
+# --------------------------------------------------------------------------
+# Observabilidad del plan: plan_ready cuenta DERIVACIONES, no iteraciones
+# (anadido 2026-08-11 al detectarse el defecto revisando la pasada 2a)
+# --------------------------------------------------------------------------
+
+- id: invariantes_plan_ready_no_se_repite_en_rerun
+  track: conformance
+  description: "ADR 0041: una iteracion por rerun NO re-emite plan_ready; el plan no se re-derivo."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz dos cosas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Dos intentos: una derivacion con su renegociacion. Son DOS planes
+        # producidos, y por tanto dos plan_ready.
+        - raw: '{"prompt": "una sola cosa"}'
+        - requirements:
+            - { id: r1, text: "hacer las dos cosas" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      # La primera iteracion pide rerun: se repite el FAN-OUT con el MISMO
+      # plan, sin volver a planificar.
+      evaluate_decisions: [rerun, done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_attempts: 2
+    # La clave del caso: DOS, no cuatro. plan_ready se emite una vez por plan
+    # producido, no una vez por vuelta del bucle. Si se emite por iteracion, un
+    # observador ve plan_attempts ir 1,2,1,2 y cree que hubo cuatro
+    # derivaciones cuando hubo dos.
+    checkpoint_counts: { plan_ready: 2, iteration_end: 2 }

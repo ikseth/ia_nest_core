@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from ianest_core.config import load_config, validate_config_dict
 from ianest_core.config.schema import TelemetryConfig
 from ianest_core.domain_router import DomainRouter
 from ianest_core.errors import ConfigValidationError, ModelUnavailable, RoutingError
-from ianest_core.evaluation import run_eval
+from ianest_core.evaluation import _task_adapters, run_eval
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
 from ianest_core.runtime import PromptRuntime
 from ianest_core.telemetry.trace import ROTATE_SIZE_BYTES, TelemetryWriter
@@ -97,10 +98,10 @@ def test_eval_conformance_digest_is_stable() -> None:
     first = run_eval(track="conformance")
     second = run_eval(track="conformance")
 
-    assert first["totals"]["conformance"] == {"pass": 42, "fail": 0}
-    assert second["totals"]["conformance"] == {"pass": 42, "fail": 0}
+    assert first["totals"]["conformance"] == {"pass": 61, "fail": 0}
+    assert second["totals"]["conformance"] == {"pass": 61, "fail": 0}
     assert first["conformance_digest"] == second["conformance_digest"]
-    assert first["conformance_digest"] == "6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708"
+    assert first["conformance_digest"] == "4fb027834bda6ae4c51567ff9c931afa5967402de85613287def983981ac9563"
 
 
 def test_eval_v02_task_cases_still_pass() -> None:
@@ -109,10 +110,110 @@ def test_eval_v02_task_cases_still_pass() -> None:
     assert result["totals"]["conformance"] == {"pass": 12, "fail": 0}
 
 
-def test_eval_v03_coverage_cases_pass() -> None:
+def test_eval_v03_cases_pass() -> None:
     result = run_eval(battery_dir="eval/battery/v0.3", track="conformance")
 
-    assert result["totals"]["conformance"] == {"pass": 11, "fail": 0}
+    assert result["totals"]["conformance"] == {"pass": 30, "fail": 0}
+
+
+def test_task_adapters_derivation_with_requirements_emits_json_object() -> None:
+    adapters = _task_adapters(
+        _task_case(
+            {
+                "derivations": [
+                    {
+                        "requirements": [{"id": "r1", "text": "resolver"}],
+                        "subtasks": [{"prompt": "resuelve", "covers": ["r1"]}],
+                    }
+                ]
+            }
+        ),
+        load_config("eval/fixtures/orchestration.yaml"),
+    )
+
+    assert json.loads(adapters["fake_planner"].responses[0]) == {
+        "requirements": [{"id": "r1", "text": "resolver"}],
+        "subtasks": [{"prompt": "resuelve", "covers": ["r1"]}],
+    }
+
+
+def test_task_adapters_derivation_without_requirements_emits_bare_list() -> None:
+    subtasks = [{"prompt": "resuelve"}]
+    adapters = _task_adapters(
+        _task_case({"derivations": [{"subtasks": subtasks}]}),
+        load_config("eval/fixtures/orchestration.yaml"),
+    )
+
+    assert json.loads(adapters["fake_planner"].responses[0]) == subtasks
+
+
+def test_task_adapters_raw_derivation_emits_literal_text() -> None:
+    adapters = _task_adapters(
+        _task_case({"derivations": [{"raw": "esto no es JSON"}]}),
+        load_config("eval/fixtures/orchestration.yaml"),
+    )
+
+    assert adapters["fake_planner"].responses == ["esto no es JSON"]
+
+
+def test_task_adapters_derivations_precede_evaluation_decisions() -> None:
+    first = {"subtasks": [{"prompt": "primera"}]}
+    second = {"subtasks": [{"prompt": "segunda"}]}
+    adapters = _task_adapters(
+        _task_case(
+            {
+                "derivations": [first, second],
+                "evaluate_decisions": ["rerun", "done"],
+            }
+        ),
+        load_config("eval/fixtures/orchestration.yaml"),
+    )
+
+    assert adapters["fake_planner"].responses == [
+        json.dumps(first["subtasks"], ensure_ascii=False),
+        json.dumps(second["subtasks"], ensure_ascii=False),
+        "rerun",
+        "done",
+    ]
+
+
+def test_task_adapters_coverage_derivations_add_generator_and_validator() -> None:
+    adapters = _task_adapters(
+        _task_case(
+            {
+                "derivations": [{"units": [{"id": "u1", "description": "unidad"}]}],
+                "generator_responses": {"fake_general": ["fragmento"]},
+                "generator_finish_reasons": {"fake_general": ["length"]},
+                "validator_decisions": [{"covered": ["u1"]}],
+            },
+            mode="coverage",
+        ),
+        load_config("eval/fixtures/orchestration_coverage.yaml"),
+    )
+
+    assert json.loads(adapters["fake_planner"].responses[0]) == [{"id": "u1", "description": "unidad"}]
+    assert adapters["fake_general"].responses == ["fragmento"]
+    assert adapters["fake_general"].finish_reasons == ["length"]
+    assert json.loads(adapters["fake_validator"].responses[0]) == {"covered": ["u1"]}
+
+
+def test_task_adapters_plans_keep_interleaved_decision_order() -> None:
+    first = [{"prompt": "primera"}]
+    second = [{"prompt": "segunda"}]
+    adapters = _task_adapters(
+        _task_case({"plans": [first, second], "evaluate_decisions": ["rerun", "done"]}),
+        load_config("eval/fixtures/orchestration.yaml"),
+    )
+
+    responses = adapters["fake_planner"].responses
+    assert responses[1] == "rerun"
+    assert responses[3] == "done"
+    assert [item["prompt"] for item in json.loads(responses[0])["subtasks"]] == ["primera"]
+    assert [item["prompt"] for item in json.loads(responses[2])["subtasks"]] == ["segunda"]
+
+
+def _task_case(script: dict[str, object], *, mode: str = "pipeline") -> dict[str, object]:
+    return {"input": {"mode": mode}, "world": {"script": script}}
 
 
 def test_telemetry_rotates_by_size(tmp_path) -> None:

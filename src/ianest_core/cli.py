@@ -436,6 +436,9 @@ def _task_run(args: argparse.Namespace) -> int:
                 print(json.dumps(event, ensure_ascii=False, sort_keys=True))
             elif not answer_was_streamed:
                 print(event["data"]["response"])
+            for degradation in event["data"].get("degradations", []):
+                if isinstance(degradation, dict):
+                    _emit_task_degradation(degradation)
             stop_reason = event["data"].get("stop_reason", "task_done")
             if stop_reason != "task_done":
                 _emit_task_stop(str(stop_reason), event["data"].get("response"))
@@ -464,6 +467,14 @@ def _emit_task_stop(stop_reason: str, response: object) -> None:
     else:
         message += " No se produjo respuesta."
     print(message, file=sys.stderr)
+
+
+def _emit_task_degradation(degradation: dict[str, object]) -> None:
+    print(
+        "Tarea degradada: "
+        f"{degradation.get('stage')} ({degradation.get('reason')} -> {degradation.get('action')}).",
+        file=sys.stderr,
+    )
 
 
 def _reasoning_progress(event: dict[str, object], *, verbose: bool = False) -> str:

@@ -66,6 +66,10 @@ global de una tarea en modo pipeline; su valor por defecto es `16384`.
       combiner: { model: local_llama, profile: default }
       max_context_tokens: 16384
 
+Las renegociaciones de PLAN y EVALUATE no son parametros de configuracion:
+cada etapa dispone de una por tarea, fijada en contrato (ADR 0041). Son
+independientes y se observan como `plan_attempts` y `evaluation_attempts`.
+
 ### identity_defaults
 `user_id`, `service` por defecto.
 

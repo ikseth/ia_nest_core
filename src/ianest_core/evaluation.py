@@ -257,6 +257,11 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
     actual: dict[str, Any] = {
         "stop_reason": result.stop_reason,
         "response": result.response,
+        "plan_attempts": result.plan_attempts,
+        "requirements_covered": result.requirements_covered,
+        "uncovered_requirements": result.uncovered_requirements,
+        "degradations": result.degradations,
+        "evaluation_attempts": result.evaluation_attempts,
         "checkpoints": result.checkpoints,
         "subtasks": _subtask_expectation(result.subtasks, expected.get("subtasks", [])),
         "checkpoint_counts": {
@@ -293,35 +298,30 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
 
 def _task_adapters(case: dict[str, Any], config: CoreConfig) -> dict[str, ScriptedFakeAdapter]:
     script = case.get("world", {}).get("script", {})
-    if "units" in script:
-        generator_responses = script.get("generator_responses", {})
-        generator_finish_reasons = script.get("generator_finish_reasons", {})
-        adapters: dict[str, ScriptedFakeAdapter] = {
-            model: _FinishReasonScriptedFakeAdapter(
-                model,
-                [str(response) for response in responses],
-                [str(reason) for reason in generator_finish_reasons.get(model, [])],
-            )
-            for model, responses in generator_responses.items()
+    if "derivations" in script:
+        planner_responses = _derivation_responses(script)
+        if case.get("input", {}).get("mode") == "coverage":
+            return _coverage_adapters(script, config, planner_responses)
+
+        responses = dict(script.get("responses", {}))
+        adapters = {
+            model: ScriptedFakeAdapter(model, [str(response)]) for model, response in responses.items()
         }
-        adapters["fake_planner"] = ScriptedFakeAdapter(
-            "fake_planner",
-            [json.dumps(script["units"], ensure_ascii=False)],
-        )
-        adapters["fake_validator"] = ScriptedFakeAdapter(
-            "fake_validator",
-            [
-                json.dumps(decision, ensure_ascii=False)
-                for decision in script.get("validator_decisions", [])
-            ],
-        )
+        adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
         _add_router_adapter(adapters, script, config)
         return adapters
+
+    if "units" in script:
+        return _coverage_adapters(
+            script,
+            config,
+            [_serialize_legacy_plan(script["units"], "units")],
+        )
 
     planner_responses: list[str] = []
     decisions = iter(script.get("evaluate_decisions", []))
     for plan in script.get("plans", []):
-        planner_responses.append(json.dumps(plan, ensure_ascii=False))
+        planner_responses.append(_serialize_legacy_plan(plan, "subtasks"))
         try:
             planner_responses.append(str(next(decisions)))
         except StopIteration:
@@ -334,6 +334,68 @@ def _task_adapters(case: dict[str, Any], config: CoreConfig) -> dict[str, Script
     adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
     _add_router_adapter(adapters, script, config)
     return adapters
+
+
+def _coverage_adapters(
+    script: dict[str, Any],
+    config: CoreConfig,
+    planner_responses: list[str],
+) -> dict[str, ScriptedFakeAdapter]:
+    generator_responses = script.get("generator_responses", {})
+    generator_finish_reasons = script.get("generator_finish_reasons", {})
+    adapters: dict[str, ScriptedFakeAdapter] = {
+        model: _FinishReasonScriptedFakeAdapter(
+            model,
+            [str(response) for response in responses],
+            [str(reason) for reason in generator_finish_reasons.get(model, [])],
+        )
+        for model, responses in generator_responses.items()
+    }
+    adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
+    adapters["fake_validator"] = ScriptedFakeAdapter(
+        "fake_validator",
+        [
+            json.dumps(decision, ensure_ascii=False)
+            for decision in script.get("validator_decisions", [])
+        ],
+    )
+    _add_router_adapter(adapters, script, config)
+    return adapters
+
+
+def _derivation_responses(script: dict[str, Any]) -> list[str]:
+    responses = [_serialize_derivation(derivation) for derivation in script["derivations"]]
+    responses.extend(str(decision) for decision in script.get("evaluate_decisions", []))
+    return responses
+
+
+def _serialize_derivation(derivation: dict[str, Any]) -> str:
+    if "raw" in derivation:
+        return str(derivation["raw"])
+
+    plan_key = "subtasks" if "subtasks" in derivation else "units"
+    plan = derivation[plan_key]
+    if "requirements" not in derivation:
+        return json.dumps(plan, ensure_ascii=False)
+    return json.dumps(
+        {"requirements": derivation["requirements"], plan_key: plan},
+        ensure_ascii=False,
+    )
+
+
+def _serialize_legacy_plan(plan: list[dict[str, Any]], plan_key: str) -> str:
+    requirement_id = "legacy_requirement"
+    covered_plan = [
+        {**item, "covers": item.get("covers", [requirement_id])}
+        for item in plan
+    ]
+    return json.dumps(
+        {
+            "requirements": [{"id": requirement_id, "text": "legacy fixture task"}],
+            plan_key: covered_plan,
+        },
+        ensure_ascii=False,
+    )
 
 
 def _add_router_adapter(

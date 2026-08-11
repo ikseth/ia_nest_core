@@ -12,8 +12,28 @@ from ianest_core.cli import main
 
 EVENTS = [
     {"type": "task_received", "data": {"prompt": "tarea"}},
-    {"type": "plan_ready", "data": {"plan": [{"prompt": "s1"}]}},
-    {"type": "task_done", "data": {"response": "FINAL", "stop_reason": "task_done"}},
+    {
+        "type": "plan_ready",
+        "data": {
+            "plan": [{"prompt": "s1"}],
+            "requirements": [{"id": "r1", "text": "resolver"}],
+            "plan_attempts": 1,
+            "requirements_covered": True,
+            "uncovered_requirements": [],
+        },
+    },
+    {
+        "type": "task_done",
+        "data": {
+            "response": "FINAL",
+            "stop_reason": "task_done",
+            "requirements_covered": True,
+            "uncovered_requirements": [],
+            "plan_attempts": 1,
+            "evaluation_attempts": 1,
+            "degradations": [],
+        },
+    },
 ]
 
 
@@ -128,6 +148,37 @@ def test_cli_task_run_limit_stop_returns_error_and_preserves_partial_response(mo
     assert captured.err == (
         "Respuesta preparada\n"
         "Tarea cortada: max_iterations. Se devuelve lo producido hasta el corte.\n"
+    )
+
+
+def test_cli_task_run_warns_for_each_degradation_without_failing(monkeypatch, capsys) -> None:
+    events = [{
+        "type": "task_done",
+        "data": {
+            "response": "FINAL",
+            "stop_reason": "task_done",
+            "degradations": [
+                {"stage": "plan", "reason": "unparseable_shape", "action": "single_subtask"},
+                {
+                    "stage": "evaluate",
+                    "reason": "undecipherable_decision",
+                    "action": "assume_done",
+                },
+            ],
+        },
+    }]
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: iter(events))
+
+    exit_code = main([
+        "--config", "unused", "task", "run", "--prompt", "tarea", "--quiet",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert captured.out == "FINAL\n"
+    assert captured.err == (
+        "Tarea degradada: plan (unparseable_shape -> single_subtask).\n"
+        "Tarea degradada: evaluate (undecipherable_decision -> assume_done).\n"
     )
 
 
@@ -330,6 +381,8 @@ def test_rest_task_run_is_sse(monkeypatch) -> None:
     body = "".join(response.content)
     assert "event: task_received" in body
     assert "event: task_done" in body
+    assert '"evaluation_attempts": 1' in body
+    assert '"degradations": []' in body
     assert calls[0]["mode"] == "coverage"
     list(default_response.content)
     assert calls[1]["mode"] == "pipeline"
@@ -349,6 +402,10 @@ def test_mcp_exposes_task_run(monkeypatch) -> None:
 
     _, structured = anyio.run(call_task)
     assert structured["response"] == "FINAL"
+    assert structured["requirements_covered"] is True
+    assert structured["plan_attempts"] == 1
+    assert structured["evaluation_attempts"] == 1
+    assert structured["degradations"] == []
     assert calls[0]["mode"] == "coverage"
 
     async def call_task_default():

@@ -6,6 +6,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Implementacion de la etapa PLAN de los invariantes I1, I2 e I4 de
+  `task.run` (ADR 0041) en `pipeline` y `coverage`: requisitos y cobertura
+  declarada por unidad, una sola renegociacion compartida, tolerancia de
+  envoltorios sin perdida, degradacion declarada a una subtarea y contadores
+  aditivos. La etapa EVALUATE gana su renegociacion independiente y, si la
+  decision sigue ilegible, conserva la respuesta asumiendo `done` con
+  degradacion declarada. `plan_ready` cuenta planes derivados y no se repite en
+  `rerun`. Bateria integrada: 19 casos nuevos, conformance 61/61 y digest
+  declarado en `eval/README.md`. Impacto: patch.
 - Contrato: el enrutado por dominio pasa a ser SEMANTICO (ADR 0043). Un
   clasificador por sentido reemplaza el filtro de palabras clave (cuya confianza
   estaba falseada); un solo router para `domain.route` (que se conserva publica)

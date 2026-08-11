@@ -231,6 +231,7 @@ class TaskRuntime:
         token_usage = _TokenUsage()
         degradations: list[dict[str, str]] = []
         plan_renegotiation_used = False
+        evaluation_renegotiation_used = False
 
         yield self._checkpoint("task_received", checkpoints, identity, parent_request_id, task_id, {"prompt": prompt})
         plan_resolution = self._plan(
@@ -244,16 +245,17 @@ class TaskRuntime:
         plan_renegotiation_used = len(plan_resolution.attempts) == 2
         degradations.extend(plan_resolution.degradations)
 
+        for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
+            yield self._checkpoint(
+                "plan_ready",
+                checkpoints,
+                identity,
+                parent_request_id,
+                task_id,
+                self._plan_ready_payload("plan", attempt, attempt_number),
+            )
+
         while True:
-            for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
-                yield self._checkpoint(
-                    "plan_ready",
-                    checkpoints,
-                    identity,
-                    parent_request_id,
-                    task_id,
-                    self._plan_ready_payload("plan", attempt, attempt_number),
-                )
             plan = plan_resolution.final.plan
             if len(plan) > self.settings.max_subtasks:
                 stop_reason = "max_subtasks"
@@ -274,10 +276,26 @@ class TaskRuntime:
 
             response = self._combine(prompt, iteration_results, identity_data, parent_request_id, task_id, token_usage)
             yield self._checkpoint("combine_ready", checkpoints, identity, parent_request_id, task_id, {"response": response})
-            decision = self._evaluate(prompt, response, identity_data, parent_request_id, task_id, token_usage)
+            decision, evaluation_attempts, evaluation_degradation = self._evaluate(
+                prompt,
+                response,
+                identity_data,
+                parent_request_id,
+                task_id,
+                token_usage,
+                allow_renegotiation=not evaluation_renegotiation_used,
+            )
+            if evaluation_attempts == 2:
+                evaluation_renegotiation_used = True
+            if evaluation_degradation is not None:
+                degradations.append(evaluation_degradation)
             yield self._checkpoint(
                 "iteration_end", checkpoints, identity, parent_request_id, task_id,
-                {"iteration": iterations, "decision": decision, "evaluation_attempts": 1},
+                {
+                    "iteration": iterations,
+                    "decision": decision,
+                    "evaluation_attempts": 2 if evaluation_renegotiation_used else 1,
+                },
             )
 
             if decision == "done":
@@ -302,6 +320,15 @@ class TaskRuntime:
                 if len(plan_resolution.attempts) == 2:
                     plan_renegotiation_used = True
                 degradations.extend(plan_resolution.degradations)
+                for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
+                    yield self._checkpoint(
+                        "plan_ready",
+                        checkpoints,
+                        identity,
+                        parent_request_id,
+                        task_id,
+                        self._plan_ready_payload("plan", attempt, attempt_number),
+                    )
                 continue
             if iterations >= self.settings.max_iterations:
                 stop_reason = "max_iterations"
@@ -328,7 +355,7 @@ class TaskRuntime:
             "uncovered_requirements": plan_resolution.final.uncovered_requirements,
             "degradations": degradations,
             "plan_attempts": 2 if plan_renegotiation_used else 1,
-            "evaluation_attempts": 1,
+            "evaluation_attempts": 2 if evaluation_renegotiation_used else 1,
         }
         yield self._checkpoint("task_done", checkpoints, identity, parent_request_id, task_id, payload)
 
@@ -1237,15 +1264,55 @@ class TaskRuntime:
         content = f"Combine the subtask results into one answer. Task: {prompt}\nResults: {json.dumps(results, ensure_ascii=False)}"
         return self._run_target(self.settings.combiner, content, identity, parent, task_id, "combiner", token_usage).response
 
-    def _evaluate(self, prompt: str, response: str, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> str:
+    def _evaluate(
+        self,
+        prompt: str,
+        response: str,
+        identity: dict[str, str],
+        parent: str,
+        task_id: str,
+        token_usage: _TokenUsage,
+        *,
+        allow_renegotiation: bool,
+    ) -> tuple[str, int, dict[str, str] | None]:
         content = (
             "Evaluate the combined answer. Return only one word: done, rerun, or replan. "
             f"Task: {prompt}\nAnswer: {response}"
         )
-        response_text = self._run_target(
-            self.settings.planner, content, identity, parent, task_id, "evaluator", token_usage
-        ).response
-        return _parse_evaluation_decision(response_text)
+        maximum_attempts = 2 if allow_renegotiation else 1
+        for attempt_number in range(1, maximum_attempts + 1):
+            response_text = self._run_target(
+                self.settings.planner,
+                content,
+                identity,
+                parent,
+                task_id,
+                "evaluator",
+                token_usage,
+            ).response
+            try:
+                return _parse_evaluation_decision(response_text), attempt_number, None
+            except CoreError as exc:
+                if exc.type != "EvaluationDecisionError":
+                    raise
+                if attempt_number < maximum_attempts:
+                    content = (
+                        "The prior response had no decipherable decision. Answer with "
+                        "exactly one word and nothing else: done, rerun, or replan. "
+                        "Do not explain, and do not answer the task itself. "
+                        f"Task: {prompt}\nAnswer: {response}"
+                    )
+                    continue
+                return (
+                    "done",
+                    attempt_number,
+                    {
+                        "stage": "evaluate",
+                        "reason": "undecipherable_decision",
+                        "action": "assume_done",
+                    },
+                )
+        raise AssertionError("unreachable evaluator attempt loop")
 
     def _run_target(self, target: OrchestrationTargetConfig, prompt: str, identity: dict[str, str], parent: str, task_id: str, role: str, token_usage: _TokenUsage) -> PromptRunResult:
         return self._run_prompt(

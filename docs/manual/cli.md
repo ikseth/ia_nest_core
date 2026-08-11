@@ -73,6 +73,15 @@ Flags de identidad (opcionales): `--user-id`, `--service`, `--session-id`,
     # pipeline multi-modelo; --mode acepta pipeline (por defecto) o coverage
     ianest --config config/core.yaml task run --prompt "Analiza ..." --mode pipeline
 
+`task run` avisa por stderr de cada degradacion declarada (por ejemplo, si el
+evaluador no logra emitir una decision entendible y el core conserva el
+resultado asumiendo `done`). La respuesta sigue en stdout y el codigo de salida
+es cero: una degradacion entrego resultado; no es un corte. Los cortes por
+limite se anuncian tambien por stderr, pero terminan con codigo distinto de
+cero. `--json` transporta los campos `requirements_covered`,
+`uncovered_requirements`, `plan_attempts`, `evaluation_attempts` y
+`degradations` sin logica adicional de interfaz.
+
 ## Enrutado e inventario
 
     ianest --config config/core.yaml domain route --prompt "..."   # que dominio/modelo elegiria

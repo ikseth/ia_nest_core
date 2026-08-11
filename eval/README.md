@@ -137,11 +137,11 @@ Caso 15, smoke real: declarar y verificar `coverage_complete=true` y
 
 ## Bateria de invariantes del orquestador (ADR 0041)
 
-`eval/battery/v0.3/invariantes_orquestador.yaml.frozen`: 18 casos de
+`eval/battery/v0.3/invariantes_orquestador.yaml`: 19 casos de
 conformidad para los CUATRO invariantes del ADR 0041 (adecuacion semantica,
 negociacion de presupuesto, cortes no silenciosos y degradacion declarada), en
-los dos modos de `task.run`. Congelada ANTES de implementar; el runner no la
-carga mientras conserve el sufijo `.frozen`.
+los dos modos de `task.run`. Se escribio y congelo ANTES de implementar; ya esta
+integrada y el runner la carga.
 
 Historia de la bateria, porque explica su forma:
 
@@ -156,12 +156,15 @@ Historia de la bateria, porque explica su forma:
   nueva, `derivations: [{ raw: "<texto>" }]`, que hace que el fake
   planificador devuelva ese texto literal: I4 se prueba contra salidas
   MALFORMADAS y el guion estructurado solo sabe emitir planes bien formados.
+- Ampliada el 2026-08-11 con un caso de observabilidad: `plan_ready` cuenta las
+  derivaciones (incluida una re-planificacion), no las vueltas por `rerun`.
 
-Al integrarla (rename a `.yaml`) el digest se recalcula y se DECLARA, con el
-patron de v0.2-3 y v0.3-2. El digest cambia ademas por la ficha v0.3/0004
-(separador en el ensamblado), que altera el `response` esperado de ocho casos
-de `coverage.yaml`. Ambos cambios son intencionados y estan declarados por
-adelantado; el digest historico de 34 casos queda arriba.
+Digest de conformidad declarado tras integrar los 19 casos del ADR 0041 (61
+casos totales: los 42 anteriores, sin cambio de resultado, mas los 19 nuevos).
+El cambio de digest incorpora I1-I4, los contadores independientes de PLAN y
+EVALUATE, la degradacion declarada y la semantica de `plan_ready` por
+derivacion:
+`4fb027834bda6ae4c51567ff9c931afa5967402de85613287def983981ac9563`.
 
 Tests pytest requeridos, por no ser expresables end-to-end en la bateria
 declarativa:
@@ -172,8 +175,13 @@ declarativa:
   presupuesto disponible (I2) en el texto del prompt.
 - I3 en la CLI: un corte por limite termina con codigo de salida distinto de
   cero y explica el motivo por stderr, en los dos modos.
+- I4 en EVALUATE: decision ilegible corregida al renegociar; ilegible dos veces
+  que asume `done` y lo declara; independencia respecto al contador de PLAN; y
+  camino sano con una sola evaluacion.
+- Una degradacion se avisa por stderr sin cambiar el codigo de salida cero.
 - Paridad: `requirements_covered` y `uncovered_requirements` viajan por
-  CLI (`--json`), REST y MCP.
+  CLI (`--json`), REST y MCP, junto a `plan_attempts`, `evaluation_attempts` y
+  `degradations`.
 
 Smoke real pendiente de laboratorio: el prompt de los ocho planetas
 (`enumera los ocho planetas ... y explica brevemente cada uno`) debe terminar

@@ -1,8 +1,7 @@
 # Bateria de los invariantes de gestion de tareas (ADR 0041). CRITERIO DE
-# ACEPTACION escrito y CONGELADO ANTES de implementar. El runner NO carga este
-# archivo mientras conserve el sufijo .frozen; se integra renombrandolo a
-# .yaml, con el digest recalculado y declarado (ADR 0017, patron v0.2-3 y
-# v0.3-2).
+# ACEPTACION escrito y CONGELADO ANTES de implementar. Integrado tras pasar
+# 19/19 casos, con el digest conjunto recalculado y declarado en eval/README.md
+# (ADR 0017, patron v0.2-3 y v0.3-2).
 #
 # Cubre los CUATRO invariantes del ADR 0041, en los DOS modos:
 # - I1 adecuacion semantica: todo requisito del prompt tiene unidad.

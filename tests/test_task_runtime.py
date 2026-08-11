@@ -247,6 +247,8 @@ def test_task_runtime_rerun_records_unique_iteration_and_index_pairs(tmp_path) -
         (1, 0), (1, 1), (2, 0), (2, 1),
     ]
     assert len({(item["iteration"], item["index"]) for item in result.subtasks}) == len(result.subtasks)
+    assert result.checkpoints.count("plan_ready") == 1
+    assert result.checkpoints.count("iteration_end") == 2
     events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
     subtask_done = [
         event for event in events

@@ -67,6 +67,29 @@ def _run(tmp_path, mode: str, planner_responses: list[str], *, prompt: str = "or
     return result, planner
 
 
+def _run_pipeline_evaluation(tmp_path, evaluation_responses: list[str], *, plan_responses=None):
+    requirements = [{"id": "r1", "text": "do the work"}]
+    derivation = _derivation(
+        "pipeline",
+        requirements,
+        [_item("pipeline", "work", ["r1"])],
+    )
+    planner = CapturingScriptedAdapter(
+        "fake_planner",
+        list(plan_responses or [derivation]) + evaluation_responses,
+    )
+    adapters = {
+        "fake_planner": planner,
+        "fake_general": ScriptedFakeAdapter("fake_general", ["PART"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
+    }
+    result = TaskRuntime(
+        _config(tmp_path, "pipeline"),
+        adapter_factory=adapters.get,
+    ).run(prompt="original task", request_id="evaluation-task")
+    return result, planner
+
+
 def test_requirements_covered_on_first_plan_has_one_attempt(tmp_path) -> None:
     requirements = [{"id": "r1", "text": "do the work"}]
     result, _ = _run(
@@ -245,3 +268,62 @@ def test_coverage_irrecoverable_plan_degrades_without_cutting(tmp_path) -> None:
     assert result.degradations == [
         {"stage": "plan", "reason": "unparseable_shape", "action": "single_subtask"}
     ]
+
+
+def test_undecipherable_evaluation_is_corrected_by_renegotiation(tmp_path) -> None:
+    result, planner = _run_pipeline_evaluation(
+        tmp_path,
+        ["I cannot decide from this answer.", "done"],
+    )
+
+    assert result.stop_reason == "task_done"
+    assert result.response == "FINAL"
+    assert result.evaluation_attempts == 2
+    assert result.degradations == []
+    assert "exactly one word" in planner.prompts[-1]
+    assert "do not answer the task itself" in planner.prompts[-1].lower()
+
+
+def test_twice_undecipherable_evaluation_assumes_done_and_declares_it(tmp_path) -> None:
+    result, _ = _run_pipeline_evaluation(
+        tmp_path,
+        ["I cannot decide.", "The answer seems plausible."],
+    )
+
+    assert result.stop_reason == "task_done"
+    assert result.response == "FINAL"
+    assert result.evaluation_attempts == 2
+    assert result.degradations == [
+        {
+            "stage": "evaluate",
+            "reason": "undecipherable_decision",
+            "action": "assume_done",
+        }
+    ]
+
+
+def test_plan_and_evaluate_renegotiation_counters_are_independent(tmp_path) -> None:
+    corrected = _derivation(
+        "pipeline",
+        [{"id": "r1", "text": "do all the work"}],
+        [_item("pipeline", "work", ["r1"])],
+    )
+    result, _ = _run_pipeline_evaluation(
+        tmp_path,
+        ["No decipherable verdict.", "done"],
+        plan_responses=['{"prompt": "reduced work"}', corrected],
+    )
+
+    assert result.stop_reason == "task_done"
+    assert result.plan_attempts == 2
+    assert result.evaluation_attempts == 2
+    assert result.degradations == []
+
+
+def test_valid_evaluation_decision_does_not_renegotiate(tmp_path) -> None:
+    result, planner = _run_pipeline_evaluation(tmp_path, ["done"])
+
+    assert result.stop_reason == "task_done"
+    assert result.evaluation_attempts == 1
+    assert result.degradations == []
+    assert len(planner.prompts) == 2  # One PLAN call and one EVALUATE call.

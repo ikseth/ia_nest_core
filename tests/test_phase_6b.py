@@ -98,10 +98,10 @@ def test_eval_conformance_digest_is_stable() -> None:
     first = run_eval(track="conformance")
     second = run_eval(track="conformance")
 
-    assert first["totals"]["conformance"] == {"pass": 42, "fail": 0}
-    assert second["totals"]["conformance"] == {"pass": 42, "fail": 0}
+    assert first["totals"]["conformance"] == {"pass": 61, "fail": 0}
+    assert second["totals"]["conformance"] == {"pass": 61, "fail": 0}
     assert first["conformance_digest"] == second["conformance_digest"]
-    assert first["conformance_digest"] == "6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708"
+    assert first["conformance_digest"] == "4fb027834bda6ae4c51567ff9c931afa5967402de85613287def983981ac9563"
 
 
 def test_eval_v02_task_cases_still_pass() -> None:
@@ -110,10 +110,10 @@ def test_eval_v02_task_cases_still_pass() -> None:
     assert result["totals"]["conformance"] == {"pass": 12, "fail": 0}
 
 
-def test_eval_v03_coverage_cases_pass() -> None:
+def test_eval_v03_cases_pass() -> None:
     result = run_eval(battery_dir="eval/battery/v0.3", track="conformance")
 
-    assert result["totals"]["conformance"] == {"pass": 11, "fail": 0}
+    assert result["totals"]["conformance"] == {"pass": 30, "fail": 0}
 
 
 def test_task_adapters_derivation_with_requirements_emits_json_object() -> None:

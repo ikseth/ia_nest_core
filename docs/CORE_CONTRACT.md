@@ -161,7 +161,30 @@ Debe devolver:
 - motivo de corte,
 - arbol de subtareas (modelo y dominio usados por cada una),
 - parametros efectivos,
-- trazabilidad.
+- trazabilidad,
+- `requirements_covered` y `uncovered_requirements`, que declaran si el plan
+  cubria los requisitos extraidos del prompt,
+- `plan_attempts` y `evaluation_attempts` (1 o 2), contadores independientes
+  de las etapas PLAN y EVALUATE,
+- `degradations`, lista de degradaciones declaradas; vacia en el camino sano.
+
+PLAN declara en cada `plan_ready` los campos aditivos `requirements` (id y
+enunciado), `plan_attempts`, `requirements_covered` y
+`uncovered_requirements`. La emision cuenta derivaciones: ocurre una vez por
+plan producido, incluida cada re-planificacion, y no se repite por `rerun`.
+
+Regla de renegociacion por etapa (ADR 0041): PLAN dispone de una sola
+renegociacion por tarea, compartida por forma, requisitos huerfanos y
+`max_subtasks`; EVALUATE dispone de otra propia e independiente cuando la
+decision no es entendible. Cada contador esta fijado en 1 por contrato y no es
+configurable. `evaluation_attempts` viaja tambien en `iteration_end`.
+
+Regla de degradacion declarada (I4): si PLAN sigue siendo inservible tras
+renegociar, usa una subtarea con el prompt integro y lo declara; si EVALUATE
+sigue sin producir `done | rerun | replan`, asume `done` y declara
+`{stage: evaluate, reason: undecipherable_decision, action: assume_done}`. Una
+degradacion no es un corte, no amplia el catalogo de cortes tipados y conserva
+el resultado ya producido.
 
 Modos de ejecucion (ADR 0038, linea v0.3): el consumidor selecciona el
 modo de forma explicita; no hay promocion automatica.
@@ -278,4 +301,3 @@ Estas capacidades deben entrar por repos o modulos externos.
 - Toda capacidad publica debe poder probarse sin servicios externos complejos.
 - La CLI debe ser la primera interfaz verificable.
 - MCP y REST no deben tener logica distinta a la CLI.
-

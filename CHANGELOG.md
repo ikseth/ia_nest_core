@@ -46,6 +46,12 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   patch.
 
 ### Corregido
+- Salida `--verbose` de la CLI: cada linea de progreso en stderr lleva el
+  tiempo acumulado desde el primer evento (`[  0.0s]`); el render de coverage
+  deja de mostrar `iteration` y `decision` inexistentes como `None`, sin
+  alterar pipeline, stdout, JSON, runtime ni telemetria
+  ([ficha v0.3/0013](docs/fixes/v0.3/0013-verbose-sin-campos-fantasma-y-con-reloj.md)).
+  Impacto: patch.
 - En modo pipeline, cada subtarea recibe el objetivo global solo como contexto
   y conserva su enunciado como unico contenido a producir; el enrutado y el
   registro mantienen el enunciado pelado. COMBINE ahora estructura resultados

@@ -741,3 +741,43 @@
     plan_attempts: 1
     evaluation_attempts: 1
     degradations: []
+
+# --------------------------------------------------------------------------
+# Observabilidad del plan: plan_ready cuenta DERIVACIONES, no iteraciones
+# (anadido 2026-08-11 al detectarse el defecto revisando la pasada 2a)
+# --------------------------------------------------------------------------
+
+- id: invariantes_plan_ready_no_se_repite_en_rerun
+  track: conformance
+  description: "ADR 0041: una iteracion por rerun NO re-emite plan_ready; el plan no se re-derivo."
+  capability: task.run
+  fixture: eval/fixtures/orchestration.yaml
+  input:
+    prompt: "haz dos cosas"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        # Dos intentos: una derivacion con su renegociacion. Son DOS planes
+        # producidos, y por tanto dos plan_ready.
+        - raw: '{"prompt": "una sola cosa"}'
+        - requirements:
+            - { id: r1, text: "hacer las dos cosas" }
+          subtasks:
+            - { prompt: "s1", domain: general, covers: [r1] }
+            - { prompt: "s2", domain: general, covers: [r1] }
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      # La primera iteracion pide rerun: se repite el FAN-OUT con el MISMO
+      # plan, sin volver a planificar.
+      evaluate_decisions: [rerun, done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_attempts: 2
+    # La clave del caso: DOS, no cuatro. plan_ready se emite una vez por plan
+    # producido, no una vez por vuelta del bucle. Si se emite por iteracion, un
+    # observador ve plan_attempts ir 1,2,1,2 y cree que hubo cuatro
+    # derivaciones cuando hubo dos.
+    checkpoint_counts: { plan_ready: 2, iteration_end: 2 }

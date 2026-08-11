@@ -32,6 +32,11 @@ class TaskResult:
     mode: str | None = None
     coverage: dict[str, Any] | None = None
     chunks: list[dict[str, Any]] | None = None
+    requirements_covered: bool = False
+    uncovered_requirements: list[str] = field(default_factory=list)
+    degradations: list[dict[str, str]] = field(default_factory=list)
+    plan_attempts: int = 1
+    evaluation_attempts: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         result = {
@@ -48,6 +53,11 @@ class TaskResult:
             result["coverage"] = self.coverage
         if self.chunks is not None:
             result["chunks"] = self.chunks
+        result["requirements_covered"] = self.requirements_covered
+        result["uncovered_requirements"] = self.uncovered_requirements
+        result["degradations"] = self.degradations
+        result["plan_attempts"] = self.plan_attempts
+        result["evaluation_attempts"] = self.evaluation_attempts
         return result
 
 
@@ -82,6 +92,25 @@ class _CoverageUnit:
     retries: int = 0
     state: str = "pending"
     fragment: dict[str, Any] | None = None
+    covers: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _PlanAttempt:
+    plan: list[dict[str, Any]]
+    requirements: list[dict[str, str]]
+    requirements_covered: bool
+    uncovered_requirements: list[str]
+
+
+@dataclass(frozen=True)
+class _PlanResolution:
+    attempts: list[_PlanAttempt]
+    degradations: list[dict[str, str]]
+
+    @property
+    def final(self) -> _PlanAttempt:
+        return self.attempts[-1]
 
 
 @dataclass
@@ -200,12 +229,32 @@ class TaskRuntime:
         iterations = 0
         replans = 0
         token_usage = _TokenUsage()
+        degradations: list[dict[str, str]] = []
+        plan_renegotiation_used = False
 
         yield self._checkpoint("task_received", checkpoints, identity, parent_request_id, task_id, {"prompt": prompt})
-        plan = self._plan(prompt, identity_data, parent_request_id, task_id, token_usage)
+        plan_resolution = self._plan(
+            prompt,
+            identity_data,
+            parent_request_id,
+            task_id,
+            token_usage,
+            allow_renegotiation=True,
+        )
+        plan_renegotiation_used = len(plan_resolution.attempts) == 2
+        degradations.extend(plan_resolution.degradations)
 
         while True:
-            yield self._checkpoint("plan_ready", checkpoints, identity, parent_request_id, task_id, {"plan": plan})
+            for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
+                yield self._checkpoint(
+                    "plan_ready",
+                    checkpoints,
+                    identity,
+                    parent_request_id,
+                    task_id,
+                    self._plan_ready_payload("plan", attempt, attempt_number),
+                )
+            plan = plan_resolution.final.plan
             if len(plan) > self.settings.max_subtasks:
                 stop_reason = "max_subtasks"
                 break
@@ -228,7 +277,7 @@ class TaskRuntime:
             decision = self._evaluate(prompt, response, identity_data, parent_request_id, task_id, token_usage)
             yield self._checkpoint(
                 "iteration_end", checkpoints, identity, parent_request_id, task_id,
-                {"iteration": iterations, "decision": decision},
+                {"iteration": iterations, "decision": decision, "evaluation_attempts": 1},
             )
 
             if decision == "done":
@@ -242,7 +291,17 @@ class TaskRuntime:
                     stop_reason = "max_replans"
                     break
                 replans += 1
-                plan = self._plan(prompt, identity_data, parent_request_id, task_id, token_usage)
+                plan_resolution = self._plan(
+                    prompt,
+                    identity_data,
+                    parent_request_id,
+                    task_id,
+                    token_usage,
+                    allow_renegotiation=not plan_renegotiation_used,
+                )
+                if len(plan_resolution.attempts) == 2:
+                    plan_renegotiation_used = True
+                degradations.extend(plan_resolution.degradations)
                 continue
             if iterations >= self.settings.max_iterations:
                 stop_reason = "max_iterations"
@@ -265,6 +324,11 @@ class TaskRuntime:
                 "stop_reason": stop_reason,
             },
             "checkpoints": [*checkpoints, "task_done"],
+            "requirements_covered": plan_resolution.final.requirements_covered,
+            "uncovered_requirements": plan_resolution.final.uncovered_requirements,
+            "degradations": degradations,
+            "plan_attempts": 2 if plan_renegotiation_used else 1,
+            "evaluation_attempts": 1,
         }
         yield self._checkpoint("task_done", checkpoints, identity, parent_request_id, task_id, payload)
 
@@ -294,17 +358,25 @@ class TaskRuntime:
             task_id,
             {"prompt": prompt},
         )
-        plan = self._plan_coverage(prompt, identity_data, parent_request_id, task_id, token_usage)
-        ledger = _CoverageLedger(plan, token_usage)
-        units_payload = [self._coverage_unit_plan_record(unit) for unit in plan]
-        yield self._checkpoint(
-            "plan_ready",
-            checkpoints,
-            identity,
+        plan_resolution = self._plan_coverage(
+            prompt,
+            identity_data,
             parent_request_id,
             task_id,
-            {"units": units_payload},
+            token_usage,
+            allow_renegotiation=True,
         )
+        for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
+            yield self._checkpoint(
+                "plan_ready",
+                checkpoints,
+                identity,
+                parent_request_id,
+                task_id,
+                self._plan_ready_payload("units", attempt, attempt_number),
+            )
+        plan = self._coverage_units_from(plan_resolution.final.plan)
+        ledger = _CoverageLedger(plan, token_usage)
 
         if len(plan) > self.settings.max_subtasks:
             stop_reason = "max_subtasks"
@@ -394,7 +466,7 @@ class TaskRuntime:
                 identity,
                 parent_request_id,
                 task_id,
-                {"iteration": cycle, "coverage": snapshot},
+                {"iteration": cycle, "coverage": snapshot, "evaluation_attempts": 1},
             )
 
             if not ledger.pending_ids() and not ledger.failed_ids():
@@ -431,6 +503,11 @@ class TaskRuntime:
             "mode": "coverage",
             "coverage": coverage,
             "chunks": self._ordered_coverage_chunks(ledger),
+            "requirements_covered": plan_resolution.final.requirements_covered,
+            "uncovered_requirements": plan_resolution.final.uncovered_requirements,
+            "degradations": plan_resolution.degradations,
+            "plan_attempts": len(plan_resolution.attempts),
+            "evaluation_attempts": 1,
         }
         yield self._checkpoint(
             "task_done",
@@ -448,33 +525,35 @@ class TaskRuntime:
         parent: str,
         task_id: str,
         token_usage: _TokenUsage,
-    ) -> list[_CoverageUnit]:
+        *,
+        allow_renegotiation: bool,
+    ) -> _PlanResolution:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
-            "Derive the coverage units of the task. Create one unit per verifiable item "
-            "(each enumerable element, requirement or part gets its own unit). Return only "
-            "a JSON list of objects with a short string id, prompt, optional domain, "
-            "optional advisory domain_hint and optional depends_on as a list of ids. "
+            "Derive the requirements and coverage units of the task in the same response. "
+            "Return only a JSON object with requirements and units. Requirements must be "
+            "objects with string id and text. Create one unit per verifiable item (each "
+            "enumerable element, requirement or part gets its own unit). Units must have "
+            "a short string id, prompt, covers as a list of requirement ids, optional domain, "
+            "optional advisory domain_hint and optional depends_on as a list of unit ids. "
             f"If domain is used, it must be one of: {domain_ids}. Task: {prompt}"
         )
-        result = self._run_target(
-            self.settings.planner,
-            instruction,
-            identity,
-            parent,
-            task_id,
-            "planner",
-            token_usage,
+        return self._resolve_plan(
+            prompt=prompt,
+            plan_key="units",
+            instruction=instruction,
+            identity=identity,
+            parent=parent,
+            task_id=task_id,
+            token_usage=token_usage,
+            allow_renegotiation=allow_renegotiation,
+            validate=self._validate_coverage_plan,
         )
-        raw_plan = _parse_plan(result.response)
-        if not isinstance(raw_plan, list):
-            raise CoreError("PlanParseError", "planner returned an invalid coverage plan", "plan")
 
-        units: list[_CoverageUnit] = []
+    def _validate_coverage_plan(self, raw_plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
         ids: set[str] = set()
+        copied_plan: list[dict[str, Any]] = []
         for position, item in enumerate(raw_plan, start=1):
-            if not isinstance(item, dict):
-                raise CoreError("PlanParseError", "planner returned an invalid coverage unit", "plan")
             unit_id = _coerce_unit_id(item.get("id")) or f"u{position}"
             unit_prompt = item.get("prompt")
             if unit_id in ids:
@@ -498,17 +577,33 @@ class TaskRuntime:
                     "depends_on",
                 )
             ids.add(unit_id)
-            units.append(
-                _CoverageUnit(
-                    id=unit_id,
-                    prompt=unit_prompt,
-                    depends_on=[dependency for dependency in coerced_depends if dependency],
-                    domain_hint=item.get("domain_hint") if isinstance(item.get("domain_hint"), str) else None,
-                    domain=item.get("domain") if isinstance(item.get("domain"), str) else "",
-                )
+            copied = dict(item)
+            copied["id"] = unit_id
+            copied["depends_on"] = [dependency for dependency in coerced_depends if dependency]
+            copied_plan.append(copied)
+        dependency_units = [
+            _CoverageUnit(
+                id=str(item["id"]),
+                prompt=str(item["prompt"]),
+                depends_on=list(item["depends_on"]),
             )
+            for item in copied_plan
+        ]
+        self._validate_coverage_dependencies(dependency_units)
+        return copied_plan
 
-        self._validate_coverage_dependencies(units)
+    def _coverage_units_from(self, plan: list[dict[str, Any]]) -> list[_CoverageUnit]:
+        units = [
+            _CoverageUnit(
+                id=str(item["id"]),
+                prompt=str(item["prompt"]),
+                depends_on=list(item.get("depends_on", [])),
+                domain_hint=item.get("domain_hint") if isinstance(item.get("domain_hint"), str) else None,
+                domain=item.get("domain") if isinstance(item.get("domain"), str) else "",
+                covers=_string_ids(item.get("covers")),
+            )
+            for item in plan
+        ]
         for unit in units:
             self._resolve_coverage_unit(unit)
         return units
@@ -894,6 +989,7 @@ class TaskRuntime:
     @staticmethod
     def _coverage_unit_plan_record(unit: _CoverageUnit) -> dict[str, Any]:
         record: dict[str, Any] = {"id": unit.id, "prompt": unit.prompt}
+        record["covers"] = list(unit.covers)
         if unit.domain:
             record["domain"] = unit.domain
         if unit.domain_hint is not None:
@@ -902,21 +998,150 @@ class TaskRuntime:
             record["depends_on"] = list(unit.depends_on)
         return record
 
-    def _plan(self, prompt: str, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
+    def _plan(
+        self,
+        prompt: str,
+        identity: dict[str, str],
+        parent: str,
+        task_id: str,
+        token_usage: _TokenUsage,
+        *,
+        allow_renegotiation: bool,
+    ) -> _PlanResolution:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
-            "Decompose the task. Return only a JSON list of objects with prompt, optional "
-            "domain, optional advisory domain_hint and optional depends_on as a list of "
-            "zero-based integer indexes into this same list. If domain is "
+            "Decompose the task and extract its requirements in the same response. Return "
+            "only a JSON object with requirements and subtasks. Requirements must be "
+            "objects with string id and text. Subtasks must have prompt, covers as a list "
+            "of requirement ids, optional domain, optional advisory domain_hint and optional "
+            "depends_on as a list of zero-based integer indexes into this same list. If domain is "
             f"used, it must be one of: {domain_ids}. Task: {prompt}"
         )
-        result = self._run_target(self.settings.planner, instruction, identity, parent, task_id, "planner", token_usage)
-        plan = _parse_plan(result.response)
-        if not isinstance(plan, list) or not all(self._valid_subtask(item) for item in plan):
+        return self._resolve_plan(
+            prompt=prompt,
+            plan_key="subtasks",
+            instruction=instruction,
+            identity=identity,
+            parent=parent,
+            task_id=task_id,
+            token_usage=token_usage,
+            allow_renegotiation=allow_renegotiation,
+            validate=self._validate_pipeline_plan,
+        )
+
+    def _validate_pipeline_plan(self, plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not all(self._valid_subtask(item) for item in plan):
             raise CoreError("PlanParseError", "planner returned an invalid plan", "plan")
         copied_plan = [dict(item) for item in plan]
         self._validate_pipeline_dependencies(copied_plan)
         return copied_plan
+
+    def _resolve_plan(
+        self,
+        *,
+        prompt: str,
+        plan_key: str,
+        instruction: str,
+        identity: dict[str, str],
+        parent: str,
+        task_id: str,
+        token_usage: _TokenUsage,
+        allow_renegotiation: bool,
+        validate: Callable[[list[dict[str, Any]]], list[dict[str, Any]]],
+    ) -> _PlanResolution:
+        attempts: list[_PlanAttempt] = []
+        degradations: list[dict[str, str]] = []
+        next_instruction = instruction
+        maximum_attempts = 2 if allow_renegotiation else 1
+        for attempt_number in range(1, maximum_attempts + 1):
+            result = self._run_target(
+                self.settings.planner,
+                next_instruction,
+                identity,
+                parent,
+                task_id,
+                "planner",
+                token_usage,
+            )
+            try:
+                parsed = _parse_plan(result.response)
+                raw_plan, raw_requirements = _plan_lists_from(parsed, plan_key)
+                plan = validate(raw_plan)
+            except CoreError as exc:
+                if exc.type != "PlanParseError":
+                    raise
+                attempts.append(_PlanAttempt([], [], False, []))
+                if attempt_number < maximum_attempts:
+                    next_instruction = self._plan_renegotiation_instruction(
+                        instruction,
+                        shape_invalid=True,
+                        too_large=False,
+                        uncovered=[],
+                        requirements_missing=False,
+                    )
+                    continue
+                plan = [{"prompt": prompt, "domain": self.config.default_domain or "general"}]
+                if plan_key == "units":
+                    plan[0]["id"] = "u1"
+                attempts[-1] = _PlanAttempt(plan, [], False, [])
+                degradations.append(
+                    {"stage": "plan", "reason": "unparseable_shape", "action": "single_subtask"}
+                )
+                break
+
+            # Contract order inside an attempt: usable shape, I2 budget, then I1 coverage.
+            too_large = len(plan) > self.settings.max_subtasks
+            requirements = _requirements_from(raw_requirements)
+            requirements_missing = raw_requirements is None or not requirements
+            uncovered = _uncovered_requirement_ids(requirements, plan)
+            requirements_covered = not requirements_missing and not uncovered
+            attempts.append(_PlanAttempt(plan, requirements, requirements_covered, uncovered))
+
+            needs_renegotiation = too_large or not requirements_covered
+            if needs_renegotiation and attempt_number < maximum_attempts:
+                next_instruction = self._plan_renegotiation_instruction(
+                    instruction,
+                    shape_invalid=False,
+                    too_large=too_large,
+                    uncovered=uncovered,
+                    requirements_missing=requirements_missing,
+                )
+                continue
+            break
+        return _PlanResolution(attempts, degradations)
+
+    def _plan_renegotiation_instruction(
+        self,
+        instruction: str,
+        *,
+        shape_invalid: bool,
+        too_large: bool,
+        uncovered: list[str],
+        requirements_missing: bool,
+    ) -> str:
+        defects: list[str] = []
+        if shape_invalid:
+            defects.append("the prior response was not a usable list in a recognized wrapper")
+        if too_large:
+            defects.append(
+                f"the plan exceeded the explicit budget of {self.settings.max_subtasks} units; "
+                "group work as needed"
+            )
+        if requirements_missing:
+            defects.append("the prior response did not declare requirements")
+        elif uncovered:
+            defects.append(f"these requirement ids were uncovered: {', '.join(uncovered)}")
+        return f"{instruction}\nCorrect the prior plan in one response: {'; '.join(defects)}."
+
+    @staticmethod
+    def _plan_ready_payload(plan_key: str, attempt: _PlanAttempt, attempt_number: int) -> dict[str, Any]:
+        return {
+            plan_key: attempt.plan,
+            "requirements": attempt.requirements,
+            "plan_attempts": attempt_number,
+            "requirements_covered": attempt.requirements_covered,
+            "uncovered_requirements": attempt.uncovered_requirements,
+        }
 
     def _validate_pipeline_dependencies(self, plan: list[dict[str, Any]]) -> None:
         dependencies = {index: self._dependencies(item) for index, item in enumerate(plan)}
@@ -1119,6 +1344,62 @@ def _parse_plan(text: str) -> Any:
             return value
         except json.JSONDecodeError as exc:
             raise CoreError("PlanParseError", "planner returned invalid JSON", "plan") from exc
+
+
+def _plan_lists_from(value: Any, preferred_key: str) -> tuple[list[dict[str, Any]], Any]:
+    requirements: Any = None
+    plan_value = value
+    if isinstance(value, dict):
+        requirements = value.get("requirements")
+        plan_value = None
+        for key in (preferred_key, "subtasks", "units", "plan", "steps"):
+            if isinstance(value.get(key), list):
+                plan_value = value[key]
+                break
+    if (
+        not isinstance(plan_value, list)
+        or not plan_value
+        or not all(isinstance(item, dict) for item in plan_value)
+    ):
+        raise CoreError("PlanParseError", "planner returned an invalid plan shape", "plan")
+    return [dict(item) for item in plan_value], requirements
+
+
+def _requirements_from(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    requirements: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            return []
+        requirement_id = item.get("id")
+        text = item.get("text")
+        if (
+            not isinstance(requirement_id, str)
+            or not requirement_id.strip()
+            or requirement_id in seen
+            or not isinstance(text, str)
+            or not text.strip()
+        ):
+            return []
+        seen.add(requirement_id)
+        requirements.append({"id": requirement_id, "text": text})
+    return requirements
+
+
+def _string_ids(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _uncovered_requirement_ids(
+    requirements: list[dict[str, str]],
+    plan: list[dict[str, Any]],
+) -> list[str]:
+    covered = {item for unit in plan for item in _string_ids(unit.get("covers"))}
+    return [requirement["id"] for requirement in requirements if requirement["id"] not in covered]
 
 
 def _coerce_unit_id(value: Any) -> str | None:

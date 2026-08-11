@@ -257,6 +257,11 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
     actual: dict[str, Any] = {
         "stop_reason": result.stop_reason,
         "response": result.response,
+        "plan_attempts": result.plan_attempts,
+        "requirements_covered": result.requirements_covered,
+        "uncovered_requirements": result.uncovered_requirements,
+        "degradations": result.degradations,
+        "evaluation_attempts": result.evaluation_attempts,
         "checkpoints": result.checkpoints,
         "subtasks": _subtask_expectation(result.subtasks, expected.get("subtasks", [])),
         "checkpoint_counts": {
@@ -307,12 +312,16 @@ def _task_adapters(case: dict[str, Any], config: CoreConfig) -> dict[str, Script
         return adapters
 
     if "units" in script:
-        return _coverage_adapters(script, config, [json.dumps(script["units"], ensure_ascii=False)])
+        return _coverage_adapters(
+            script,
+            config,
+            [_serialize_legacy_plan(script["units"], "units")],
+        )
 
     planner_responses: list[str] = []
     decisions = iter(script.get("evaluate_decisions", []))
     for plan in script.get("plans", []):
-        planner_responses.append(json.dumps(plan, ensure_ascii=False))
+        planner_responses.append(_serialize_legacy_plan(plan, "subtasks"))
         try:
             planner_responses.append(str(next(decisions)))
         except StopIteration:
@@ -370,6 +379,21 @@ def _serialize_derivation(derivation: dict[str, Any]) -> str:
         return json.dumps(plan, ensure_ascii=False)
     return json.dumps(
         {"requirements": derivation["requirements"], plan_key: plan},
+        ensure_ascii=False,
+    )
+
+
+def _serialize_legacy_plan(plan: list[dict[str, Any]], plan_key: str) -> str:
+    requirement_id = "legacy_requirement"
+    covered_plan = [
+        {**item, "covers": item.get("covers", [requirement_id])}
+        for item in plan
+    ]
+    return json.dumps(
+        {
+            "requirements": [{"id": requirement_id, "text": "legacy fixture task"}],
+            plan_key: covered_plan,
+        },
         ensure_ascii=False,
     )
 

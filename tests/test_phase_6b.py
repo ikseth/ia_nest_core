@@ -205,12 +205,11 @@ def test_task_adapters_plans_keep_interleaved_decision_order() -> None:
         load_config("eval/fixtures/orchestration.yaml"),
     )
 
-    assert adapters["fake_planner"].responses == [
-        json.dumps(first, ensure_ascii=False),
-        "rerun",
-        json.dumps(second, ensure_ascii=False),
-        "done",
-    ]
+    responses = adapters["fake_planner"].responses
+    assert responses[1] == "rerun"
+    assert responses[3] == "done"
+    assert [item["prompt"] for item in json.loads(responses[0])["subtasks"]] == ["primera"]
+    assert [item["prompt"] for item in json.loads(responses[2])["subtasks"]] == ["segunda"]
 
 
 def _task_case(script: dict[str, object], *, mode: str = "pipeline") -> dict[str, object]:

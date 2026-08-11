@@ -468,11 +468,16 @@ def test_coverage_plan_accepts_integer_and_missing_ids(tmp_path) -> None:
 def test_coverage_plan_rejects_duplicate_ids_after_coercion(tmp_path) -> None:
     units = [{"id": 1, "prompt": "uno"}, {"id": "1", "prompt": "repetido"}]
 
-    with pytest.raises(CoreError) as exc:
-        _runtime(tmp_path, units, ["ONE"], [["1"]]).run(prompt="duplicados", mode="coverage")
+    result = _runtime(tmp_path, units, ["ONE"], [["u1"]]).run(
+        prompt="duplicados",
+        mode="coverage",
+    )
 
-    assert exc.value.type == "PlanParseError"
-    assert exc.value.field == "id"
+    assert result.stop_reason == "task_done"
+    assert result.plan_attempts == 2
+    assert result.degradations == [
+        {"stage": "plan", "reason": "unparseable_shape", "action": "single_subtask"}
+    ]
 
 
 def _runtime(
@@ -497,8 +502,16 @@ def _runtime(
             jsonl_path=str(tmp_path / "trace.jsonl"),
         ),
     )
+    requirement_id = "r1"
+    derivation = {
+        "requirements": [{"id": requirement_id, "text": "complete the task"}],
+        "units": [
+            {**unit, "covers": unit.get("covers", [requirement_id])}
+            for unit in units
+        ],
+    }
     configured = {
-        "fake_planner": CapturingAdapter("fake_planner", [json.dumps(units)]),
+        "fake_planner": CapturingAdapter("fake_planner", [json.dumps(derivation)]),
         "fake_general": generator or CapturingAdapter("fake_general", responses),
         "fake_validator": CapturingAdapter(
             "fake_validator",

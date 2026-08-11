@@ -15,6 +15,17 @@ from ianest_core.runtime import TaskRuntime
 from ianest_core.runtime.task_runtime import _parse_evaluation_decision, _parse_plan
 
 
+def _plan_response(subtasks) -> str:
+    requirement_id = "r1"
+    return json.dumps({
+        "requirements": [{"id": requirement_id, "text": "complete the task"}],
+        "subtasks": [
+            {**subtask, "covers": subtask.get("covers", [requirement_id])}
+            for subtask in subtasks
+        ],
+    })
+
+
 def test_plan_parser_accepts_markdown_fences() -> None:
     assert _parse_plan('```json\n[{"prompt": "s1"}]\n```') == [{"prompt": "s1"}]
 
@@ -35,7 +46,7 @@ def test_evaluation_parser_accepts_surrounding_prose() -> None:
 def test_pipeline_accepts_integer_and_numeric_string_dependencies(tmp_path, depends_on) -> None:
     planner = CountingScriptedAdapter(
         "fake_planner",
-        [json.dumps([{"prompt": "first", "domain": "general", "depends_on": depends_on}, {"prompt": "second", "domain": "general"}]), "done"],
+        [_plan_response([{"prompt": "first", "domain": "general", "depends_on": depends_on}, {"prompt": "second", "domain": "general"}]), "done"],
     )
     general = CountingScriptedAdapter("fake_general", ["SECOND", "FIRST"])
     adapters = {
@@ -54,7 +65,7 @@ def test_pipeline_accepts_integer_and_numeric_string_dependencies(tmp_path, depe
 
 def test_pipeline_rejects_non_numeric_dependency_string(tmp_path) -> None:
     planner = CountingScriptedAdapter(
-        "fake_planner", [json.dumps([{"prompt": "subtask", "domain": "general", "depends_on": ["a"]}])]
+        "fake_planner", [_plan_response([{"prompt": "subtask", "domain": "general", "depends_on": ["a"]}])]
     )
     with pytest.raises(CoreError) as exc:
         TaskRuntime(_config(tmp_path), adapter_factory={"fake_planner": planner}.get).run(prompt="task", request_id="parent")
@@ -66,7 +77,7 @@ def test_pipeline_rejects_non_numeric_dependency_string(tmp_path) -> None:
 def test_pipeline_rejects_boolean_dependency(tmp_path) -> None:
     planner = CountingScriptedAdapter(
         "fake_planner",
-        [json.dumps([
+        [_plan_response([
             {"prompt": "first", "domain": "general", "depends_on": [True]},
             {"prompt": "second", "domain": "general"},
         ])],
@@ -83,7 +94,7 @@ def test_pipeline_rejects_boolean_dependency(tmp_path) -> None:
 
 def test_pipeline_rejects_out_of_range_dependency_before_subtasks_run(tmp_path) -> None:
     planner = CountingScriptedAdapter(
-        "fake_planner", [json.dumps([{"prompt": "subtask", "domain": "general", "depends_on": [1]}])]
+        "fake_planner", [_plan_response([{"prompt": "subtask", "domain": "general", "depends_on": [1]}])]
     )
     general = CountingScriptedAdapter("fake_general", [])
     adapters = {"fake_planner": planner, "fake_general": general}
@@ -99,7 +110,7 @@ def test_pipeline_rejects_out_of_range_dependency_before_subtasks_run(tmp_path) 
 def test_pipeline_rejects_cyclic_dependencies_before_subtasks_run(tmp_path) -> None:
     planner = CountingScriptedAdapter(
         "fake_planner",
-        [json.dumps([
+        [_plan_response([
             {"prompt": "first", "domain": "general", "depends_on": [1]},
             {"prompt": "second", "domain": "general", "depends_on": [0]},
         ])],
@@ -130,7 +141,7 @@ def test_domain_hint_is_advisory_context_for_router(tmp_path) -> None:
     adapters = {
         "fake_router": router_adapter,
         "fake_planner": ScriptedFakeAdapter(
-            "fake_planner", [json.dumps([{"prompt": "escribe una funcion", "domain_hint": "Filosofia"}]), "done"]
+            "fake_planner", [_plan_response([{"prompt": "escribe una funcion", "domain_hint": "Filosofia"}]), "done"]
         ),
         "fake_code": ScriptedFakeAdapter("fake_code", ["FUNCION"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
@@ -162,7 +173,7 @@ def test_subtask_declared_domain_bypasses_router(tmp_path) -> None:
         "fake_router": router_adapter,
         "fake_planner": ScriptedFakeAdapter(
             "fake_planner",
-            [json.dumps([{"prompt": "escribe una funcion", "domain": "codigo"}]), "done"],
+            [_plan_response([{"prompt": "escribe una funcion", "domain": "codigo"}]), "done"],
         ),
         "fake_code": ScriptedFakeAdapter("fake_code", ["FUNCION"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
@@ -183,7 +194,7 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     adapters = {
         "fake_planner": ScriptedFakeAdapter(
             "fake_planner",
-            [json.dumps([{"prompt": "razona", "domain": "razonamiento"}, {"prompt": "codifica", "domain": "codigo"}]), "done"],
+            [_plan_response([{"prompt": "razona", "domain": "razonamiento"}, {"prompt": "codifica", "domain": "codigo"}]), "done"],
         ),
         "fake_reason": ScriptedFakeAdapter("fake_reason", ["A"]),
         "fake_code": ScriptedFakeAdapter("fake_code", ["B"], finish_reason="length"),
@@ -224,7 +235,7 @@ def test_task_runtime_rerun_records_unique_iteration_and_index_pairs(tmp_path) -
     adapters = {
         "fake_planner": ScriptedFakeAdapter(
             "fake_planner",
-            [json.dumps([{"prompt": "primera", "domain": "general"}, {"prompt": "segunda", "domain": "general"}]), "rerun", "done"],
+            [_plan_response([{"prompt": "primera", "domain": "general"}, {"prompt": "segunda", "domain": "general"}]), "rerun", "done"],
         ),
         "fake_general": ScriptedFakeAdapter("fake_general", ["A"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["AB"]),
@@ -259,7 +270,7 @@ def test_task_runtime_requires_orchestration_config() -> None:
 
 def test_task_runtime_propagates_subtask_model_unavailable(tmp_path) -> None:
     config = _config(tmp_path)
-    planner = ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "razona", "domain": "razonamiento"}])])
+    planner = ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "razona", "domain": "razonamiento"}])])
     runtime = TaskRuntime(
         config,
         availability=StaticAvailabilityProvider(unavailable_models={"fake_reason"}),
@@ -276,7 +287,7 @@ def test_task_runtime_limits_real_accumulated_tokens_and_traces_them(tmp_path) -
         orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
     )
     adapters = {
-        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "rerun"]),
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "subtarea", "domain": "general"}]), "rerun"]),
         "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
     }
@@ -300,7 +311,7 @@ def test_task_runtime_done_beats_exceeded_context_budget(tmp_path) -> None:
         orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
     )
     adapters = {
-        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "subtarea", "domain": "general"}]), "done"]),
         "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
     }
@@ -314,7 +325,7 @@ def test_task_runtime_done_beats_exceeded_context_budget(tmp_path) -> None:
 def test_task_runtime_done_beats_exceeded_time_limit(tmp_path) -> None:
     config = _config(tmp_path)
     adapters = {
-        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "subtarea", "domain": "general"}]), "done"]),
         "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
     }
@@ -334,7 +345,7 @@ def test_task_runtime_simulated_context_tokens_override_real_accumulation(tmp_pa
         orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
     )
     adapters = {
-        "fake_planner": ScriptedFakeAdapter("fake_planner", [json.dumps([{"prompt": "subtarea", "domain": "general"}]), "done"]),
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "subtarea", "domain": "general"}]), "done"]),
         "fake_general": ScriptedFakeAdapter("fake_general", ["respuesta de subtarea"]),
         "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["respuesta combinada"]),
     }

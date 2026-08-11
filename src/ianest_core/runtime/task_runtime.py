@@ -263,6 +263,7 @@ class TaskRuntime:
 
             iterations += 1
             iteration_results = self._fan_out(
+                prompt,
                 plan,
                 iterations,
                 identity_data,
@@ -1183,7 +1184,7 @@ class TaskRuntime:
             completed.update(ready)
             remaining.difference_update(ready)
 
-    def _fan_out(self, plan: list[dict[str, Any]], iteration: int, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
+    def _fan_out(self, objective: str, plan: list[dict[str, Any]], iteration: int, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
         pending = set(range(len(plan)))
         completed: dict[int, dict[str, Any]] = {}
         while pending:
@@ -1196,6 +1197,7 @@ class TaskRuntime:
                         self._run_subtask,
                         index,
                         iteration,
+                        objective,
                         plan[index],
                         identity,
                         parent,
@@ -1209,7 +1211,7 @@ class TaskRuntime:
                     pending.remove(index)
         return [completed[index] for index in range(len(plan))]
 
-    def _run_subtask(self, index: int, iteration: int, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
+    def _run_subtask(self, index: int, iteration: int, objective: str, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
         declared_domain = item.get("domain")
         fixed_domain = self._configured_domain(declared_domain)
         domain_hint = item.get("domain_hint")
@@ -1225,8 +1227,9 @@ class TaskRuntime:
             "subtask_index": index,
             "iteration": iteration,
         }
+        content = self._subtask_execution_prompt(objective, str(item["prompt"]))
         result = self._run_prompt(
-            prompt=str(item["prompt"]), domain_id=domain_id,
+            prompt=content, domain_id=domain_id,
             identity=identity, request_id=request_id, trace_payload=trace_payload, token_usage=token_usage,
         )
         record = {
@@ -1243,6 +1246,18 @@ class TaskRuntime:
             "parent_request_id": parent,
         }
         return record
+
+    @staticmethod
+    def _subtask_execution_prompt(objective: str, subtask: str) -> str:
+        return (
+            f"Global objective (CONTEXT ONLY; do not answer it as a whole): {objective}\n"
+            f"Assigned subtask (the ONLY content to produce): {subtask}\n"
+            "Produce ONLY the content that directly fulfills the assigned subtask. "
+            "Do not include a preamble, conclusion, transition, or meta-commentary. "
+            "Do not restate or rephrase the subtask prompt as an introductory sentence; "
+            "emit the requested content directly. "
+            "Do not address other subtasks or any other part of the global objective."
+        )
 
     def _configured_domain(self, value: Any) -> str | None:
         for domain in self.config.domains:
@@ -1261,7 +1276,13 @@ class TaskRuntime:
         )
 
     def _combine(self, prompt: str, results: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> str:
-        content = f"Combine the subtask results into one answer. Task: {prompt}\nResults: {json.dumps(results, ensure_ascii=False)}"
+        content = (
+            "Combine the subtask results into one internally consistent answer. "
+            "When results make incompatible claims about the same point, do not present both "
+            "as facts; present them as divergent versions. Do not decide which version is true "
+            "or verify any claim. Do not add qualifications where the results do not diverge. "
+            f"Task: {prompt}\nResults: {json.dumps(results, ensure_ascii=False)}"
+        )
         return self._run_target(self.settings.combiner, content, identity, parent, task_id, "combiner", token_usage).response
 
     def _evaluate(

@@ -189,6 +189,94 @@ def test_subtask_declared_domain_bypasses_router(tmp_path) -> None:
     assert router_adapter.calls == 0
 
 
+def test_pipeline_subtask_prompt_keeps_objective_as_context_and_routing_bare(tmp_path) -> None:
+    objective = "Explain the legend of the number 47 in cinema"
+    subtask = "Find films that mention the number"
+    config = replace(
+        load_config("eval/fixtures/router.yaml"),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+        ),
+    )
+    router_adapter = CountingScriptedAdapter(
+        "fake_router",
+        ['{"domain": "codigo", "confidence": 0.9, "reason": "films"}'],
+    )
+    subtask_adapter = CountingScriptedAdapter("fake_code", ["FILMS"])
+    combiner_adapter = CountingScriptedAdapter("fake_combiner", ["FINAL"])
+    adapters = {
+        "fake_router": router_adapter,
+        "fake_planner": ScriptedFakeAdapter(
+            "fake_planner", [_plan_response([{"prompt": subtask}]), "done"]
+        ),
+        "fake_code": subtask_adapter,
+        "fake_combiner": combiner_adapter,
+    }
+
+    result = TaskRuntime(config, adapter_factory=adapters.get).run(prompt=objective, request_id="parent")
+
+    execution_prompt = subtask_adapter.prompts[0]
+    assert "Global objective (CONTEXT ONLY; do not answer it as a whole):" in execution_prompt
+    assert objective in execution_prompt
+    assert "Assigned subtask (the ONLY content to produce):" in execution_prompt
+    assert subtask in execution_prompt
+    assert "Do not address other subtasks or any other part of the global objective." in execution_prompt
+    assert objective not in router_adapter.prompts[0]
+    assert subtask in router_adapter.prompts[0]
+    assert result.subtasks[0]["prompt"] == subtask
+    assert "internally consistent answer" in combiner_adapter.prompts[0]
+    assert "present them as divergent versions" in combiner_adapter.prompts[0]
+    assert "Do not decide which version is true or verify any claim." in combiner_adapter.prompts[0]
+    assert "Do not add qualifications where the results do not diverge." in combiner_adapter.prompts[0]
+
+
+def test_coverage_generation_and_validation_prompts_remain_unchanged(tmp_path) -> None:
+    objective = "Cover the first film"
+    unit = {"id": "u1", "prompt": "describe the first film", "domain": "general"}
+    config = replace(
+        load_config("eval/fixtures/orchestration_coverage.yaml"),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+        ),
+    )
+    generator = CountingScriptedAdapter("fake_general", ["FILM"])
+    validator = CountingScriptedAdapter("fake_validator", ['["u1"]'])
+    derivation = json.dumps({
+        "requirements": [{"id": "r1", "text": "complete the task"}],
+        "units": [{**unit, "covers": ["r1"]}],
+    })
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", [derivation]),
+        "fake_general": generator,
+        "fake_validator": validator,
+    }
+
+    TaskRuntime(config, adapter_factory=adapters.get).run(prompt=objective, mode="coverage")
+
+    assert generator.prompts == [
+        "Global objective (CONTEXT ONLY; do not answer it as a whole): Cover the first film\n"
+        'Assigned coverage units (the ONLY content to produce): [{"id": "u1", "prompt": "describe the first film"}]\n'
+        "Completed unit references: none\n"
+        "Produce ONLY the content that directly fulfills the assigned coverage units. "
+        "Do not include a preamble, conclusion, transition, or meta-commentary. "
+        "Do not restate or rephrase a unit prompt as an introductory sentence; "
+        "emit the requested content directly. "
+        "Do not address unassigned units or any other part of the global objective. "
+        "Do not repeat completed units."
+    ]
+    assert validator.prompts == [
+        "You decide which target units a fragment covers. Return ONLY a JSON array of "
+        "ids, taken exactly from this list and nothing else: [\"u1\"]. Include an id if and only if the "
+        "fragment addresses that unit. Do not include titles, content, explanations or "
+        "any other text; the answer must be short. Example of a valid answer: [\"u1\"].\n"
+        "Objective: Cover the first film\n"
+        "Target units: [{\"id\": \"u1\", \"prompt\": \"describe the first film\"}]\n"
+        "Fragment: FILM"
+    ]
+
+
 def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     config = _config(tmp_path)
     adapters = {

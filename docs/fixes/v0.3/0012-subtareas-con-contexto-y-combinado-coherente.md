@@ -1,6 +1,6 @@
 # 0012: subtareas que ven la tarea, y un combinado que no se contradice
 
-Estado: propuesta
+Estado: implementada
 Tipo: correccion (dos defectos encadenados del modo pipeline)
 Impacto de version: patch
 Version objetivo: v0.3.x
@@ -142,4 +142,13 @@ pregunta de la leyenda del numero, que es el caso que produjo la evidencia:
 
 ## Resultado
 
-(pendiente de implementacion)
+Implementado en `task_runtime.py`: cada subtarea de `pipeline` recibe el
+objetivo global solo como contexto y su enunciado como unico contenido a
+producir. El enrutado conserva el enunciado pelado de la subtarea y el registro
+tambien lo conserva. COMBINE recibe instrucciones para estructurar versiones
+divergentes sin decidir exactitud factual ni matizar cuando no hay divergencia.
+
+Se anadieron pruebas del prompt compuesto, el enrutado pelado, el registro de
+subtarea, la instruccion de COMBINE y los dos prompts sin cambios de coverage.
+La bateria de conformance conserva 61/61 y el digest declarado; pytest pasa con
+y sin extras de interfaces.

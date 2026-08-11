@@ -137,11 +137,25 @@ Caso 15, smoke real: declarar y verificar `coverage_complete=true` y
 
 ## Bateria de invariantes del orquestador (ADR 0041)
 
-`eval/battery/v0.3/invariantes_orquestador.yaml.frozen`: 10 casos de
-conformidad para los tres invariantes del ADR 0041 (adecuacion semantica,
-negociacion de presupuesto y cortes no silenciosos), en los dos modos de
-`task.run`. Congelada ANTES de implementar; el runner no la carga mientras
-conserve el sufijo `.frozen`.
+`eval/battery/v0.3/invariantes_orquestador.yaml.frozen`: 18 casos de
+conformidad para los CUATRO invariantes del ADR 0041 (adecuacion semantica,
+negociacion de presupuesto, cortes no silenciosos y degradacion declarada), en
+los dos modos de `task.run`. Congelada ANTES de implementar; el runner no la
+carga mientras conserve el sufijo `.frozen`.
+
+Historia de la bateria, porque explica su forma:
+
+- Congelada el 2026-08-06 con 10 casos para I1, I2 e I3.
+- Reconciliada con ADR 0043 el 2026-08-11: se congelo ANTES del router
+  semantico, y sus subtareas y unidades declaraban solo `domain_hint`, que bajo
+  aquel ADR dejo de decidir. Como estos fixtures no configuran router, los casos
+  habrian muerto con `RoutingError`. Ahora fijan `domain`, igual que las
+  baterias ya integradas. La semantica ASESORA del hint se prueba en la bateria
+  del router: aqui el clasificador no debe ser una variable.
+- Ampliada el 2026-08-11 con 8 casos para I4. Aportan una primitiva de guion
+  nueva, `derivations: [{ raw: "<texto>" }]`, que hace que el fake
+  planificador devuelva ese texto literal: I4 se prueba contra salidas
+  MALFORMADAS y el guion estructurado solo sabe emitir planes bien formados.
 
 Al integrarla (rename a `.yaml`) el digest se recalcula y se DECLARA, con el
 patron de v0.2-3 y v0.3-2. El digest cambia ademas por la ficha v0.3/0004

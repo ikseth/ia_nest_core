@@ -236,7 +236,7 @@
 
 - id: task_stop_max_context
   track: conformance
-  description: "Presupuesto de contexto agotado (simulado): corta con max_context_tokens."
+  description: "Presupuesto agotado (simulado): corta con max_total_tokens (ADR 0044)."
   capability: task.run
   fixture: eval/fixtures/orchestration.yaml
   input:
@@ -252,7 +252,7 @@
       evaluate_decisions: [rerun]
       simulated: { context_tokens: 5000 }
   expect:
-    stop_reason: max_context_tokens
+    stop_reason: max_total_tokens
 
 - id: task_identity_and_tree_in_trace
   track: conformance

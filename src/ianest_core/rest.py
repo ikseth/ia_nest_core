@@ -81,6 +81,7 @@ def create_app(config_path: str | Path = "config/core.yaml"):
                 config_path=config_path,
                 prompt=payload["prompt"],
                 mode=payload.get("mode", "pipeline"),
+                effort=payload.get("effort"),
                 identity=payload.get("identity", {}),
             ):
                 yield service.sse_encode(event)

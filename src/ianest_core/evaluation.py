@@ -216,13 +216,22 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         result = runtime.run(
             prompt=case["input"].get("prompt", ""),
             mode=case["input"].get("mode", "pipeline"),
+            effort=case["input"].get("effort"),
             identity_override=case["input"].get("identity", {}),
             request_id=case["id"],
         )
     except CoreError as exc:
         if expected.get("error_type") == exc.type:
-            assertion = {"name": "error_type", "expected": exc.type, "actual": exc.type, "ok": True}
-            return _case_result(case, [assertion], status="pass", error={"type": exc.type, "message": exc.message})
+            assertions = _assertions(
+                {"error_type": exc.type, "error_field": exc.field},
+                expected,
+            )
+            return _case_result(
+                case,
+                assertions,
+                status="pass" if all(item["ok"] for item in assertions) else "fail",
+                error={"type": exc.type, "message": exc.message},
+            )
         raise
 
     model = result.subtasks[0]["model"] if result.subtasks else ""
@@ -262,6 +271,7 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         "uncovered_requirements": result.uncovered_requirements,
         "degradations": result.degradations,
         "evaluation_attempts": result.evaluation_attempts,
+        "token_budget_total": result.token_budget_total,
         "checkpoints": result.checkpoints,
         "subtasks": _subtask_expectation(result.subtasks, expected.get("subtasks", [])),
         "checkpoint_counts": {
@@ -274,6 +284,21 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         "chunk_index": coverage.get("chunk_index"),
         "units": _subtask_expectation(coverage.get("units", []), expected.get("units", [])),
     }
+    for name in (
+        "effort",
+        "max_subtasks",
+        "max_iterations",
+        "max_replans",
+        "max_time_s",
+        "max_parallel",
+        "units_per_chunk",
+        "max_chunks",
+        "max_retries_per_unit",
+        "max_no_progress_iterations",
+        "token_budget",
+    ):
+        if name in expected:
+            actual[name] = result.params.get(name)
     for limit in ("max_chunks", "max_total_tokens", "max_time_s"):
         if limit in expected:
             actual[limit] = _effective_limit_actual(result, limit, expected[limit])
@@ -496,7 +521,7 @@ def _execute_model_list(case: dict[str, Any], *, config_path: str | Path | None)
 
 
 def _execute_config_validate(case: dict[str, Any]) -> dict[str, Any]:
-    raw = case["input"].get("config_inline", {})
+    raw = case.get("config_inline", case["input"].get("config_inline", {}))
     expected = case.get("expect", {})
     try:
         validate_config_dict(raw)
@@ -510,7 +535,9 @@ def _execute_config_validate(case: dict[str, Any]) -> dict[str, Any]:
             error={"type": exc.type, "message": exc.message},
         )
     config = load_config_from_dict(raw)
-    assertions = _assertions({"status": "ok", "models": len(config.models)}, expected)
+    assertions = _assertions(
+        {"valid": True, "status": "ok", "models": len(config.models)}, expected
+    )
     return _case_result(case, assertions)
 
 

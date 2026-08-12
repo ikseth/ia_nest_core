@@ -79,13 +79,14 @@ def test_init_templates_declare_orchestration_and_allow_task_run(tmp_path, monke
     config = load_config(config_path)
     orchestration = config.orchestration
     assert orchestration is not None
-    for field in ("max_subtasks", "max_iterations", "max_replans", "max_time_s", "max_context_tokens", "max_parallel"):
+    for field in ("max_subtasks", "max_iterations", "max_replans", "max_time_s", "max_parallel"):
         assert getattr(orchestration, field) == OrchestrationConfig.__dataclass_fields__[field].default
+    assert orchestration.token_budget.base == 2000
+    assert orchestration.token_budget.per_subtask == 3000
     assert orchestration.coverage is not None
     for field in (
         "units_per_chunk",
         "max_chunks",
-        "max_total_tokens",
         "max_retries_per_unit",
         "max_no_progress_iterations",
     ):

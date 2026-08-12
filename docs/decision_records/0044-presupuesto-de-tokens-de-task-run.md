@@ -162,22 +162,53 @@ limite gobierna su propio eje.
 ### D5: valores por defecto, y como se fijan
 
 El ADR fija la FORMA y la regla de comprobacion. Los numeros se calibran en el
-laboratorio contra telemetria medida, no se adivinan aqui. Punto de partida
-propuesto, coherente con `max_tokens: 512` de las plantillas:
+laboratorio contra telemetria medida, no se adivinan aqui.
 
-- `base: 4096` (planificador, con margen para su segunda derivacion bajo I1/I2,
-  mas combinador y evaluador, entradas incluidas);
-- `per_subtask: 2048` (entrada y salida de la subtarea mas su contribucion a la
-  entrada del combinador).
+La calibracion se ejecuto el 2026-08-11 y el 2026-08-12 (detalle en
+`local/lab/`, no versionado): dos campanas de tamano de plan controlado con dos
+perfiles, mas dos rebanadas de salida larga en los dos modos. **Manda la medida**,
+como este apartado dejo dicho, y la medida corrigio dos cosas.
 
-Con `max_subtasks: 4` eso son 12288 por pasada, tres veces el techo actual; con
-12 unidades, 28672. Un techo no debe morder el trabajo sano: solo debe existir
-para el trabajo desbocado.
+**Correccion 1: `base` NO es un coste fijo de maquinaria.** El borrador de este
+apartado describia `base` como lo que cuestan planificador, combinador y
+evaluador, dando a entender una constante. Medido, esa maquinaria va de 632
+tokens con `n=1` a 3934 con `n=8`, porque el combinador ingiere TODOS los
+resultados de subtarea y el evaluador ingiere el combinado. El ajuste por
+minimos cuadrados sobre el total da un intercepto de 37 a 151 tokens: **`base`
+es practicamente cero y todo escala con `n`**.
 
-Puerta de laboratorio para calibrar (cruzada por los dos, doctrina de puertas):
-medir el consumo real por pasada con `n = 1, 4, 8` y fijar los defaults por
-encima del percentil alto observado. Si la medida desmiente los numeros de
-arriba, manda la medida y la ficha los ajusta.
+La FORMULA sobrevive intacta, porque D2 ya definia `per_subtask` como "entrada y
+salida de la subtarea MAS su contribucion a la entrada del combinador": el
+crecimiento estaba contabilizado en el sitio correcto. Lo que estaba mal era la
+prosa que explicaba `base`, y es lo que se corrige aqui.
+
+**Correccion 2: `per_subtask` NO escala con `max_tokens`.** Multiplicar el techo
+por llamada por ocho cambio el consumo un 7% con preguntas cortas, y con
+contenido que pide extension las subtareas escribieron 404/313 con techo 512 y
+380/306 con techo 4096: planas. El consumo por subtarea lo fija el CONTENIDO, no
+el permiso. Queda por tanto descartada la idea -que se llego a proponer durante
+la calibracion- de anclar `per_subtask` a un multiplo de `max_tokens`: daria un
+techo diez veces mayor que el gasto, que no protege de nada porque nada llega
+ahi.
+
+Valores fijados, sobre el peor caso medido (10113 tokens, modo `pipeline`,
+`n=6`, `max_tokens` 4096) con holgura de aproximadamente 2x:
+
+- `base: 2000`
+- `per_subtask: 3000`
+
+Comprobaciones: `pipeline` con `n=6` concede 20000 frente a 10113 medidos, y con
+`n=4` concede 14000 frente a 8019. `coverage` con `n=4` concede
+`2000 + 3000 * 4 * (1+2) = 38000` frente a 4776 medidos: holgado, pero es el
+factor de reintentos que D2 exige contabilizar, y aun agotando los reintentos el
+gasto rondaria 14000. Sobre trabajo corto (`n=8`, 6168 medidos) concede 26000.
+Un techo no debe morder el trabajo sano: solo debe existir para el trabajo
+desbocado.
+
+Estos valores son de PLANTILLA y de esquema. Un despliegue que suba el
+`max_tokens` de sus perfiles no necesita moverlos, porque el consumo no escala
+con ese techo; lo que si debe revisar es si su contenido tipico es mucho mas
+extenso que el medido aqui.
 
 ## Motivo
 

@@ -293,29 +293,39 @@ def test_coverage_no_progress_preserves_partial_at_chunk_three(tmp_path) -> None
     assert result.coverage["chunk_index"] == 3
 
 
-@pytest.mark.parametrize(
-    ("simulated", "expected_reason"),
-    [
-        ({"elapsed_s": 31}, "max_time"),
-        ({"context_tokens": 16385}, "max_total_tokens"),
-    ],
-)
-def test_coverage_cuts_before_first_cycle(tmp_path, simulated, expected_reason) -> None:
+def test_coverage_time_cuts_before_first_cycle(tmp_path) -> None:
     runtime = _runtime(
         tmp_path,
         [{"id": "u1", "prompt": "punto"}],
         ["ONE"],
         [],
-        simulated=simulated,
+        simulated={"elapsed_s": 31},
     )
 
     result = runtime.run(prompt="objetivo", mode="coverage")
 
-    assert result.stop_reason == expected_reason
+    assert result.stop_reason == "max_time"
     assert result.response == ""
     assert result.coverage["completed_units"] == []
     assert result.coverage["pending_units"] == ["u1"]
     assert result.coverage["chunk_index"] == 0
+
+
+def test_coverage_token_budget_can_veto_the_first_cycle_after_plan(tmp_path) -> None:
+    result = _runtime(
+        tmp_path,
+        [{"id": "u1", "prompt": "posible"}, {"id": "u2", "prompt": "pendiente"}],
+        ["ONE"],
+        [["u1"]],
+        simulated={"context_tokens": 20000},
+    ).run(prompt="objetivo", mode="coverage")
+
+    assert result.stop_reason == "max_total_tokens"
+    assert result.response == ""
+    assert result.coverage["completed_units"] == []
+    assert result.coverage["pending_units"] == ["u1", "u2"]
+    assert result.coverage["chunk_index"] == 0
+    assert result.token_budget_total == 20000
 
 
 def test_coverage_max_chunks_does_not_exceed_eight(tmp_path) -> None:

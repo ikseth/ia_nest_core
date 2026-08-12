@@ -2,6 +2,8 @@ from ianest_core.config.loader import load_config, load_config_data, load_config
 from ianest_core.config.schema import (
     CoreConfig,
     DomainConfig,
+    EffortConfig,
+    EffortCoverageConfig,
     ModelConfig,
     OrchestrationConfig,
     OrchestrationTargetConfig,
@@ -12,6 +14,8 @@ from ianest_core.config.validator import validate_config_dict
 __all__ = [
     "CoreConfig",
     "DomainConfig",
+    "EffortConfig",
+    "EffortCoverageConfig",
     "ModelConfig",
     "OrchestrationConfig",
     "OrchestrationTargetConfig",

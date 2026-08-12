@@ -1,8 +1,7 @@
 # Fixture para la bateria de presupuesto y esfuerzo (ADR 0044 y 0045).
 # Clona el fixture de orquestacion y le anade lo que esas dos decisiones
-# introducen: token_budget, effort y default_effort. Las claves nuevas son
-# INERTES hasta que el esquema las aprenda -el validador no rechaza claves
-# desconocidas-, que es lo que permite congelar la bateria antes de implementar.
+# introducen: token_budget, effort y default_effort. La bateria se congelo
+# cuando las claves nuevas aun eran inertes; ahora el runtime las consume.
 #
 # Los numeros son PEQUENOS y REDONDOS a proposito: esta bateria fija SEMANTICA,
 # no calibracion. Los valores que se publiquen en esquema, cargador y plantillas
@@ -102,8 +101,8 @@ orchestration:
   max_time_s: 120
   max_parallel: 2
   token_budget:
-    base: 100
-    per_subtask: 10
+    base: 1000
+    per_subtask: 500
   default_effort: medium
   effort:
     low:

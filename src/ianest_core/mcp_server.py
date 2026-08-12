@@ -46,12 +46,14 @@ def create_server(
     def task_run(
         prompt: str,
         mode: str = "pipeline",
+        effort: str | None = None,
         identity: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         return service.run_task(
             config_path=config_path,
             prompt=prompt,
             mode=mode,
+            effort=effort,
             identity=identity or {},
         )
 

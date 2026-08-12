@@ -50,6 +50,12 @@ class OrchestrationTargetConfig:
 
 
 @dataclass(frozen=True)
+class TokenBudgetConfig:
+    base: int = 2000
+    per_subtask: int = 3000
+
+
+@dataclass(frozen=True)
 class RouterConfig:
     model: str | None
     domain: str | None
@@ -61,22 +67,38 @@ class CoverageConfig:
     validator: OrchestrationTargetConfig
     units_per_chunk: int = 3
     max_chunks: int = 8
-    max_total_tokens: int = 16384
     max_retries_per_unit: int = 2
     max_no_progress_iterations: int = 2
+
+
+@dataclass(frozen=True)
+class EffortCoverageConfig:
+    max_chunks: int | None = None
+    max_retries_per_unit: int | None = None
+
+
+@dataclass(frozen=True)
+class EffortConfig:
+    max_subtasks: int | None = None
+    max_iterations: int | None = None
+    max_replans: int | None = None
+    max_time_s: float | None = None
+    coverage: EffortCoverageConfig | None = None
 
 
 @dataclass(frozen=True)
 class OrchestrationConfig:
     planner: OrchestrationTargetConfig
     combiner: OrchestrationTargetConfig
-    max_subtasks: int = 4
+    max_subtasks: int = 6
     max_iterations: int = 2
     max_replans: int = 1
-    max_time_s: float = 30
-    max_context_tokens: int = 16384
+    max_time_s: float = 120
     max_parallel: int = 2
+    token_budget: TokenBudgetConfig = field(default_factory=TokenBudgetConfig)
     coverage: CoverageConfig | None = None
+    default_effort: str = "medium"
+    effort: dict[str, EffortConfig] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

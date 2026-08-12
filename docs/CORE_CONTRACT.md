@@ -149,7 +149,7 @@ Debe tener:
 - checkpoints observables del flujo D2: `task_received`, `plan_ready`,
   `subtask_done`, `combine_ready`, `iteration_end`, `task_done`,
 - cortes tipados: `task_done | max_subtasks | max_iterations | max_replans |
-  max_time | max_context_tokens | error`,
+  max_time | max_total_tokens | error`,
 - limites configurables (seccion `orchestration` de la config; incluye
   re-planificaciones y tope de paralelismo),
 - identidad propagada a cada subtarea,
@@ -166,7 +166,26 @@ Debe devolver:
   cubria los requisitos extraidos del prompt,
 - `plan_attempts` y `evaluation_attempts` (1 o 2), contadores independientes
   de las etapas PLAN y EVALUATE,
-- `degradations`, lista de degradaciones declaradas; vacia en el camino sano.
+- `degradations`, lista de degradaciones declaradas; vacia en el camino sano,
+- `token_budget_total`, la suma de concesiones de presupuesto vigente.
+
+Presupuesto de tokens (ADR 0044): `orchestration.token_budget` declara `base` y
+`per_subtask`, y la concesion de una pasada es `base + per_subtask * n`; en
+`coverage`, `base + per_subtask * n * (1 + max_retries_per_unit)`, porque los
+reintentos por unidad son gasto autorizado por contrato. Se concede en cada plan
+producido y se ACUMULA, y el gasto de la tarea se mide contra la suma.
+
+**El presupuesto decide si empieza otra pasada; nunca mutila la que esta en
+curso.** La pasada en marcha termina entera, asi que nunca se corta entre el
+fan-out y el combinado, y si el evaluador dice `done` -o la cobertura queda
+completa- el corte es `task_done` aunque el gasto haya superado el presupuesto:
+agotar el presupuesto DESPUES de terminar bien no es un corte. Una re-derivacion
+de PLAN gasta de la concesion en curso y no concede otra; una re-planificacion y
+una iteracion nueva si conceden.
+
+`orchestration.max_context_tokens` quedo RETIRADO por ADR 0044 y se ignora si
+aparece. `reasoning.run` conserva el suyo, de perfil, con el sentido del
+ADR 0008: son cosas distintas.
 
 PLAN declara en cada `plan_ready` los campos aditivos `requirements` (id y
 enunciado), `plan_attempts`, `requirements_covered` y
@@ -251,10 +270,12 @@ Debe devolver ademas (aditivo, modo coverage):
 - contadores efectivos (chunks, tokens acumulados, reintentos).
 
 Config declarativa aditiva (`orchestration.coverage`): `validator`,
-`units_per_chunk`, `max_chunks`, `max_total_tokens`,
-`max_retries_per_unit`, `max_no_progress_iterations`. Los limites
-globales de `orchestration` (`max_time_s`, `max_parallel`,
-`max_subtasks` como techo de unidades derivables) aplican tambien.
+`units_per_chunk`, `max_chunks`, `max_retries_per_unit`,
+`max_no_progress_iterations`. Los limites globales de `orchestration`
+(`max_time_s`, `max_parallel`, `max_subtasks` como techo de unidades
+derivables) aplican tambien, incluido el presupuesto de tokens.
+`coverage.max_total_tokens` quedo RETIRADO por ADR 0044: el presupuesto de
+coverage se calcula igual que el de pipeline, con el factor de reintentos.
 
 Regla de compatibilidad: los consumidores de streaming deben tolerar
 tipos de evento y valores de `stop_reason` que no conozcan; las

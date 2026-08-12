@@ -58,13 +58,51 @@ Parametros de generacion, limites y `system` opcional. Campos: `id`,
         system: "Responde siempre en espanol."
 
 ### orchestration
-Limites y objetivos de `task.run`. `max_context_tokens` es el presupuesto
-global de una tarea en modo pipeline; su valor por defecto es `16384`.
+Objetivos y limites de `task.run`. El bloque base es el nivel de esfuerzo
+`medium`. `default_effort` selecciona el nivel cuando la peticion no envia
+`effort`; su valor de fabrica es `medium`.
 
     orchestration:
       planner: { model: local_llama, profile: default }
       combiner: { model: local_llama, profile: default }
-      max_context_tokens: 16384
+      max_subtasks: 6
+      max_iterations: 2
+      max_replans: 1
+      max_time_s: 120
+      max_parallel: 2
+      token_budget: { base: 2000, per_subtask: 3000 }
+      default_effort: medium
+      effort:
+        low:
+          max_subtasks: 3
+          max_iterations: 1
+          max_replans: 0
+          max_time_s: 30
+          coverage: { max_chunks: 4, max_retries_per_unit: 1 }
+        high:
+          max_subtasks: 12
+          max_iterations: 4
+          max_replans: 2
+          max_time_s: 480
+          coverage: { max_chunks: 16, max_retries_per_unit: 3 }
+      coverage:
+        validator: { model: local_llama, profile: default }
+        units_per_chunk: 3
+        max_chunks: 8
+        max_retries_per_unit: 2
+        max_no_progress_iterations: 2
+
+La precedencia se aplica campo a campo: un valor declarado en el nivel
+sustituye al de la base; un valor ausente hereda la base. Un nivel del
+vocabulario `low | medium | high` que no figure en `effort` tambien resuelve a
+la base, sin error.
+
+El esfuerzo gobierna trabajo autorizado: `max_subtasks`, `max_iterations`,
+`max_replans`, `max_time_s`, `coverage.max_chunks` y
+`coverage.max_retries_per_unit`. No cambia `max_parallel`,
+`coverage.units_per_chunk` ni `coverage.max_no_progress_iterations`, que son
+ejes de maquina. Tampoco cambia `token_budget`: `base` y `per_subtask` miden el
+coste y no son una politica de esfuerzo.
 
 Las renegociaciones de PLAN y EVALUATE no son parametros de configuracion:
 cada etapa dispone de una por tarea, fijada en contrato (ADR 0041). Son

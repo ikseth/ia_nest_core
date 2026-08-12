@@ -47,7 +47,7 @@ EVENTS = [
 ]
 
 
-def test_service_task_mode_is_forwarded_unchanged(monkeypatch) -> None:
+def test_service_task_mode_and_effort_are_forwarded_unchanged(monkeypatch) -> None:
     calls = []
 
     class Result:
@@ -69,11 +69,13 @@ def test_service_task_mode_is_forwarded_unchanged(monkeypatch) -> None:
     monkeypatch.setattr(service, "load_config", lambda path: object())
     monkeypatch.setattr(service, "TaskRuntime", Runtime)
 
-    service.run_task(config_path="unused", prompt="tarea", mode="coverage")
-    list(service.stream_task(config_path="unused", prompt="tarea", mode="coverage"))
+    service.run_task(config_path="unused", prompt="tarea", mode="coverage", effort="high")
+    list(service.stream_task(config_path="unused", prompt="tarea", mode="coverage", effort="low"))
 
     assert calls[0][1]["mode"] == "coverage"
+    assert calls[0][1]["effort"] == "high"
     assert calls[1][1]["mode"] == "coverage"
+    assert calls[1][1]["effort"] == "low"
 
 
 def test_cli_task_run_emits_checkpoints_as_jsonl(monkeypatch, capsys) -> None:
@@ -82,7 +84,7 @@ def test_cli_task_run_emits_checkpoints_as_jsonl(monkeypatch, capsys) -> None:
 
     exit_code = main([
         "--config", "unused", "task", "run", "--prompt", "tarea",
-        "--mode", "coverage", "--json",
+        "--mode", "coverage", "--effort", "high", "--json",
     ])
     captured = capsys.readouterr()
     output = [json.loads(line) for line in captured.out.splitlines()]
@@ -91,6 +93,7 @@ def test_cli_task_run_emits_checkpoints_as_jsonl(monkeypatch, capsys) -> None:
     assert [event["type"] for event in output] == ["task_received", "plan_ready", "task_done"]
     assert captured.err == ""
     assert calls[0]["mode"] == "coverage"
+    assert calls[0]["effort"] == "high"
 
 
 def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys) -> None:
@@ -409,7 +412,7 @@ def test_rest_task_run_is_sse(monkeypatch) -> None:
     endpoint = next(route.endpoint for route in app.routes if route.path == "/task/run")
 
     async def call_task():
-        response = await endpoint(Request({"prompt": "tarea", "mode": "coverage"}))
+        response = await endpoint(Request({"prompt": "tarea", "mode": "coverage", "effort": "high"}))
         default_response = await endpoint(Request({"prompt": "tarea"}))
         return response, default_response
 
@@ -420,8 +423,10 @@ def test_rest_task_run_is_sse(monkeypatch) -> None:
     assert '"evaluation_attempts": 1' in body
     assert '"degradations": []' in body
     assert calls[0]["mode"] == "coverage"
+    assert calls[0]["effort"] == "high"
     list(default_response.content)
     assert calls[1]["mode"] == "pipeline"
+    assert calls[1]["effort"] is None
 
 
 @pytest.mark.skipif(importlib.util.find_spec("mcp") is None, reason="MCP extra not installed")
@@ -434,7 +439,9 @@ def test_mcp_exposes_task_run(monkeypatch) -> None:
     server = create_server("unused")
 
     async def call_task():
-        return await server.call_tool("task.run", {"prompt": "tarea", "mode": "coverage"})
+        return await server.call_tool(
+            "task.run", {"prompt": "tarea", "mode": "coverage", "effort": "high"}
+        )
 
     _, structured = anyio.run(call_task)
     assert structured["response"] == "FINAL"
@@ -443,9 +450,11 @@ def test_mcp_exposes_task_run(monkeypatch) -> None:
     assert structured["evaluation_attempts"] == 1
     assert structured["degradations"] == []
     assert calls[0]["mode"] == "coverage"
+    assert calls[0]["effort"] == "high"
 
     async def call_task_default():
         return await server.call_tool("task.run", {"prompt": "tarea"})
 
     anyio.run(call_task_default)
     assert calls[1]["mode"] == "pipeline"
+    assert calls[1]["effort"] is None

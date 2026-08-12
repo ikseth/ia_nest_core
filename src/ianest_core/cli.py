@@ -173,6 +173,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default="pipeline",
         help="modo de ejecucion de task.run (por defecto: %(default)s)",
     )
+    task_run_parser.add_argument(
+        "--effort",
+        choices=["low", "medium", "high"],
+        help="nivel de esfuerzo; sin bandera usa orchestration.default_effort",
+    )
     _add_json_argument(task_run_parser, "cada checkpoint como JSONL")
     _add_quiet_argument(task_run_parser)
     _add_verbose_argument(task_run_parser)
@@ -447,6 +452,7 @@ def _task_run(args: argparse.Namespace) -> int:
         config_path=args.config,
         prompt=args.prompt,
         mode=args.mode,
+        effort=args.effort,
         identity=_identity_override(args),
     ):
         if args.verbose and started_at is None:

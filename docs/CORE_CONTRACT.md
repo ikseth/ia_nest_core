@@ -155,6 +155,24 @@ Debe tener:
 - identidad propagada a cada subtarea,
 - telemetria por subtarea con `task_id` y vinculo al request padre.
 
+Entrada de esfuerzo (ADR 0045): `task.run` acepta `effort` opcional con
+vocabulario fijo `low | medium | high`. Si se omite, usa
+`orchestration.default_effort`, cuyo valor de fabrica es `medium`. Un valor
+fuera del vocabulario es `ConfigError` con `field=effort`.
+
+`orchestration.effort` declara limites por nivel. La precedencia es una sola
+regla, campo a campo: lo declarado por el nivel sustituye a la base y lo no
+declarado cae a la base. El bloque base ES `medium`; un nivel no declarado es
+un nivel vacio y resuelve por completo a esa base.
+
+El nivel gobierna los ejes de intencion `max_subtasks`, `max_iterations`,
+`max_replans`, `max_time_s`, `coverage.max_chunks` y
+`coverage.max_retries_per_unit`. No gobierna los ejes de maquina
+`max_parallel`, `coverage.units_per_chunk` y
+`coverage.max_no_progress_iterations`, ni la medicion del coste
+`token_budget`. Por el cable viaja solo el identificador del nivel, nunca
+cifras.
+
 Debe devolver:
 
 - respuesta combinada final,
@@ -168,6 +186,8 @@ Debe devolver:
   de las etapas PLAN y EVALUATE,
 - `degradations`, lista de degradaciones declaradas; vacia en el camino sano,
 - `token_budget_total`, la suma de concesiones de presupuesto vigente.
+- `params.effort`, el nivel resuelto, junto a todos los limites efectivos
+  resueltos campo a campo.
 
 Presupuesto de tokens (ADR 0044): `orchestration.token_budget` declara `base` y
 `per_subtask`, y la concesion de una pasada es `base + per_subtask * n`; en

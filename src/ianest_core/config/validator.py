@@ -31,6 +31,17 @@ COVERAGE_LIMITS = {
     "max_retries_per_unit": int,
     "max_no_progress_iterations": int,
 }
+EFFORT_LEVELS = {"low", "medium", "high"}
+EFFORT_LIMITS = {
+    "max_subtasks": int,
+    "max_iterations": int,
+    "max_replans": int,
+    "max_time_s": (int, float),
+}
+EFFORT_COVERAGE_LIMITS = {
+    "max_chunks": int,
+    "max_retries_per_unit": int,
+}
 
 
 def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
@@ -121,6 +132,15 @@ def _validate_orchestration(
     coverage = raw.get("coverage")
     if coverage is not None:
         _validate_coverage(coverage, model_ids, domain_ids, profile_ids)
+    default_effort = raw.get("default_effort")
+    if default_effort is not None and default_effort not in EFFORT_LEVELS:
+        raise ConfigValidationError(
+            "default_effort must be low, medium or high",
+            "orchestration.default_effort",
+        )
+    effort = raw.get("effort")
+    if effort is not None:
+        _validate_effort(effort)
 
 
 def _validate_token_budget(raw: Any) -> None:
@@ -179,6 +199,43 @@ def _validate_coverage_limits(raw: dict[str, Any]) -> None:
         value = raw[name]
         if isinstance(value, bool) or not isinstance(value, expected_type) or value <= 0:
             raise ConfigValidationError("coverage limit must be positive", f"orchestration.coverage.{name}")
+
+
+def _validate_effort(raw: Any) -> None:
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("effort must be a mapping", "orchestration.effort")
+    for level, values in raw.items():
+        if level not in EFFORT_LEVELS:
+            raise ConfigValidationError("unknown effort level", f"orchestration.effort.{level}")
+        if not isinstance(values, dict):
+            raise ConfigValidationError("effort level must be a mapping", f"orchestration.effort.{level}")
+        for name, expected_type in EFFORT_LIMITS.items():
+            if name not in values:
+                continue
+            value = values[name]
+            minimum = 0 if name == "max_replans" else 1
+            if isinstance(value, bool) or not isinstance(value, expected_type) or value < minimum:
+                raise ConfigValidationError(
+                    "effort limit is invalid",
+                    f"orchestration.effort.{level}.{name}",
+                )
+        coverage = values.get("coverage")
+        if coverage is None:
+            continue
+        if not isinstance(coverage, dict):
+            raise ConfigValidationError(
+                "effort coverage must be a mapping",
+                f"orchestration.effort.{level}.coverage",
+            )
+        for name, expected_type in EFFORT_COVERAGE_LIMITS.items():
+            if name not in coverage:
+                continue
+            value = coverage[name]
+            if isinstance(value, bool) or not isinstance(value, expected_type) or value <= 0:
+                raise ConfigValidationError(
+                    "effort coverage limit must be positive",
+                    f"orchestration.effort.{level}.coverage.{name}",
+                )
 
 
 def _require_section(raw: dict[str, Any], field: str, expected_type: type) -> None:

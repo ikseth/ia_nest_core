@@ -75,6 +75,14 @@ Flags de identidad (opcionales): `--user-id`, `--service`, `--session-id`,
     # pipeline multi-modelo; --mode acepta pipeline (por defecto) o coverage
     ianest --config config/core.yaml task run --prompt "Analiza ..." --mode pipeline
 
+    # esfuerzo por peticion; sin --effort usa orchestration.default_effort
+    ianest --config config/core.yaml task run --prompt "Analiza ..." --effort high
+
+`--effort` acepta `low`, `medium` o `high`. La interfaz solo transporta el
+identificador; los limites de cada nivel los declara el operador en la config.
+En `--json`, `params.effort` publica el nivel resuelto junto a los limites
+efectivos.
+
 `task run` avisa por stderr de cada degradacion declarada (por ejemplo, si el
 evaluador no logra emitir una decision entendible y el core conserva el
 resultado asumiendo `done`). La respuesta sigue en stdout y el codigo de salida

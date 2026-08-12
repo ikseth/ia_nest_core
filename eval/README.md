@@ -215,20 +215,19 @@ Claves en ingles snake_case (ADR 0016). El esquema de config sigue el ADR
 
 ## Bateria de presupuesto y esfuerzo (ADR 0044 y 0045)
 
-`eval/battery/v0.3/presupuesto_y_esfuerzo.yaml.frozen`: 20 casos de conformidad
+`eval/battery/v0.3/presupuesto_y_esfuerzo.yaml`: 20 casos de conformidad
 -9 del presupuesto dimensionado por el plan (ADR 0044) y 11 de los niveles de
 esfuerzo (ADR 0045)-, sobre las fixtures
 `eval/fixtures/orchestration_effort.yaml` y su variante
-`..._default_low.yaml`. Escrita y CONGELADA antes de implementar; el runner no
-la carga mientras conserve el sufijo `.frozen`.
+`..._default_low.yaml`. Escrita y CONGELADA antes de implementar, e integrada
+tras implementar ambas decisiones.
 
-Las fixtures declaran `token_budget`, `effort` y `default_effort`, que hoy son
-claves INERTES: el validador no rechaza claves desconocidas y el cargador aun no
-las lee. Eso es lo que permite congelar el criterio antes de que exista el
-esquema.
+Las fixtures declaran `token_budget`, `effort` y `default_effort`. Durante la
+congelacion fueron claves inertes; ahora el esquema, el cargador y el runtime
+las consumen.
 
-**Esta bateria fija SEMANTICA, no calibracion.** Sus numeros son pequenos y
-redondos -`base: 100`, `per_subtask: 10`- para que cada caso se lea de un
+**Esta bateria fija SEMANTICA, no calibracion.** Sus numeros son redondos
+-`base: 1000`, `per_subtask: 500`- para que cada caso se lea de un
 vistazo. Los valores que se publiquen en esquema, cargador y plantillas salen de
 la puerta de laboratorio (ADR 0044 D5 y ADR 0045 D7) y son otra cosa: cambiarlos
 alli no debe tocar esta bateria.
@@ -245,5 +244,7 @@ codigo, y conviene no borrarlos aunque parezcan redundantes:
   intuitiva de "nivel de esfuerzo" y la que traia el primer borrador del ADR- y
   nadie se entera.
 
-Al integrarla (rename a `.yaml`) el digest se recalcula y se DECLARA, con el
-patron de siempre. El recuento pasara de 61 a 81 casos de conformidad.
+Digest de conformidad declarado tras integrar ADR 0044 y ADR 0045 (81 casos
+totales: los 61 anteriores, sin regresiones, mas los 20 casos de presupuesto y
+esfuerzo):
+`6b7067efb290b135562a656e0406f26a4a06d5e4cb9be13fb5aaf05c44be678a`.

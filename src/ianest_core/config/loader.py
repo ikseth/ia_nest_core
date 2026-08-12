@@ -11,6 +11,8 @@ from ianest_core.config.schema import (
     CoverageConfig,
     CoreConfig,
     DomainConfig,
+    EffortConfig,
+    EffortCoverageConfig,
     ModelConfig,
     OrchestrationConfig,
     OrchestrationTargetConfig,
@@ -119,13 +121,15 @@ def _load_orchestration(raw: dict[str, Any] | None) -> OrchestrationConfig | Non
     return OrchestrationConfig(
         planner=_load_orchestration_target(raw.get("planner", {})),
         combiner=_load_orchestration_target(raw.get("combiner", {})),
-        max_subtasks=int(raw.get("max_subtasks", 4)),
+        max_subtasks=int(raw.get("max_subtasks", 6)),
         max_iterations=int(raw.get("max_iterations", 2)),
         max_replans=int(raw.get("max_replans", 1)),
-        max_time_s=float(raw.get("max_time_s", 30)),
+        max_time_s=float(raw.get("max_time_s", 120)),
         max_parallel=int(raw.get("max_parallel", 2)),
         token_budget=_load_token_budget(raw.get("token_budget")),
         coverage=_load_coverage(raw.get("coverage")),
+        default_effort=str(raw.get("default_effort", "medium")),
+        effort=_load_effort(raw.get("effort")),
     )
 
 
@@ -146,6 +150,32 @@ def _load_coverage(raw: dict[str, Any] | None) -> CoverageConfig | None:
         max_chunks=int(raw.get("max_chunks", 8)),
         max_retries_per_unit=int(raw.get("max_retries_per_unit", 2)),
         max_no_progress_iterations=int(raw.get("max_no_progress_iterations", 2)),
+    )
+
+
+def _load_effort(raw: dict[str, Any] | None) -> dict[str, EffortConfig]:
+    if raw is None:
+        return {}
+    return {str(level): _load_effort_level(values) for level, values in raw.items()}
+
+
+def _load_effort_level(raw: dict[str, Any]) -> EffortConfig:
+    coverage = raw.get("coverage")
+    return EffortConfig(
+        max_subtasks=int(raw["max_subtasks"]) if "max_subtasks" in raw else None,
+        max_iterations=int(raw["max_iterations"]) if "max_iterations" in raw else None,
+        max_replans=int(raw["max_replans"]) if "max_replans" in raw else None,
+        max_time_s=float(raw["max_time_s"]) if "max_time_s" in raw else None,
+        coverage=(
+            EffortCoverageConfig(
+                max_chunks=int(coverage["max_chunks"]) if "max_chunks" in coverage else None,
+                max_retries_per_unit=(
+                    int(coverage["max_retries_per_unit"])
+                    if "max_retries_per_unit" in coverage else None
+                ),
+            )
+            if isinstance(coverage, dict) else None
+        ),
     )
 
 

@@ -4,8 +4,9 @@ import json
 import re
 import string
 import time
+from copy import copy
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from threading import Lock
 from typing import Any, Callable, Iterator
 from uuid import uuid4
@@ -169,6 +170,7 @@ class TaskRuntime:
         self.config = config
         self.settings = config.orchestration
         self.adapter_factory = adapter_factory
+        self.resolved_effort = "medium"
         self.prompt_runtime = PromptRuntime(
             config,
             telemetry=telemetry,
@@ -184,6 +186,7 @@ class TaskRuntime:
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
         mode: str = "pipeline",
+        effort: str | None = None,
     ) -> TaskResult:
         events = list(
             self.stream(
@@ -191,6 +194,7 @@ class TaskRuntime:
                 identity_override=identity_override,
                 request_id=request_id,
                 mode=mode,
+                effort=effort,
             )
         )
         done = next(event for event in reversed(events) if event.type == "task_done")
@@ -203,6 +207,23 @@ class TaskRuntime:
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
         mode: str = "pipeline",
+        effort: str | None = None,
+    ) -> Iterator[Event]:
+        runtime = self._runtime_for_effort(effort)
+        yield from runtime._stream_resolved(
+            prompt=prompt,
+            identity_override=identity_override,
+            request_id=request_id,
+            mode=mode,
+        )
+
+    def _stream_resolved(
+        self,
+        *,
+        prompt: str,
+        identity_override: dict[str, str] | None,
+        request_id: str | None,
+        mode: str,
     ) -> Iterator[Event]:
         if mode not in {"pipeline", "coverage"}:
             raise CoreError("ConfigError", "task.run mode must be pipeline or coverage", "mode")
@@ -1029,7 +1050,10 @@ class TaskRuntime:
         if coverage_settings is None:
             raise CoreError("ConfigError", "coverage configuration is required", "orchestration.coverage")
         return {
+            "effort": self.resolved_effort,
             "max_subtasks": self.settings.max_subtasks,
+            "max_iterations": self.settings.max_iterations,
+            "max_replans": self.settings.max_replans,
             "max_time_s": self.settings.max_time_s,
             "max_parallel": self.settings.max_parallel,
             "units_per_chunk": coverage_settings.units_per_chunk,
@@ -1425,8 +1449,43 @@ class TaskRuntime:
         params = {name: getattr(self.settings, name) for name in (
             "max_subtasks", "max_iterations", "max_replans", "max_time_s", "max_parallel"
         )}
+        params["effort"] = self.resolved_effort
         params["token_budget"] = self._token_budget_params()
         return params
+
+    def _runtime_for_effort(self, requested_effort: str | None) -> TaskRuntime:
+        resolved_effort = requested_effort or self.settings.default_effort
+        if resolved_effort not in {"low", "medium", "high"}:
+            raise CoreError(
+                "ConfigError",
+                "task.run effort must be low, medium or high",
+                "effort",
+            )
+
+        level = self.settings.effort.get(resolved_effort)
+        resolved_settings = self.settings
+        if level is not None:
+            replacements = {
+                name: value
+                for name in ("max_subtasks", "max_iterations", "max_replans", "max_time_s")
+                if (value := getattr(level, name)) is not None
+            }
+            coverage = resolved_settings.coverage
+            if coverage is not None and level.coverage is not None:
+                coverage_replacements = {
+                    name: value
+                    for name in ("max_chunks", "max_retries_per_unit")
+                    if (value := getattr(level.coverage, name)) is not None
+                }
+                if coverage_replacements:
+                    replacements["coverage"] = replace(coverage, **coverage_replacements)
+            if replacements:
+                resolved_settings = replace(resolved_settings, **replacements)
+
+        runtime = copy(self)
+        runtime.settings = resolved_settings
+        runtime.resolved_effort = resolved_effort
+        return runtime
 
     def _pipeline_token_grant(self, plan: list[dict[str, Any]]) -> int:
         budget = self.settings.token_budget

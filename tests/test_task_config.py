@@ -29,9 +29,12 @@ def test_orchestration_loader_defaults_match_the_schema() -> None:
     declared = OrchestrationConfig(planner=loaded.planner, combiner=loaded.combiner)
 
     for field in ("max_subtasks", "max_iterations", "max_replans", "max_time_s",
-                  "max_parallel", "token_budget"):
+                  "max_parallel", "token_budget", "default_effort", "effort"):
         assert getattr(loaded, field) == getattr(declared, field), field
     assert loaded.token_budget == TokenBudgetConfig(base=2000, per_subtask=3000)
+    assert loaded.max_subtasks == 6
+    assert loaded.max_time_s == 120
+    assert loaded.default_effort == "medium"
 
 
 def test_orchestration_config_is_optional() -> None:
@@ -105,6 +108,29 @@ def test_orchestration_validator_rejects_invalid_references_and_limits(mutation,
 def test_orchestration_coverage_validator_rejects_invalid_references_and_limits(mutation, field) -> None:
     raw = deepcopy(load_config_data("eval/fixtures/orchestration_coverage.yaml"))
     raw["orchestration"]["coverage"].update(mutation)
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_dict(raw)
+
+    assert exc.value.field == field
+
+
+@pytest.mark.parametrize(
+    ("mutation", "field"),
+    [
+        ({"default_effort": "xxl"}, "orchestration.default_effort"),
+        ({"effort": []}, "orchestration.effort"),
+        ({"effort": {"xxl": {"max_subtasks": 2}}}, "orchestration.effort.xxl"),
+        ({"effort": {"low": {"max_replans": -1}}}, "orchestration.effort.low.max_replans"),
+        (
+            {"effort": {"high": {"coverage": {"max_chunks": 0}}}},
+            "orchestration.effort.high.coverage.max_chunks",
+        ),
+    ],
+)
+def test_orchestration_effort_validator_rejects_invalid_values(mutation, field) -> None:
+    raw = deepcopy(load_config_data("eval/fixtures/orchestration_effort.yaml"))
+    raw["orchestration"].update(mutation)
 
     with pytest.raises(ConfigValidationError) as exc:
         validate_config_dict(raw)

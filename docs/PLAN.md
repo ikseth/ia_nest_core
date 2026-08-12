@@ -376,6 +376,27 @@ Router semantico con paridad CLI/REST/MCP; retirada de `_matches` y
 Criterio de salida: conformance reproducible en verde; smoke en laboratorio
 (enruta por sentido, no por palabras); core minimo instalable.
 
+## Linea de presupuesto y esfuerzo de task.run (cerrada 2026-08-12)
+
+Objetivo: dimensionar el presupuesto por el plan (ADR 0044) y permitir que el
+consumidor elija un nivel de esfuerzo portable `low | medium | high` cuyos
+limites declara el operador (ADR 0045). Impacto: MINOR; el numero lo corta el
+usuario.
+
+### Pasada 1: presupuesto dimensionado (completada)
+
+`orchestration.token_budget` (`base`, `per_subtask`), concesion por pasada,
+acumulacion y corte unico `max_total_tokens` implementados en el commit
+`0bd7baf`. Los campos constantes anteriores quedan retirados.
+
+### Pasada 2: niveles de esfuerzo (completada)
+
+Entrada opcional `effort`, precedencia campo a campo sobre el bloque base
+`medium`, `default_effort`, parametros efectivos y paridad CLI/REST/MCP. Los
+ejes de maquina y la medicion del coste permanecen fuera del nivel. Bateria
+integrada: 20/20; conformance total 81/81 con digest declarado en
+`eval/README.md`; pytest verde con y sin extras.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

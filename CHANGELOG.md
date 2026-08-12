@@ -6,6 +6,11 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Niveles de esfuerzo de `task.run` (ADR 0045): entrada opcional
+  `effort=low|medium|high`, config aditiva `orchestration.effort` y
+  `orchestration.default_effort`, resolucion campo a campo y nivel efectivo en
+  `params`, con paridad CLI/REST/MCP. Los niveles gobiernan solo ejes de
+  intencion; no alteran ejes de maquina ni `token_budget`. Impacto: **minor**.
 - Implementacion de la etapa PLAN de los invariantes I1, I2 e I4 de
   `task.run` (ADR 0041) en `pipeline` y `coverage`: requisitos y cobertura
   declarada por unidad, una sola renegociacion compartida, tolerancia de

@@ -1,7 +1,6 @@
 # Bateria de presupuesto de tokens y niveles de esfuerzo (ADR 0044 y ADR 0045).
-# CRITERIO DE ACEPTACION escrito y CONGELADO ANTES de implementar. El runner NO
-# carga este archivo mientras conserve el sufijo .frozen; se integra
-# renombrandolo a .yaml, con el digest recalculado y declarado (ADR 0017,
+# CRITERIO DE ACEPTACION escrito y CONGELADO ANTES de implementar. Integrado
+# al renombrarlo a .yaml, con el digest recalculado y declarado (ADR 0017,
 # patron de v0.2-3, v0.3-2 y de la bateria de invariantes).
 #
 # Fixture: eval/fixtures/orchestration_effort.yaml.

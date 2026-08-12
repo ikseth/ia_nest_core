@@ -36,12 +36,26 @@ default_domain: general
 orchestration:
   planner: { model: local_llama, profile: default }
   combiner: { model: local_llama, profile: default }
-  max_subtasks: 4
+  max_subtasks: 6
   max_iterations: 2
   max_replans: 1
-  max_time_s: 30
+  max_time_s: 120
   max_parallel: 2
   token_budget: { base: 2000, per_subtask: 3000 }
+  default_effort: medium
+  effort:
+    low:
+      max_subtasks: 3
+      max_iterations: 1
+      max_replans: 0
+      max_time_s: 30
+      coverage: { max_chunks: 4, max_retries_per_unit: 1 }
+    high:
+      max_subtasks: 12
+      max_iterations: 4
+      max_replans: 2
+      max_time_s: 480
+      coverage: { max_chunks: 16, max_retries_per_unit: 3 }
   coverage:
     validator: { model: local_llama, profile: default }
     units_per_chunk: 3

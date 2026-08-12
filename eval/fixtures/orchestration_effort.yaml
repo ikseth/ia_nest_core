@@ -102,8 +102,8 @@ orchestration:
   max_time_s: 120
   max_parallel: 2
   token_budget:
-    base: 100
-    per_subtask: 10
+    base: 1000
+    per_subtask: 500
   default_effort: medium
   effort:
     low:

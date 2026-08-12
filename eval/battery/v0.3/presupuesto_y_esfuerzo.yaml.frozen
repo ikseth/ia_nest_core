@@ -6,8 +6,16 @@
 #
 # Fixture: eval/fixtures/orchestration_effort.yaml.
 #
-# ESTA BATERIA FIJA SEMANTICA, NO CALIBRACION. Sus numeros son pequenos y
-# redondos para que cada caso se lea de un vistazo: base 100, per_subtask 10.
+# ESTA BATERIA FIJA SEMANTICA, NO CALIBRACION. Sus numeros son redondos para que
+# cada caso se lea de un vistazo: base 1000, per_subtask 500.
+#
+# Por que 1000/500 y no algo mas pequeno: los casos que NO declaran
+# `simulated.context_tokens` usan la contabilidad REAL de los adaptadores fake,
+# que ronda los 300 tokens incluso en una tarea minima. Con un presupuesto por
+# debajo de eso, TODOS esos casos cortarian por presupuesto sin pretenderlo, y
+# trece de los veinte no van del presupuesto: van de esfuerzo o de concesion.
+# La escala esta elegida para que el techo no estorbe donde no se esta probando,
+# y los casos que SI prueban el corte lo fuerzan con `simulated`.
 # Los valores que se publiquen en esquema, cargador y plantillas salen de la
 # puerta de laboratorio (ADR 0044 D5 y ADR 0045 D7) y son otra cosa: cambiarlos
 # alli NO debe tocar esta bateria.
@@ -73,12 +81,12 @@
         fake_general: "PARTE"
         fake_combiner: "COMBINADO_FINAL"
       evaluate_decisions: [done]
-      # Concesion = 100 + 10*1 = 110. Gasto simulado por debajo.
-      simulated: { context_tokens: 105 }
+      # Concesion = 1000 + 500*1 = 1500. Gasto simulado por debajo.
+      simulated: { context_tokens: 1000 }
   expect:
     stop_reason: task_done
     response: "COMBINADO_FINAL"
-    token_budget_total: 110
+    token_budget_total: 1500
 
 - id: presupuesto_crece_con_el_plan
   track: conformance
@@ -103,11 +111,11 @@
         fake_general: "PARTE"
         fake_combiner: "COMBINADO_FINAL"
       evaluate_decisions: [done]
-      # Concesion = 100 + 10*6 = 160. El mismo gasto que corta al plan de 1.
-      simulated: { context_tokens: 150 }
+      # Concesion = 1000 + 500*6 = 4000. El mismo gasto que corta al plan de 1.
+      simulated: { context_tokens: 2000 }
   expect:
     stop_reason: task_done
-    token_budget_total: 160
+    token_budget_total: 4000
 
 - id: presupuesto_plan_pequeno_corta_con_el_mismo_gasto
   track: conformance
@@ -128,12 +136,12 @@
         fake_combiner: "COMBINADO_FINAL"
       # El evaluador pide otra pasada: hay algo que vetar.
       evaluate_decisions: [rerun]
-      simulated: { context_tokens: 150 }
+      simulated: { context_tokens: 2000 }
   expect:
     # Este par es la prueba de que el presupuesto CRECE: mismo gasto, distinto
     # plan, distinto desenlace. Con un techo constante los dos casos coincidirian.
     stop_reason: max_total_tokens
-    token_budget_total: 110
+    token_budget_total: 1500
     response: "COMBINADO_FINAL"
 
 - id: presupuesto_merito_gana_al_techo
@@ -154,7 +162,7 @@
         fake_general: "PARTE"
         fake_combiner: "COMBINADO_FINAL"
       evaluate_decisions: [done]
-      simulated: { context_tokens: 150 }
+      simulated: { context_tokens: 2000 }
   expect:
     # Agotar el presupuesto DESPUES de terminar bien no es un corte.
     stop_reason: task_done
@@ -180,7 +188,8 @@
         fake_general: "PARTE"
         fake_combiner: "COMBINADO_FINAL"
       evaluate_decisions: [rerun]
-      simulated: { context_tokens: 500 }
+      # Concesion = 1000 + 500*3 = 2500; el gasto la supera a mitad de pasada.
+      simulated: { context_tokens: 5000 }
   expect:
     stop_reason: max_total_tokens
     # Las TRES subtareas se ejecutaron y el combinado se produjo, pese a que el
@@ -213,9 +222,9 @@
   expect:
     stop_reason: task_done
     plan_attempts: 2
-    # 100 + 10*2 = 120, NO 240. Renegociar corrige el plan de la pasada; no
-    # compra una pasada mas.
-    token_budget_total: 120
+    # 1000 + 500*2 = 2000, NO 4000. Renegociar corrige el plan de la pasada;
+    # no compra una pasada mas.
+    token_budget_total: 2000
 
 - id: presupuesto_coverage_cuenta_los_reintentos
   track: conformance
@@ -241,9 +250,10 @@
   expect:
     stop_reason: task_done
     coverage_complete: true
-    # 100 + 10*2*(1+2) = 160. Los reintentos son gasto autorizado por contrato:
-    # un presupuesto que los ignora miente sobre lo que la tarea puede gastar.
-    token_budget_total: 160
+    # 1000 + 500*2*(1+2) = 4000. Los reintentos son gasto autorizado por
+    # contrato: un presupuesto que los ignora miente sobre lo que la tarea puede
+    # gastar.
+    token_budget_total: 4000
 
 - id: presupuesto_coverage_desbocado_corta
   track: conformance
@@ -265,7 +275,8 @@
         fake_general: [A, B]
       validator_decisions:
         - [u1]
-      simulated: { context_tokens: 500 }
+      # Concesion = 1000 + 500*2*(1+2) = 4000; el gasto la supera.
+      simulated: { context_tokens: 8000 }
   expect:
     # `max_total_tokens` es el unico nombre del corte por presupuesto en los DOS
     # modos: es lo que retira la discrepancia que tenia `max_context_tokens`.
@@ -538,11 +549,11 @@
   expect:
     stop_reason: task_done
     effort: high
-    # 110, el MISMO que en el caso de nivel base con un plan de 1. El nivel
+    # 1500, el MISMO que en el caso de nivel base con un plan de 1. El nivel
     # autoriza mas TRABAJO; el coste de una subtarea es una MEDICION que el
     # perfil fija, no una politica que el nivel mueva. Sin esta guarda, alguien
     # reintroduce el multiplicador sobre per_subtask y nadie se entera.
-    token_budget_total: 110
+    token_budget_total: 1500
 
 - id: esfuerzo_default_configurable
   track: conformance
@@ -593,4 +604,4 @@
     # "Parametros efectivos" ya es lo que CORE_CONTRACT.md promete devolver; lo
     # que se anade es que el nivel y el presupuesto esten entre ellos.
     effort: low
-    token_budget_total: 110
+    token_budget_total: 1500

@@ -5,6 +5,8 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.3.0] - 2026-08-12
+
 ### Anadido
 - Niveles de esfuerzo de `task.run` (ADR 0045): entrada opcional
   `effort=low|medium|high`, config aditiva `orchestration.effort` y
@@ -63,42 +65,6 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   `base: 2000`, `per_subtask: 3000`. Impacto: **minor** (desaparece un corte
   tipado del contrato y se retiran campos del esquema).
 
-### Corregido
-- Salida `--verbose` de la CLI: cada linea de progreso en stderr lleva el
-  tiempo acumulado desde el primer evento (`[  0.0s]`); el render de coverage
-  deja de mostrar `iteration` y `decision` inexistentes como `None`, sin
-  alterar pipeline, stdout, JSON, runtime ni telemetria
-  ([ficha v0.3/0013](docs/fixes/v0.3/0013-verbose-sin-campos-fantasma-y-con-reloj.md)).
-  Impacto: patch.
-- En modo pipeline, cada subtarea recibe el objetivo global solo como contexto
-  y conserva su enunciado como unico contenido a producir; el enrutado y el
-  registro mantienen el enunciado pelado. COMBINE ahora estructura resultados
-  divergentes sin juzgar su exactitud ni introducir matices sin divergencia
-  ([ficha v0.3/0012](docs/fixes/v0.3/0012-subtareas-con-contexto-y-combinado-coherente.md)).
-  Impacto: patch.
-- En modo pipeline, `depends_on` declara y tolera indices enteros base 0: se
-  aceptan enteros y cadenas de digitos, se rechazan booleanos y formas
-  invalidas, y los indices fuera de rango se distinguen de los ciclos antes del
-  fan-out ([ficha v0.3/0011](docs/fixes/v0.3/0011-dependencias-de-pipeline-tolerantes.md)).
-  Impacto: patch.
-- En modo pipeline, una decision `done` de `task.run` prevalece sobre los
-  limites de contexto y tiempo alcanzados al completar esa pasada; el
-  presupuesto por defecto de orquestacion pasa a `16384`
-  ([ficha v0.3/0010](docs/fixes/v0.3/0010-presupuesto-puente-y-merito-sobre-techo.md)).
-  Impacto: patch.
-- Los cortes por `max_context_tokens` de `task.run` evaluan el acumulado
-  real de tokens de todas las llamadas (antes solo el override
-  `simulated`, inoperante con backend real); el acumulado queda expuesto
-  en la traza ([ficha 0003](docs/fixes/v0.2/0003-contabilidad-tokens-task-run.md)).
-  Impacto: patch.
-- Modo coverage robustecido tras el smoke real: el validador devuelve solo
-  ids y el parser tolera varios formatos de salida
-  ([ficha v0.3/0002](docs/fixes/v0.3/0002-parser-cobertura-tolerante.md)); el
-  generador emite solo el contenido de sus unidades, sin preambulo ni cierre
-  ([ficha v0.3/0003](docs/fixes/v0.3/0003-generador-coverage-sin-boilerplate.md)).
-  Impacto: patch.
-
-### Cambiado
 - Router semantico, fase 3b-i (ADR 0043): `prompt.run` sin modelo ni dominio
   resuelve directamente el dominio por defecto, y `task.run` enruta de forma
   explicita cada subtarea que no tenga `domain` ni un `domain_hint` resoluble.
@@ -150,6 +116,41 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   hoy y NO cerrado: los anclajes del VETO diferido (ADR 0036) siguen en pie.
   Contrato fijado; implementacion en la linea siguiente (`docs/PLAN.md`).
   Impacto cuando se entregue: minor.
+
+### Corregido
+- Salida `--verbose` de la CLI: cada linea de progreso en stderr lleva el
+  tiempo acumulado desde el primer evento (`[  0.0s]`); el render de coverage
+  deja de mostrar `iteration` y `decision` inexistentes como `None`, sin
+  alterar pipeline, stdout, JSON, runtime ni telemetria
+  ([ficha v0.3/0013](docs/fixes/v0.3/0013-verbose-sin-campos-fantasma-y-con-reloj.md)).
+  Impacto: patch.
+- En modo pipeline, cada subtarea recibe el objetivo global solo como contexto
+  y conserva su enunciado como unico contenido a producir; el enrutado y el
+  registro mantienen el enunciado pelado. COMBINE ahora estructura resultados
+  divergentes sin juzgar su exactitud ni introducir matices sin divergencia
+  ([ficha v0.3/0012](docs/fixes/v0.3/0012-subtareas-con-contexto-y-combinado-coherente.md)).
+  Impacto: patch.
+- En modo pipeline, `depends_on` declara y tolera indices enteros base 0: se
+  aceptan enteros y cadenas de digitos, se rechazan booleanos y formas
+  invalidas, y los indices fuera de rango se distinguen de los ciclos antes del
+  fan-out ([ficha v0.3/0011](docs/fixes/v0.3/0011-dependencias-de-pipeline-tolerantes.md)).
+  Impacto: patch.
+- En modo pipeline, una decision `done` de `task.run` prevalece sobre los
+  limites de contexto y tiempo alcanzados al completar esa pasada; el
+  presupuesto por defecto de orquestacion pasa a `16384`
+  ([ficha v0.3/0010](docs/fixes/v0.3/0010-presupuesto-puente-y-merito-sobre-techo.md)).
+  Impacto: patch.
+- Los cortes por `max_context_tokens` de `task.run` evaluan el acumulado
+  real de tokens de todas las llamadas (antes solo el override
+  `simulated`, inoperante con backend real); el acumulado queda expuesto
+  en la traza ([ficha 0003](docs/fixes/v0.2/0003-contabilidad-tokens-task-run.md)).
+  Impacto: patch.
+- Modo coverage robustecido tras el smoke real: el validador devuelve solo
+  ids y el parser tolera varios formatos de salida
+  ([ficha v0.3/0002](docs/fixes/v0.3/0002-parser-cobertura-tolerante.md)); el
+  generador emite solo el contenido de sus unidades, sin preambulo ni cierre
+  ([ficha v0.3/0003](docs/fixes/v0.3/0003-generador-coverage-sin-boilerplate.md)).
+  Impacto: patch.
 
 ## [v0.2.0] - 2026-07-16
 

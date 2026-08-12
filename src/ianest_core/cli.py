@@ -193,9 +193,6 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Evalua las reglas declaradas y propone el dominio y modelo aplicables.",
     )
     route_parser.add_argument("--prompt", required=True, metavar="TEXTO", help="texto que se desea enrutar")
-    route_parser.add_argument(
-        "--tag", action="append", default=[], metavar="ETIQUETA", help="etiqueta de ruteo; puede repetirse"
-    )
     _add_json_argument(route_parser, "resultado")
     _add_identity_arguments(route_parser)
     domain_list_parser = domain_subparsers.add_parser(
@@ -266,7 +263,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_argument(health_parser, "informe")
     detect_parser = runtime_subparsers.add_parser(
         "detect",
-        help="detecta runtime, backend y GPU",
+        help="alias de health; detecta runtime, backend y GPU",
         description="Informa de core, backend, modelos, GPU y version de protocolo MCP.",
     )
     _add_json_argument(detect_parser, "informe")
@@ -578,7 +575,6 @@ def _domain_route(args: argparse.Namespace) -> int:
     result = service.route_domain(
         config_path=args.config,
         prompt=args.prompt,
-        tags=args.tag,
         identity=_identity_override(args),
     )
     if args.json:

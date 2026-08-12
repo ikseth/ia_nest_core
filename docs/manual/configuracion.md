@@ -26,21 +26,45 @@ var), `model_name` (tag en el backend), `capabilities`, `profile`.
         profile: default
 
 ### domains
-Enrutado por dominio. Campos: `id`, `description`, `preferred_model`,
-`fallback_models`, `profile`, `routing_rules` (`keywords`/`tags`), `status`.
+Catalogo de dominios. Campos: `id`, `description`, `preferred_model`,
+`fallback_models`, `profile`, `status`.
 
     domains:
       - id: general
-        description: "Dominio general"
+        description: "Preguntas generales y todo lo que no encaje en otro dominio"
         preferred_model: local_llama
         fallback_models: []
         profile: default
-        routing_rules: { keywords: [] }
         status: active
 
-Si el prompt contiene una keyword del dominio, se enruta ahi. Si el
-`preferred_model` no esta disponible, se usa el primer `fallback_models`; si
-ninguno, error `ModelUnavailable`.
+**`description` no es documentacion: es la entrada del clasificador.** Desde
+ADR 0043 el enrutado es SEMANTICO -un modelo lee las descripciones y elige por
+sentido-, asi que una descripcion vaga produce un enrutado vago. Escribelas para
+que se distingan entre si.
+
+El enrutado por palabras clave se RETIRO en ADR 0043. El campo `routing_rules`
+sigue aceptandose en la config para no romper ficheros antiguos, pero **se
+ignora**: no enruta nada.
+
+Si el `preferred_model` no esta disponible, se usa el primer `fallback_models`;
+si ninguno, error `ModelUnavailable`.
+
+### router y default_domain
+Obligatorios para que el enrutado semantico funcione (ADR 0043), y viven en la
+raiz de la config, no dentro de `domains`.
+
+    router: { model: local_llama, profile: default }
+    default_domain: general
+
+`router` declara QUIEN clasifica: un modelo del roster o un dominio, con su
+perfil. Con un solo modelo declarado, el router clasifica contra ese mismo
+modelo.
+
+`default_domain` designa EXPLICITAMENTE el dominio de reserva: es donde cae
+`prompt.run` cuando no se le declara modelo ni dominio, y donde cae el router
+cuando no puede interpretar su propia respuesta. Antes se asumia un dominio
+llamado `general` por convencion; ADR 0043 retiro ese nombre magico, asi que hay
+que declararlo.
 
 ### profiles
 Parametros de generacion, limites y `system` opcional. Campos: `id`,

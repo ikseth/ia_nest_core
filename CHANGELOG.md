@@ -45,6 +45,19 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   scriptable ([ficha 0002](docs/fixes/v0.2/0002-finish-reason.md)). Impacto:
   patch.
 
+### Cambiado
+- El presupuesto de tokens de `task.run` lo dimensiona el plan (ADR 0044):
+  `orchestration.token_budget` (`base`, `per_subtask`) sustituye al techo
+  constante, la concesion es `base + per_subtask * n` por pasada -con el factor
+  `(1 + max_retries_per_unit)` en `coverage`- y se acumula. El presupuesto
+  decide si empieza otra pasada y nunca mutila la que esta en curso. El corte
+  tipado pasa a ser `max_total_tokens`, unico para los dos modos;
+  `orchestration.max_context_tokens` y `coverage.max_total_tokens` quedan
+  retirados y se ignoran. `reasoning.run` conserva su `max_context_tokens` de
+  perfil, que es otro concepto (ADR 0008). Defaults calibrados en laboratorio:
+  `base: 2000`, `per_subtask: 3000`. Impacto: **minor** (desaparece un corte
+  tipado del contrato y se retiran campos del esquema).
+
 ### Corregido
 - Salida `--verbose` de la CLI: cada linea de progreso en stderr lleva el
   tiempo acumulado desde el primer evento (`[  0.0s]`); el render de coverage

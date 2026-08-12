@@ -17,6 +17,7 @@ from ianest_core.config.schema import (
     ProfileConfig,
     RouterConfig,
     TelemetryConfig,
+    TokenBudgetConfig,
 )
 from ianest_core.errors import ConfigError
 
@@ -122,9 +123,17 @@ def _load_orchestration(raw: dict[str, Any] | None) -> OrchestrationConfig | Non
         max_iterations=int(raw.get("max_iterations", 2)),
         max_replans=int(raw.get("max_replans", 1)),
         max_time_s=float(raw.get("max_time_s", 30)),
-        max_context_tokens=int(raw.get("max_context_tokens", 16384)),
         max_parallel=int(raw.get("max_parallel", 2)),
+        token_budget=_load_token_budget(raw.get("token_budget")),
         coverage=_load_coverage(raw.get("coverage")),
+    )
+
+
+def _load_token_budget(raw: dict[str, Any] | None) -> TokenBudgetConfig:
+    raw = raw or {}
+    return TokenBudgetConfig(
+        base=int(raw.get("base", 2000)),
+        per_subtask=int(raw.get("per_subtask", 3000)),
     )
 
 
@@ -135,7 +144,6 @@ def _load_coverage(raw: dict[str, Any] | None) -> CoverageConfig | None:
         validator=_load_orchestration_target(raw.get("validator", {})),
         units_per_chunk=int(raw.get("units_per_chunk", 3)),
         max_chunks=int(raw.get("max_chunks", 8)),
-        max_total_tokens=int(raw.get("max_total_tokens", 16384)),
         max_retries_per_unit=int(raw.get("max_retries_per_unit", 2)),
         max_no_progress_iterations=int(raw.get("max_no_progress_iterations", 2)),
     )

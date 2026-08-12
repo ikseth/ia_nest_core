@@ -262,6 +262,7 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         "uncovered_requirements": result.uncovered_requirements,
         "degradations": result.degradations,
         "evaluation_attempts": result.evaluation_attempts,
+        "token_budget_total": result.token_budget_total,
         "checkpoints": result.checkpoints,
         "subtasks": _subtask_expectation(result.subtasks, expected.get("subtasks", [])),
         "checkpoint_counts": {
@@ -496,7 +497,7 @@ def _execute_model_list(case: dict[str, Any], *, config_path: str | Path | None)
 
 
 def _execute_config_validate(case: dict[str, Any]) -> dict[str, Any]:
-    raw = case["input"].get("config_inline", {})
+    raw = case.get("config_inline", case["input"].get("config_inline", {}))
     expected = case.get("expect", {})
     try:
         validate_config_dict(raw)
@@ -510,7 +511,9 @@ def _execute_config_validate(case: dict[str, Any]) -> dict[str, Any]:
             error={"type": exc.type, "message": exc.message},
         )
     config = load_config_from_dict(raw)
-    assertions = _assertions({"status": "ok", "models": len(config.models)}, expected)
+    assertions = _assertions(
+        {"valid": True, "status": "ok", "models": len(config.models)}, expected
+    )
     return _case_result(case, assertions)
 
 

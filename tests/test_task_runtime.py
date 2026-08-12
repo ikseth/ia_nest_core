@@ -8,7 +8,7 @@ import pytest
 
 from ianest_core.adapters import ScriptedFakeAdapter
 from ianest_core.config import load_config
-from ianest_core.config.schema import TelemetryConfig
+from ianest_core.config.schema import TelemetryConfig, TokenBudgetConfig
 from ianest_core.errors import CoreError, ModelUnavailable
 from ianest_core.registry import StaticAvailabilityProvider
 from ianest_core.runtime import TaskRuntime
@@ -374,7 +374,10 @@ def test_task_runtime_propagates_subtask_model_unavailable(tmp_path) -> None:
 def test_task_runtime_limits_real_accumulated_tokens_and_traces_them(tmp_path) -> None:
     config = replace(
         _config(tmp_path),
-        orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
+        orchestration=replace(
+            _config(tmp_path).orchestration,
+            token_budget=TokenBudgetConfig(base=1, per_subtask=1),
+        ),
     )
     adapters = {
         "fake_planner": ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "subtarea", "domain": "general"}]), "rerun"]),
@@ -389,16 +392,94 @@ def test_task_runtime_limits_real_accumulated_tokens_and_traces_them(tmp_path) -
             event for event in csv.DictReader(trace_file, delimiter=";")
             if event["capability"] == "prompt.run" and event["event"] == "done"
         ]
-    assert result.stop_reason == "max_context_tokens"
+    assert result.stop_reason == "max_total_tokens"
     assert result.trace["tokens_in"] == sum(int(event["tokens_in"]) for event in prompt_events)
     assert result.trace["tokens_out"] == sum(int(event["tokens_out"]) for event in prompt_events)
-    assert result.trace["tokens_in"] + result.trace["tokens_out"] > config.orchestration.max_context_tokens
+    assert result.trace["tokens_in"] + result.trace["tokens_out"] >= result.token_budget_total
+    assert result.trace["token_budget_total"] == result.token_budget_total
 
 
-def test_task_runtime_done_beats_exceeded_context_budget(tmp_path) -> None:
+@pytest.mark.parametrize(
+    ("subtask_count", "expected_reason", "expected_budget"),
+    [(1, "max_total_tokens", 110), (6, "task_done", 320)],
+)
+def test_token_grant_grows_with_the_plan_for_the_same_spend(
+    tmp_path, subtask_count, expected_reason, expected_budget
+) -> None:
+    base = _config(tmp_path)
+    config = replace(
+        base,
+        orchestration=replace(
+            base.orchestration,
+            max_subtasks=6,
+            token_budget=TokenBudgetConfig(base=100, per_subtask=10),
+        ),
+    )
+    subtasks = [
+        {"prompt": f"subtarea {index}", "domain": "general"}
+        for index in range(subtask_count)
+    ]
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter(
+            "fake_planner", [_plan_response(subtasks), "rerun", "done"]
+        ),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["parte"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["combinado"]),
+    }
+
+    result = TaskRuntime(
+        config,
+        adapter_factory=adapters.get,
+        simulated={"context_tokens": 150},
+    ).run(prompt="tarea", request_id="parent")
+
+    assert result.stop_reason == expected_reason
+    assert result.response == "combinado"
+    assert result.token_budget_total == expected_budget
+
+
+def test_plan_rederivation_does_not_grant_an_extra_budget(tmp_path) -> None:
+    base = _config(tmp_path)
+    config = replace(
+        base,
+        orchestration=replace(
+            base.orchestration,
+            token_budget=TokenBudgetConfig(base=100, per_subtask=10),
+        ),
+    )
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter(
+            "fake_planner",
+            [
+                '{"prompt": "invalid wrapper"}',
+                _plan_response([
+                    {"prompt": "uno", "domain": "general"},
+                    {"prompt": "dos", "domain": "general"},
+                ]),
+                "done",
+            ],
+        ),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["parte"]),
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["combinado"]),
+    }
+
+    events = list(TaskRuntime(config, adapter_factory=adapters.get).stream(prompt="tarea"))
+    plan_events = [event for event in events if event.type == "plan_ready"]
+    done = next(event for event in reversed(events) if event.type == "task_done")
+
+    assert len(plan_events) == 2
+    assert {event.data["token_budget_granted"] for event in plan_events} == {120}
+    assert {event.data["token_budget_total"] for event in plan_events} == {120}
+    assert done.data["token_budget_total"] == 120
+
+
+def test_task_runtime_done_beats_exceeded_token_budget(tmp_path) -> None:
     config = replace(
         _config(tmp_path),
-        orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
+        orchestration=replace(
+            _config(tmp_path).orchestration,
+            token_budget=TokenBudgetConfig(base=1, per_subtask=1),
+        ),
     )
     adapters = {
         "fake_planner": ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "subtarea", "domain": "general"}]), "done"]),
@@ -409,7 +490,7 @@ def test_task_runtime_done_beats_exceeded_context_budget(tmp_path) -> None:
     result = TaskRuntime(config, adapter_factory=adapters.get).run(prompt="tarea", request_id="parent")
 
     assert result.stop_reason == "task_done"
-    assert result.trace["tokens_in"] + result.trace["tokens_out"] > config.orchestration.max_context_tokens
+    assert result.trace["tokens_in"] + result.trace["tokens_out"] >= result.token_budget_total
 
 
 def test_task_runtime_done_beats_exceeded_time_limit(tmp_path) -> None:
@@ -432,7 +513,10 @@ def test_task_runtime_done_beats_exceeded_time_limit(tmp_path) -> None:
 def test_task_runtime_simulated_context_tokens_override_real_accumulation(tmp_path) -> None:
     config = replace(
         _config(tmp_path),
-        orchestration=replace(_config(tmp_path).orchestration, max_context_tokens=1),
+        orchestration=replace(
+            _config(tmp_path).orchestration,
+            token_budget=TokenBudgetConfig(base=1, per_subtask=1),
+        ),
     )
     adapters = {
         "fake_planner": ScriptedFakeAdapter("fake_planner", [_plan_response([{"prompt": "subtarea", "domain": "general"}]), "done"]),
@@ -445,7 +529,7 @@ def test_task_runtime_simulated_context_tokens_override_real_accumulation(tmp_pa
     ).run(prompt="tarea", request_id="parent")
 
     assert result.stop_reason == "task_done"
-    assert result.trace["tokens_in"] + result.trace["tokens_out"] > config.orchestration.max_context_tokens
+    assert result.trace["tokens_in"] + result.trace["tokens_out"] >= result.token_budget_total
 
 
 def _config(tmp_path):

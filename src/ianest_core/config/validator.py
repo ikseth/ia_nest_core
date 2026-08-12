@@ -23,13 +23,11 @@ ORCHESTRATION_LIMITS = {
     "max_iterations": int,
     "max_replans": int,
     "max_time_s": (int, float),
-    "max_context_tokens": int,
     "max_parallel": int,
 }
 COVERAGE_LIMITS = {
     "units_per_chunk": int,
     "max_chunks": int,
-    "max_total_tokens": int,
     "max_retries_per_unit": int,
     "max_no_progress_iterations": int,
 }
@@ -117,9 +115,26 @@ def _validate_orchestration(
         value = raw[field]
         if isinstance(value, bool) or not isinstance(value, expected_type) or value <= 0:
             raise ConfigValidationError("orchestration limit must be positive", field)
+    token_budget = raw.get("token_budget")
+    if token_budget is not None:
+        _validate_token_budget(token_budget)
     coverage = raw.get("coverage")
     if coverage is not None:
         _validate_coverage(coverage, model_ids, domain_ids, profile_ids)
+
+
+def _validate_token_budget(raw: Any) -> None:
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("token_budget must be a mapping", "orchestration.token_budget")
+    for name in ("base", "per_subtask"):
+        if name not in raw:
+            continue
+        value = raw[name]
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ConfigValidationError(
+                "token budget values must be positive integers",
+                f"orchestration.token_budget.{name}",
+            )
 
 
 def _validate_coverage(

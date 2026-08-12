@@ -159,6 +159,18 @@ Historia de la bateria, porque explica su forma:
 - Ampliada el 2026-08-11 con un caso de observabilidad: `plan_ready` cuenta las
   derivaciones (incluida una re-planificacion), no las vueltas por `rerun`.
 
+Digest de conformidad declarado tras implementar ADR 0044 (61 casos totales, sin
+cambio de recuento): el corte por presupuesto de `task.run` pasa a llamarse
+`max_total_tokens` en los DOS modos, y los limites retirados
+-`orchestration.max_context_tokens` y `coverage.max_total_tokens`- dejan de
+publicarse como parametros efectivos y los sustituye `token_budget_total`, la
+concesion calculada. Se movieron exactamente tres casos ya integrados:
+`task_stop_max_context` (renombra su corte), `coverage_stop_max_total_tokens` y
+`coverage_ten_units_three_per_chunk` (sustituyen el limite por la concesion).
+`reasoning_max_context_tokens` NO cambia: `reasoning.run` conserva su corte con
+ese nombre, que es otro concepto (ADR 0008):
+`bf3fcc47920c05b8dee03490acca8bf41b1999ba81d9d3a4806e77f45c360d13`.
+
 Digest de conformidad declarado tras integrar los 19 casos del ADR 0041 (61
 casos totales: los 42 anteriores, sin cambio de resultado, mas los 19 nuevos).
 El cambio de digest incorpora I1-I4, los contadores independientes de PLAN y

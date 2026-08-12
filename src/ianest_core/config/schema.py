@@ -50,6 +50,12 @@ class OrchestrationTargetConfig:
 
 
 @dataclass(frozen=True)
+class TokenBudgetConfig:
+    base: int = 2000
+    per_subtask: int = 3000
+
+
+@dataclass(frozen=True)
 class RouterConfig:
     model: str | None
     domain: str | None
@@ -61,7 +67,6 @@ class CoverageConfig:
     validator: OrchestrationTargetConfig
     units_per_chunk: int = 3
     max_chunks: int = 8
-    max_total_tokens: int = 16384
     max_retries_per_unit: int = 2
     max_no_progress_iterations: int = 2
 
@@ -74,8 +79,8 @@ class OrchestrationConfig:
     max_iterations: int = 2
     max_replans: int = 1
     max_time_s: float = 30
-    max_context_tokens: int = 16384
     max_parallel: int = 2
+    token_budget: TokenBudgetConfig = field(default_factory=TokenBudgetConfig)
     coverage: CoverageConfig | None = None
 
 

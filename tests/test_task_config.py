@@ -4,9 +4,9 @@ from copy import deepcopy
 
 import pytest
 
-from ianest_core.config import load_config, load_config_data, validate_config_dict
+from ianest_core.config import load_config, load_config_data, load_config_from_dict, validate_config_dict
 from ianest_core.config.loader import _load_orchestration
-from ianest_core.config.schema import OrchestrationConfig
+from ianest_core.config.schema import OrchestrationConfig, TokenBudgetConfig
 from ianest_core.errors import ConfigValidationError
 
 
@@ -29,8 +29,9 @@ def test_orchestration_loader_defaults_match_the_schema() -> None:
     declared = OrchestrationConfig(planner=loaded.planner, combiner=loaded.combiner)
 
     for field in ("max_subtasks", "max_iterations", "max_replans", "max_time_s",
-                  "max_context_tokens", "max_parallel"):
+                  "max_parallel", "token_budget"):
         assert getattr(loaded, field) == getattr(declared, field), field
+    assert loaded.token_budget == TokenBudgetConfig(base=2000, per_subtask=3000)
 
 
 def test_orchestration_config_is_optional() -> None:
@@ -48,7 +49,6 @@ def test_orchestration_coverage_config_loads_frozen_fixture() -> None:
     assert config.orchestration.coverage.validator.model == "fake_validator"
     assert config.orchestration.coverage.units_per_chunk == 3
     assert config.orchestration.coverage.max_chunks == 8
-    assert config.orchestration.coverage.max_total_tokens == 16384
     assert config.orchestration.coverage.max_retries_per_unit == 2
     assert config.orchestration.coverage.max_no_progress_iterations == 2
 
@@ -59,6 +59,20 @@ def test_orchestration_coverage_config_is_optional() -> None:
 
     assert config.orchestration is not None
     assert config.orchestration.coverage is None
+
+
+def test_retired_task_token_limits_validate_and_are_ignored() -> None:
+    raw = deepcopy(load_config_data("eval/fixtures/orchestration_coverage.yaml"))
+    raw["orchestration"]["max_context_tokens"] = "ignored even with the old wrong type"
+    raw["orchestration"]["coverage"]["max_total_tokens"] = False
+
+    validate_config_dict(raw)
+    config = load_config_from_dict(raw)
+
+    assert config.orchestration is not None
+    assert not hasattr(config.orchestration, "max_context_tokens")
+    assert config.orchestration.coverage is not None
+    assert not hasattr(config.orchestration.coverage, "max_total_tokens")
 
 
 @pytest.mark.parametrize(

@@ -29,6 +29,7 @@ class TaskResult:
     params: dict[str, Any]
     trace: dict[str, Any]
     checkpoints: list[str]
+    token_budget_total: int
     mode: str | None = None
     coverage: dict[str, Any] | None = None
     chunks: list[dict[str, Any]] | None = None
@@ -46,6 +47,7 @@ class TaskResult:
             "params": self.params,
             "trace": self.trace,
             "checkpoints": self.checkpoints,
+            "token_budget_total": self.token_budget_total,
         }
         if self.mode is not None:
             result["mode"] = self.mode
@@ -244,6 +246,8 @@ class TaskRuntime:
         )
         plan_renegotiation_used = len(plan_resolution.attempts) == 2
         degradations.extend(plan_resolution.degradations)
+        token_budget_granted = self._pipeline_token_grant(plan_resolution.final.plan)
+        token_budget_total = token_budget_granted
 
         for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
             yield self._checkpoint(
@@ -252,7 +256,9 @@ class TaskRuntime:
                 identity,
                 parent_request_id,
                 task_id,
-                self._plan_ready_payload("plan", attempt, attempt_number),
+                self._plan_ready_payload(
+                    "plan", attempt, attempt_number, token_budget_granted, token_budget_total
+                ),
             )
 
         while True:
@@ -302,7 +308,7 @@ class TaskRuntime:
             if decision == "done":
                 stop_reason = "task_done"
                 break
-            stop_reason = self._limit_reason(started, token_usage)
+            stop_reason = self._limit_reason(started, token_usage, token_budget_total)
             if stop_reason:
                 break
             if decision == "replan":
@@ -321,6 +327,8 @@ class TaskRuntime:
                 if len(plan_resolution.attempts) == 2:
                     plan_renegotiation_used = True
                 degradations.extend(plan_resolution.degradations)
+                token_budget_granted = self._pipeline_token_grant(plan_resolution.final.plan)
+                token_budget_total += token_budget_granted
                 for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
                     yield self._checkpoint(
                         "plan_ready",
@@ -328,12 +336,16 @@ class TaskRuntime:
                         identity,
                         parent_request_id,
                         task_id,
-                        self._plan_ready_payload("plan", attempt, attempt_number),
+                        self._plan_ready_payload(
+                            "plan", attempt, attempt_number,
+                            token_budget_granted, token_budget_total,
+                        ),
                     )
                 continue
             if iterations >= self.settings.max_iterations:
                 stop_reason = "max_iterations"
                 break
+            token_budget_total += self._pipeline_token_grant(plan)
 
         tokens_in, tokens_out = token_usage.snapshot()
         payload = {
@@ -349,6 +361,7 @@ class TaskRuntime:
                 "latency_ms": int((time.monotonic() - started) * 1000),
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
+                "token_budget_total": token_budget_total,
                 "stop_reason": stop_reason,
             },
             "checkpoints": [*checkpoints, "task_done"],
@@ -357,6 +370,7 @@ class TaskRuntime:
             "degradations": degradations,
             "plan_attempts": 2 if plan_renegotiation_used else 1,
             "evaluation_attempts": 2 if evaluation_renegotiation_used else 1,
+            "token_budget_total": token_budget_total,
         }
         yield self._checkpoint("task_done", checkpoints, identity, parent_request_id, task_id, payload)
 
@@ -394,6 +408,8 @@ class TaskRuntime:
             token_usage,
             allow_renegotiation=True,
         )
+        token_budget_granted = self._coverage_token_grant(plan_resolution.final.plan)
+        token_budget_total = token_budget_granted
         for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
             yield self._checkpoint(
                 "plan_ready",
@@ -401,7 +417,9 @@ class TaskRuntime:
                 identity,
                 parent_request_id,
                 task_id,
-                self._plan_ready_payload("units", attempt, attempt_number),
+                self._plan_ready_payload(
+                    "units", attempt, attempt_number, token_budget_granted, token_budget_total
+                ),
             )
         plan = self._coverage_units_from(plan_resolution.final.plan)
         ledger = _CoverageLedger(plan, token_usage)
@@ -413,7 +431,7 @@ class TaskRuntime:
 
         cycle = 0
         while not stop_reason:
-            stop_reason = self._coverage_limit_reason(started, ledger)
+            stop_reason = self._coverage_limit_reason(started, ledger, token_budget_total)
             if stop_reason:
                 break
 
@@ -524,6 +542,7 @@ class TaskRuntime:
                 "latency_ms": int((time.monotonic() - started) * 1000),
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
+                "token_budget_total": token_budget_total,
                 "stop_reason": stop_reason,
                 "mode": "coverage",
             },
@@ -536,6 +555,7 @@ class TaskRuntime:
             "degradations": plan_resolution.degradations,
             "plan_attempts": len(plan_resolution.attempts),
             "evaluation_attempts": 1,
+            "token_budget_total": token_budget_total,
         }
         yield self._checkpoint(
             "task_done",
@@ -917,7 +937,12 @@ class TaskRuntime:
             "tokens_out": tokens_out,
         }
 
-    def _coverage_limit_reason(self, started: float, ledger: _CoverageLedger) -> str | None:
+    def _coverage_limit_reason(
+        self,
+        started: float,
+        ledger: _CoverageLedger,
+        token_budget_total: int,
+    ) -> str | None:
         coverage_settings = self.settings.coverage
         if coverage_settings is None:
             raise CoreError("ConfigError", "coverage configuration is required", "orchestration.coverage")
@@ -929,7 +954,7 @@ class TaskRuntime:
         )
         if elapsed >= self.settings.max_time_s:
             return "max_time"
-        if total_tokens >= coverage_settings.max_total_tokens:
+        if total_tokens >= token_budget_total:
             return "max_total_tokens"
         if ledger.chunk_index >= coverage_settings.max_chunks:
             return "max_chunks"
@@ -1009,9 +1034,9 @@ class TaskRuntime:
             "max_parallel": self.settings.max_parallel,
             "units_per_chunk": coverage_settings.units_per_chunk,
             "max_chunks": coverage_settings.max_chunks,
-            "max_total_tokens": coverage_settings.max_total_tokens,
             "max_retries_per_unit": coverage_settings.max_retries_per_unit,
             "max_no_progress_iterations": coverage_settings.max_no_progress_iterations,
+            "token_budget": self._token_budget_params(),
         }
 
     @staticmethod
@@ -1162,13 +1187,21 @@ class TaskRuntime:
         return f"{instruction}\nCorrect the prior plan in one response: {'; '.join(defects)}."
 
     @staticmethod
-    def _plan_ready_payload(plan_key: str, attempt: _PlanAttempt, attempt_number: int) -> dict[str, Any]:
+    def _plan_ready_payload(
+        plan_key: str,
+        attempt: _PlanAttempt,
+        attempt_number: int,
+        token_budget_granted: int,
+        token_budget_total: int,
+    ) -> dict[str, Any]:
         return {
             plan_key: attempt.plan,
             "requirements": attempt.requirements,
             "plan_attempts": attempt_number,
             "requirements_covered": attempt.requirements_covered,
             "uncovered_requirements": attempt.uncovered_requirements,
+            "token_budget_granted": token_budget_granted,
+            "token_budget_total": token_budget_total,
         }
 
     def _validate_pipeline_dependencies(self, plan: list[dict[str, Any]]) -> None:
@@ -1374,19 +1407,46 @@ class TaskRuntime:
         )
         return Event(name, data)
 
-    def _limit_reason(self, started: float, token_usage: _TokenUsage) -> str | None:
+    def _limit_reason(
+        self,
+        started: float,
+        token_usage: _TokenUsage,
+        token_budget_total: int,
+    ) -> str | None:
         elapsed = float(self.simulated.get("elapsed_s", time.monotonic() - started))
         context = int(self.simulated["context_tokens"]) if "context_tokens" in self.simulated else token_usage.total()
         if elapsed >= self.settings.max_time_s:
             return "max_time"
-        if context >= self.settings.max_context_tokens:
-            return "max_context_tokens"
+        if context >= token_budget_total:
+            return "max_total_tokens"
         return None
 
     def _params(self) -> dict[str, Any]:
-        return {name: getattr(self.settings, name) for name in (
-            "max_subtasks", "max_iterations", "max_replans", "max_time_s", "max_context_tokens", "max_parallel"
+        params = {name: getattr(self.settings, name) for name in (
+            "max_subtasks", "max_iterations", "max_replans", "max_time_s", "max_parallel"
         )}
+        params["token_budget"] = self._token_budget_params()
+        return params
+
+    def _pipeline_token_grant(self, plan: list[dict[str, Any]]) -> int:
+        budget = self.settings.token_budget
+        return budget.base + budget.per_subtask * len(plan)
+
+    def _coverage_token_grant(self, plan: list[dict[str, Any]]) -> int:
+        coverage_settings = self.settings.coverage
+        if coverage_settings is None:
+            raise CoreError("ConfigError", "coverage configuration is required", "orchestration.coverage")
+        budget = self.settings.token_budget
+        return (
+            budget.base
+            + budget.per_subtask * len(plan) * (1 + coverage_settings.max_retries_per_unit)
+        )
+
+    def _token_budget_params(self) -> dict[str, int]:
+        return {
+            "base": self.settings.token_budget.base,
+            "per_subtask": self.settings.token_budget.per_subtask,
+        }
 
     @staticmethod
     def _valid_subtask(item: Any) -> bool:

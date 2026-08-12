@@ -193,6 +193,28 @@ modo de forma explicita; no hay promocion automatica.
 - `mode=coverage`: completitud semantica guiada por cobertura para tareas
   con unidades enumerables y verificables.
 
+**La longitud de la respuesta de `pipeline` esta acotada por el `max_tokens` del
+COMBINADOR.** En `pipeline` todo pasa por una sola llamada final que reescribe
+los resultados, asi que la respuesta no puede superar lo que esa llamada pueda
+emitir, por muchas subtareas que haya: anadir subtareas no alarga la respuesta,
+obliga al combinador a comprimir mas. En `coverage` no ocurre, porque su
+respuesta es el ensamblado determinista de los fragmentos aceptados (ADR 0038):
+su longitud esta acotada por el numero de unidades por el techo de cada llamada,
+no por una sola.
+
+Medido en laboratorio (2026-08-11 y 2026-08-12, detalle en `local/lab/`): con el
+mismo prompt y `max_tokens: 512`, `pipeline` entrego 2015 caracteres -su
+combinador emitio exactamente sus 512 tokens de techo, comprimiendo 1878 tokens
+de subtareas- mientras `coverage` entrego 5337 sin ningun `finish_reason=length`.
+`coverage` resulto ademas mas eficiente (del orden de 1 token gastado por
+caracter entregado, frente a 3 de `pipeline` con ese perfil) y mas rapido, porque
+no paga combinador ni evaluador.
+
+Criterio de seleccion, por tanto: `pipeline` para tareas que se responden
+combinando; `coverage` cuando lo que se pide es EXTENSO o enumerable. Quien
+necesite salida larga en `pipeline` debe subir el `max_tokens` del perfil del
+combinador, no anadir subtareas.
+
 En modo coverage:
 
 - PLAN deriva unidades de cobertura (id, descripcion verificable,

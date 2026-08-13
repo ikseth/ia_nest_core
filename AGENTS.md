@@ -23,6 +23,10 @@ aqui y no se duplica en este repo:
 - `docs/REGISTRO_CAPAS.md`: quien existe en el ente, quien depende de quien y
   la regla de vinculo por SemVer. `docs/FRONTERAS.md` de este repo conserva la
   costura que el core expone a cada capa.
+- `docs/ARQUITECTURA_DE_CAPAS.md`: la FORMA en que las capas se componen
+  (contrato uniforme, reenvio por defecto, clientes contra el contrato;
+  meta ADR 0007). No cambia la direccion de la dependencia: el core sigue sin
+  conocer a las capas de arriba.
 - `docs/POLITICA_SEMVER.md`: esquema, que numero subir y proceso de
   publicacion. `docs/VERSIONADO.md` de este repo conserva que cuenta como
   contrato publico del core y su registro de fichas.

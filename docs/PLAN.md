@@ -426,9 +426,11 @@ forma (`PlanParseError`); plan con ciclo o indice invalido
 plan suministrado -> corte `replan_unavailable`; `plan_source` correcto en las
 dos vias; y no regresion (sin `plan`, salida identica a la actual).
 
-Casos anadidos por ADR 0047: plan suministrado sin `effort` hereda el del plan;
-plan suministrado con `effort` explicito menor corta `max_subtasks`; presupuesto
-concedido sobre plan suministrado; plan sin requisitos emite la degradacion
+Casos anadidos por ADR 0047 y ADR 0048: peticion con `plan`, `requirements` y
+`effort` como campos hermanos, echo de lo que devolvio `task.plan`; plan
+suministrado con `effort` explicito menor corta `max_subtasks`; sin `effort`,
+`default_effort` con su cifra visible en `params.effort`; presupuesto concedido
+sobre plan suministrado; plan sin `requirements` emite la degradacion
 `requirements_unavailable`; `plan_attempts=0` con `plan_source=supplied`.
 
 Criterio de salida: bateria escrita y congelada antes de implementar.
@@ -444,7 +446,10 @@ subcomando y su ruta.
 Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
 `extended` ejerce la via de punta a punta con su RAG por subtarea (leccion de
 ADR 0035: la capacidad se cierra cuando tiene consumidor real, no cuando
-compila).
+compila). En ese ejercicio, gate explicito: `degradations` vacio y
+`params.effort` igual al que planifico. Si aparece
+`requirements_unavailable`, la capa esta perdiendo campos y se ve ahi, no meses
+despues.
 
 ### Fase v0.4-C: retirada de routing_rules
 

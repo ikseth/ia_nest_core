@@ -387,16 +387,20 @@ MCP comparan en las dos direcciones -incluidos los textos, normalizando
 `%(default)s`- y pasan contra las interfaces escritas a mano; `tags` retirado;
 digest sin mover.
 
-### Fase v0.4-A3b2: generar el parser
+### Fase v0.4-A3b2: generar el parser (completada 2026-08-14)
 
 Sustituir la construccion a mano de `_build_parser` por una que recorra el
 catalogo. El render sigue siendo codigo, elegido por nombre de accion: lo que se
 genera es el parser, no la presentacion. Los gates de A3b1 son la red que prueba
 que la ayuda no se degrada.
 
-Criterio de salida: ninguna accion de CLI escrita a mano; superficie CLI
-observable sin cambios (los tests de ayuda y los gates son la red); digest sin
-mover (la CLI no participa en la conformidad).
+Criterio de salida (cumplido): ninguna accion de CLI escrita a mano y despacho
+por tabla; las 26 ayudas del binario identicas byte a byte a las de antes del
+cambio; gates y tests de ayuda en verde sin tocarlos; digest sin mover.
+
+Con esto el tramo A queda COMPLETO: el catalogo es la fuente unica de la que se
+derivan la CLI y las rutas REST, contra la que se asertan las herramientas MCP, y
+de la que responde `capability.list`.
 
 ### Fase v0.4-B1: contrato del plan explicito (completada 2026-08-14)
 

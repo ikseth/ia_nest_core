@@ -31,7 +31,17 @@ class CliProjection:
     description: str
     epilog: str | None = None
     flags: tuple[str, ...] = ()
+    flag_help: tuple[tuple[str, str], ...] = ()
     aliases: tuple[str, ...] = ()
+    alias_summaries: tuple[tuple[str, str], ...] = ()
+    order: int = 0
+
+
+@dataclass(frozen=True)
+class CliGroup:
+    name: str
+    summary: str
+    description: str
 
 
 @dataclass(frozen=True)
@@ -90,6 +100,70 @@ _EFFORT = _param(
     choices=("low", "medium", "high"),
 )
 
+_JSON_RESULT = ("json", "emite resultado")
+_JSON_EVENTS = ("json", "emite cada evento como JSONL")
+_JSON_CHECKPOINTS = ("json", "emite cada checkpoint como JSONL")
+_JSON_CATALOG = ("json", "emite el catalogo completo")
+_JSON_LISTING = ("json", "emite listado")
+_JSON_EVAL = ("json", "emite resultado completo")
+_JSON_REPORT = ("json", "emite informe")
+_QUIET = ("quiet", "suprime el progreso en stderr; no afecta a la respuesta")
+_VERBOSE = ("verbose", "enriquece el progreso en stderr; no afecta a la respuesta")
+
+
+CLI_GROUPS: tuple[CliGroup, ...] = (
+    CliGroup(
+        "init",
+        "crea la configuracion inicial y el archivo .env",
+        "Crea config/core.yaml y .env desde una plantilla y valida el resultado.",
+    ),
+    CliGroup(
+        "prompt",
+        "ejecuta inferencias",
+        "Ejecuta prompts mediante los modelos y dominios declarados.",
+    ),
+    CliGroup(
+        "reasoning",
+        "ejecuta razonamiento iterativo",
+        "Ejecuta razonamiento controlado con los limites declarados en el perfil.",
+    ),
+    CliGroup(
+        "task",
+        "orquesta tareas multi-modelo",
+        "Planifica, enruta, ejecuta, combina y evalua una tarea compleja.",
+    ),
+    CliGroup(
+        "capability",
+        "consulta las capacidades del core",
+        "Consulta el catalogo publico de capacidades e interfaces.",
+    ),
+    CliGroup(
+        "domain",
+        "consulta y enruta dominios",
+        "Consulta los dominios declarados o enruta un prompt.",
+    ),
+    CliGroup(
+        "model",
+        "consulta y aprovisiona modelos",
+        "Consulta modelos o descarga los declarados que falten.",
+    ),
+    CliGroup(
+        "config",
+        "valida la configuracion",
+        "Opera sobre la configuracion declarativa del core.",
+    ),
+    CliGroup(
+        "eval",
+        "ejecuta baterias de evaluacion",
+        "Ejecuta evaluaciones de conformidad o smoke.",
+    ),
+    CliGroup(
+        "runtime",
+        "inspecciona runtime, backend y GPU",
+        "Consulta salud y deteccion del entorno de ejecucion.",
+    ),
+)
+
 
 CAPABILITIES: tuple[Capability, ...] = (
     Capability(
@@ -104,6 +178,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "list",
             "Lista capacidades, parametros y proyecciones de interfaz.",
             flags=("json",),
+            flag_help=(_JSON_CATALOG,),
         ),
         McpProjection("capability.list"),
     ),
@@ -119,6 +194,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "validate",
             "Valida modelos, dominios, perfiles y referencias.",
             flags=("json",),
+            flag_help=(_JSON_RESULT,),
         ),
         McpProjection("config.validate"),
     ),
@@ -134,6 +210,8 @@ CAPABILITIES: tuple[Capability, ...] = (
             "list",
             "Lista dominios, modelo preferido y estado.",
             flags=("json",),
+            flag_help=(_JSON_LISTING,),
+            order=1,
         ),
         McpProjection("domain.list"),
     ),
@@ -157,6 +235,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "route",
             "Evalua las reglas declaradas y propone el dominio y modelo aplicables.",
             flags=("json",),
+            flag_help=(_JSON_RESULT,),
         ),
         McpProjection("domain.route"),
     ),
@@ -187,6 +266,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "run",
             "Ejecuta los casos de la pista seleccionada.",
             flags=("json",),
+            flag_help=(_JSON_EVAL,),
         ),
         McpProjection("eval.run"),
     ),
@@ -236,6 +316,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "list",
             "Lista modelos, proveedor, disponibilidad y perfil.",
             flags=("json",),
+            flag_help=(_JSON_LISTING,),
         ),
         McpProjection("model.list"),
     ),
@@ -259,6 +340,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "pull",
             "Descarga modelos ausentes mediante el provisioner compatible con su proveedor.",
             flags=("json",),
+            flag_help=(_JSON_RESULT,),
         ),
         None,
     ),
@@ -279,6 +361,7 @@ CAPABILITIES: tuple[Capability, ...] = (
                 "'ianest domain route' o 'ianest task run'."
             ),
             flags=("json", "quiet", "verbose"),
+            flag_help=(_JSON_RESULT, _QUIET, _VERBOSE),
         ),
         McpProjection("prompt.run"),
     ),
@@ -295,6 +378,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "Ejecuta un prompt: la respuesta va a stdout y el progreso a stderr.",
             epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
             flags=("json", "quiet", "verbose"),
+            flag_help=(_JSON_EVENTS, _QUIET, _VERBOSE),
         ),
         None,
     ),
@@ -311,6 +395,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "Ejecuta razonamiento iterativo y devuelve su salida final.",
             epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
             flags=("json", "quiet", "verbose"),
+            flag_help=(_JSON_RESULT, _QUIET, _VERBOSE),
         ),
         McpProjection("reasoning.run"),
     ),
@@ -327,6 +412,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "Ejecuta razonamiento iterativo: la salida va a stdout y el progreso por paso a stderr.",
             epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
             flags=("json", "quiet", "verbose"),
+            flag_help=(_JSON_EVENTS, _QUIET, _VERBOSE),
         ),
         None,
     ),
@@ -342,7 +428,9 @@ CAPABILITIES: tuple[Capability, ...] = (
             "health",
             "Informa de core, backend, modelos, GPU y version de protocolo MCP.",
             flags=("json",),
+            flag_help=(_JSON_REPORT,),
             aliases=("detect",),
+            alias_summaries=(("detect", "alias de health; detecta runtime, backend y GPU"),),
         ),
         McpProjection("runtime.health"),
     ),
@@ -362,6 +450,7 @@ CAPABILITIES: tuple[Capability, ...] = (
                 "genera y valida unidades enumerables hasta completar su cobertura."
             ),
             flags=("json", "quiet", "verbose"),
+            flag_help=(_JSON_CHECKPOINTS, _QUIET, _VERBOSE),
         ),
         McpProjection("task.run"),
     ),
@@ -391,5 +480,18 @@ assert tuple(capability.name for capability in CAPABILITIES) == tuple(
 assert all(
     capability.cli is None
     or set(capability.cli.flags) <= {"json", "quiet", "verbose"}
+    for capability in CAPABILITIES
+)
+assert {group.name for group in CLI_GROUPS} == {
+    capability.cli.group for capability in CAPABILITIES if capability.cli is not None
+}
+assert all(
+    capability.cli is None
+    or set(dict(capability.cli.flag_help)) == set(capability.cli.flags)
+    for capability in CAPABILITIES
+)
+assert all(
+    capability.cli is None
+    or set(dict(capability.cli.alias_summaries)) == set(capability.cli.aliases)
     for capability in CAPABILITIES
 )

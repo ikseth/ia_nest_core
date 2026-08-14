@@ -12,9 +12,10 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   MCP, en lugar del mismo dato escrito por triplicado. Nueva capacidad
   `capability.list` con paridad CLI/REST/MCP -nombre, parametros y proyeccion
   por interfaz de cada capacidad, con los huecos declarados-, `core_version` en
-  `capability.list` y en `runtime.health`. Implementacion en las fases v0.4-A2/A3
-  del PLAN. Impacto: adicion compatible (patch por politica; se publica dentro
-  de v0.4.0).
+  `capability.list` y en `runtime.health`. Entregado: la CLI y la tabla de rutas
+  REST se construyen recorriendo el catalogo, y un gate bidireccional aserta que
+  las herramientas MCP no se desvian de el. Impacto: adicion compatible (patch
+  por politica; se publica dentro de v0.4.0).
 - Contrato del plan explicito de `task.run` (ADR 0040, enmendado por ADR 0047;
   cierra `extended CR-0001`): capacidad `task.plan`, entrada opcional `plan` en
   `task.run`, corte tipado `replan_unavailable` y campo `plan_source` en

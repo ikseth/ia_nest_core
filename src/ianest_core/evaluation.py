@@ -4,7 +4,7 @@ import hashlib
 import json
 import tempfile
 import time
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +13,7 @@ from uuid import uuid4
 import yaml
 
 from ianest_core.config import load_config, load_config_from_dict, validate_config_dict
+from ianest_core.capabilities import CAPABILITIES
 from ianest_core.config.schema import CoreConfig, TelemetryConfig
 from ianest_core.errors import CoreError
 from ianest_core.adapters import Event, ScriptedFakeAdapter
@@ -75,11 +76,93 @@ def _execute_case(case: dict[str, Any], *, config_path: str | Path | None) -> di
         return _execute_reasoning_run(case, config_path=config_path)
     if capability == "task.run":
         return _execute_task_run(case, config_path=config_path)
+    if capability == "capability.list":
+        return _execute_capability_list(case)
     if capability == "model.list":
         return _execute_model_list(case, config_path=config_path)
     if capability == "config.validate":
         return _execute_config_validate(case)
     raise CoreError("EvalError", f"unsupported capability {capability}", "capability")
+
+
+def _execute_capability_list(case: dict[str, Any]) -> dict[str, Any]:
+    entries = [asdict(capability) for capability in CAPABILITIES]
+    by_name = {entry["name"]: entry for entry in entries}
+    expected = case.get("expect", {})
+    assertions: list[dict[str, Any]] = []
+
+    if "capability_names" in expected:
+        names = [entry["name"] for entry in entries]
+        assertions.append(_assertion("capability_names", names, expected["capability_names"]))
+    if "identity_capability_names" in expected:
+        names = [entry["name"] for entry in entries if entry["identity"]]
+        assertions.append(
+            _assertion(
+                "identity_capability_names",
+                names,
+                expected["identity_capability_names"],
+            )
+        )
+    if "entries" in expected:
+        actual_entries = []
+        entries_ok = True
+        for expected_entry in expected["entries"]:
+            actual_entry = by_name.get(expected_entry.get("name"))
+            actual_entries.append(_partial_value(actual_entry, expected_entry))
+            entries_ok = entries_ok and _partial_match(actual_entry, expected_entry)
+        assertions.append(
+            {
+                "name": "entries",
+                "expected": expected["entries"],
+                "actual": actual_entries,
+                "ok": entries_ok,
+            }
+        )
+
+    return _case_result(case, assertions)
+
+
+def _partial_match(actual: Any, expected: Any) -> bool:
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return False
+        return all(key in actual and _partial_match(actual[key], value) for key, value in expected.items())
+    if isinstance(expected, list):
+        if not isinstance(actual, (list, tuple)):
+            return False
+        if all(isinstance(item, dict) and "name" in item for item in expected):
+            actual_by_name = {
+                item.get("name"): item for item in actual if isinstance(item, dict) and "name" in item
+            }
+            return all(
+                item["name"] in actual_by_name and _partial_match(actual_by_name[item["name"]], item)
+                for item in expected
+            )
+        return list(actual) == expected
+    return actual == expected
+
+
+def _partial_value(actual: Any, expected: Any) -> Any:
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        return {
+            key: _partial_value(actual.get(key), value)
+            for key, value in expected.items()
+        }
+    if isinstance(expected, list) and isinstance(actual, (list, tuple)):
+        if all(isinstance(item, dict) and "name" in item for item in expected):
+            actual_by_name = {
+                item.get("name"): item for item in actual if isinstance(item, dict) and "name" in item
+            }
+            return [
+                _partial_value(actual_by_name.get(item["name"]), item)
+                for item in expected
+            ]
+        return list(actual)
+    return actual
+
+
+def _assertion(name: str, actual: Any, expected: Any) -> dict[str, Any]:
+    return {"name": name, "expected": expected, "actual": actual, "ok": actual == expected}
 
 
 def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:

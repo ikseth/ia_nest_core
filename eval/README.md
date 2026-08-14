@@ -103,9 +103,9 @@ conformidad totales; el caso pipeline `rerun` aserta el campo aditivo
 
 ## Bateria v0.4: catalogo de capacidades
 
-`eval/battery/v0.4/capability.yaml.frozen` fija el criterio de aceptacion de
-`capability.list` (ADR 0046) ANTES de implementarlo. El sufijo `.frozen` deja
-sus casos fuera del `rglob("*.yaml")` del runner durante la fase v0.4-A2.
+`eval/battery/v0.4/capability.yaml` fija el criterio de aceptacion de
+`capability.list` (ADR 0046). Se escribio y congelo antes de implementar, y se
+integro en la fase v0.4-A3 quitando el sufijo `.frozen`.
 
 Casos congelados e invariante de cada uno:
 
@@ -123,7 +123,8 @@ Casos congelados e invariante de cada uno:
 - `capability_catalog_runtime_health_cli_alias`: `runtime.health` declara
   `detect` como alias CLI.
 - `capability_catalog_exact_identity_set`: solo `domain.route`, `prompt.run`,
-  `reasoning.run`, `task.run` y `task.stream` transportan identidad.
+  `prompt.stream`, `reasoning.run`, `reasoning.stream`, `task.run` y
+  `task.stream` transportan identidad.
 - `capability_catalog_task_run_mode_and_effort_params`: `mode` y `effort`
   declaran sus `choices` y valores por defecto.
 
@@ -147,6 +148,18 @@ declarativa:
 - `POST /task/run` devuelve JSON y `POST /task/stream` devuelve SSE, con el
   mismo contenido final.
 - `runtime.health` declara el mismo `core_version` que `capability.list`.
+
+Digest de conformidad declarado tras integrar los 9 casos de `capability.list`
+(90 casos de conformidad totales), ya con la correccion de identidad de los dos
+casos `stream` (ver abajo):
+`a60aa35b31acff2e9e286b6fc3b8c15b4293ce3331728b0f26aabe0234eb14b8`.
+
+Correccion de reconciliacion (2026-08-14): el caso de identidad se congelo
+declarando cinco capacidades, y son SIETE: `prompt.stream` y `reasoning.stream`
+transportan identidad igual que sus hermanas bloqueantes -la aceptan por REST y
+por CLI-. El error venia del brief de la fase A2, que se contradecia entre su
+tabla y su enunciado; el catalogo lo heredo. Corregido en la bateria y en el
+catalogo antes de commitear.
 
 ## Bateria del router semantico (fases 3a y 3b-i)
 

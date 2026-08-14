@@ -17,8 +17,11 @@ Para arrancarlos como servicio persistente (systemd), ver
 Endpoints:
 - `POST /prompt/run`      `{prompt, domain|model, identity?}`
 - `POST /prompt/stream`   igual, respuesta en SSE (streaming)
+- `POST /task/run`        `{prompt, mode?, effort?, identity?}`, respuesta JSON
+- `POST /task/stream`     igual, respuesta en SSE (streaming)
 - `POST /domain/route`    `{prompt}`
 - `GET  /model/list` , `GET /domain/list`
+- `GET  /capability/list`
 - `POST /config/validate` , `POST /eval/run` `{track?}`
 - `GET  /runtime/health`
 
@@ -39,6 +42,7 @@ O como **servicio de red por SSE**:
 
     python -m ianest_core.mcp_server --transport sse --host 127.0.0.1 --port 8090
 
-Herramientas: `prompt.run`, `domain.route`, `model.list`, `domain.list`,
-`config.validate`, `eval.run`, `runtime.health` (con salida estructurada). La
-version de protocolo se declara en `runtime.health`.
+Herramientas: `capability.list`, `prompt.run`, `reasoning.run`, `task.run`,
+`domain.route`, `model.list`, `domain.list`, `config.validate`, `eval.run` y
+`runtime.health` (con salida estructurada). `task.stream` no se expone por MCP.
+La version de protocolo se declara en `runtime.health`.

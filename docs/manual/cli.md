@@ -25,9 +25,9 @@ configuracion ni contacta con el backend.
     ianest [--config RUTA] GRUPO ACCION [opciones]
 
 `GRUPO` y `ACCION` son obligatorios (dos palabras). Ejemplos: `prompt run`,
-`prompt stream`, `reasoning run`, `reasoning stream`, `task run`,
-`domain route`, `domain list`, `model list`, `model pull`, `config validate`,
-`eval run`, `runtime detect`, `runtime health`.
+`prompt stream`, `reasoning run`, `reasoning stream`, `task run`, `task stream`,
+`capability list`, `domain route`, `domain list`, `model list`, `model pull`,
+`config validate`, `eval run`, `runtime detect`, `runtime health`.
 
 NO funciona `ianest --prompt "..."` suelto: le falta el grupo y la accion.
 Lo correcto es `ianest ... prompt run --prompt "..."`.
@@ -78,6 +78,9 @@ Flags de identidad (opcionales): `--user-id`, `--service`, `--session-id`,
     # esfuerzo por peticion; sin --effort usa orchestration.default_effort
     ianest --config config/core.yaml task run --prompt "Analiza ..." --effort high
 
+    # vista JSONL de todos los eventos de la tarea
+    ianest --config config/core.yaml task stream --prompt "Analiza ..." --mode pipeline
+
 `--effort` acepta `low`, `medium` o `high`. La interfaz solo transporta el
 identificador; los limites de cada nivel los declara el operador en la config.
 En `--json`, `params.effort` publica el nivel resuelto junto a los limites
@@ -98,6 +101,7 @@ cero. `--json` transporta los campos `requirements_covered`,
     ianest --config config/core.yaml model list                    # modelos y disponibilidad
     ianest --config config/core.yaml model pull                    # descarga los modelos declarados ausentes
     ianest --config config/core.yaml domain list                   # dominios
+    ianest capability list --json                                  # catalogo de capacidades
 
 ## Configuracion y evaluacion
 

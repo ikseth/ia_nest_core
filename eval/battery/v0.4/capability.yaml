@@ -123,14 +123,16 @@
 
 - id: capability_catalog_exact_identity_set
   track: conformance
-  description: "ADR 0046: identity es true exactamente en las cinco capacidades que transportan identidad."
+  description: "ADR 0046: identity es true exactamente en las siete capacidades que transportan identidad."
   capability: capability.list
   input: {}
   expect:
     identity_capability_names:
       - domain.route
       - prompt.run
+      - prompt.stream
       - reasoning.run
+      - reasoning.stream
       - task.run
       - task.stream
 

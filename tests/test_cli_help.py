@@ -8,7 +8,7 @@ import pytest
 from ianest_core import cli
 
 
-GROUPS = ["prompt", "reasoning", "task", "domain", "model", "config", "eval", "runtime"]
+GROUPS = ["prompt", "reasoning", "task", "capability", "domain", "model", "config", "eval", "runtime"]
 ACTIONS = [
     ("init",),
     ("prompt", "run"),
@@ -16,6 +16,8 @@ ACTIONS = [
     ("reasoning", "run"),
     ("reasoning", "stream"),
     ("task", "run"),
+    ("task", "stream"),
+    ("capability", "list"),
     ("domain", "route"),
     ("domain", "list"),
     ("model", "list"),

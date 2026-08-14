@@ -333,7 +333,7 @@ Criterio de salida (cumplido): decision reconciliada por el usuario y
 registrada; `extended CR-0002` movido a `aceptado` en `ia_nest_meta`, con
 respuesta por handoff.
 
-### Fase v0.4-A2: bateria del catalogo
+### Fase v0.4-A2: bateria del catalogo (completada 2026-08-14)
 
 Casos de conformance deterministas, congelados: `capability.list` enumera las
 capacidades declaradas con su proyeccion por interfaz y su orden determinista;
@@ -347,20 +347,39 @@ MCP escritas, los tres contra el catalogo) y la equivalencia
 como tests pytest requeridos, y se escriben en la fase A3: no son expresables en
 la bateria declarativa, y no pueden existir antes que el catalogo.
 
-Criterio de salida: bateria congelada y tests requeridos declarados antes de
-tocar el runtime; digest sin mover.
+Criterio de salida (cumplido): 9 casos congelados en
+`eval/battery/v0.4/capability.yaml.frozen`, tests requeridos declarados en
+`eval/README.md`, digest sin mover.
 
-### Fase v0.4-A3: implementacion y paridad
+### Fase v0.4-A3a: catalogo y capacidad (completada 2026-08-14)
 
-`capabilities.py` como fuente unica; CLI y tabla de rutas REST derivadas de el;
-herramientas MCP asertadas contra el (los tests del gate declarados en A2);
-`capability.list` con paridad CLI/REST/MCP; y la alineacion de nombres de la
-enmienda D5-a: `task.run` bloqueante en `POST /task/run` y `task.stream` con el
-SSE que hoy vive en `/task/run`.
+`capabilities.py` como fuente unica (15 entradas); tabla de rutas REST derivada
+de el; `capability.list` con paridad CLI/REST/MCP; `core_version` derivado de los
+metadatos del paquete y publicado tambien en `runtime.health`; alineacion de
+nombres de la enmienda D5-a (`task.run` bloqueante en `POST /task/run`,
+`task.stream` con el SSE); ejecutor de evaluacion para las formas de `expect`
+del catalogo; bateria integrada (90 casos) con digest declarado.
 
-Criterio de salida: conformance reproducible en verde con digest declarado;
-superficie CLI observable sin cambios respecto a hoy (los tests de ayuda son la
-red); core minimo instalable sin extras.
+Criterio de salida (cumplido): conformance 90/90 con digest declarado; el render
+de `ianest task run` intacto; pytest en verde con y sin extras.
+
+### Fase v0.4-A3b: derivar la CLI y cerrar el gate
+
+Lo que queda para que el catalogo sea fuente unica de verdad y no solo de
+lectura: el parser de `argparse` se construye recorriendo el catalogo, y un test
+de conformidad aserta que los nombres y las firmas de las herramientas MCP
+coinciden con el (el gate de ADR 0046).
+
+Decision pendiente que este tramo tiene que fijar: las banderas de RENDER de la
+CLI (`--json`, `--quiet`, `--verbose`) no son parametros de la capacidad y hoy
+no estan en el catalogo. Como el generador tiene que saber cuales lleva cada
+accion -y `task.run` lleva `--quiet`/`--verbose` pese a no ser `streaming`-, el
+catalogo necesita declararlo explicitamente en su proyeccion CLI.
+
+Criterio de salida: ninguna accion de CLI escrita a mano; el gate de MCP falla
+si una firma se desvia del catalogo; superficie CLI observable sin cambios (los
+tests de ayuda son la red); digest sin mover (la CLI no participa en la
+conformidad).
 
 ### Fase v0.4-B1: contrato del plan explicito (completada 2026-08-14)
 

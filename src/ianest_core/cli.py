@@ -34,6 +34,10 @@ def main(argv: list[str] | None = None) -> int:
             return _reasoning_stream(args)
         if args.command == "task" and args.task_command == "run":
             return _task_run(args)
+        if args.command == "task" and args.task_command == "stream":
+            return _task_stream(args)
+        if args.command == "capability" and args.capability_command == "list":
+            return _capability_list(args)
         if args.command == "domain" and args.domain_command == "route":
             return _domain_route(args)
         if args.command == "domain" and args.domain_command == "list":
@@ -183,6 +187,44 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_quiet_argument(task_run_parser)
     _add_verbose_argument(task_run_parser)
     _add_identity_arguments(task_run_parser)
+    task_stream_parser = task_subparsers.add_parser(
+        "stream",
+        help="emite los eventos de una tarea mientras se ejecuta",
+        description="Ejecuta task.stream: emite cada evento como JSONL en stdout.",
+        epilog=(
+            "pipeline ejecuta el flujo multi-modelo de cinco etapas; coverage "
+            "genera y valida unidades enumerables hasta completar su cobertura."
+        ),
+    )
+    task_stream_parser.add_argument(
+        "--prompt", required=True, metavar="TEXTO", help="tarea que se desea ejecutar"
+    )
+    task_stream_parser.add_argument(
+        "--mode",
+        choices=["pipeline", "coverage"],
+        default="pipeline",
+        help="modo de ejecucion de task.run (por defecto: %(default)s)",
+    )
+    task_stream_parser.add_argument(
+        "--effort",
+        choices=["low", "medium", "high"],
+        help="nivel de esfuerzo; sin bandera usa orchestration.default_effort",
+    )
+    _add_identity_arguments(task_stream_parser)
+
+    capability_parser = _group_parser(
+        subparsers,
+        "capability",
+        "consulta las capacidades del core",
+        "Consulta el catalogo publico de capacidades e interfaces.",
+    )
+    capability_subparsers = _action_subparsers(capability_parser, "capability_command")
+    capability_list_parser = capability_subparsers.add_parser(
+        "list",
+        help="lista las capacidades publicas del core",
+        description="Lista capacidades, parametros y proyecciones de interfaz.",
+    )
+    _add_json_argument(capability_list_parser, "el catalogo completo")
 
     domain_parser = _group_parser(
         subparsers, "domain", "consulta y enruta dominios", "Consulta los dominios declarados o enruta un prompt."
@@ -484,6 +526,18 @@ def _task_run(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def _task_stream(args: argparse.Namespace) -> int:
+    for event in service.stream_task(
+        config_path=args.config,
+        prompt=args.prompt,
+        mode=args.mode,
+        effort=args.effort,
+        identity=_identity_override(args),
+    ):
+        print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
 def _emit_progress(
     message: str,
     *,
@@ -582,6 +636,16 @@ def _domain_route(args: argparse.Namespace) -> int:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     else:
         print(f"{result['domain']}\t{result['model']}\t{result['reason']}")
+    return 0
+
+
+def _capability_list(args: argparse.Namespace) -> int:
+    result = service.list_capabilities()
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        for capability in result["capabilities"]:
+            print(f"{capability['name']}\t{capability['summary']}")
     return 0
 
 

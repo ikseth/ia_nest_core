@@ -39,6 +39,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   POST a `/task/run` esperando eventos: debe pasar a `/task/stream`. Avisado a
   `ia_nest_extended` por el canal de CR antes de que suba su pin. Impacto:
   **minor**.
+- `tags` se retira de `domain.route` en REST y en MCP. Estaba muerto desde
+  ADR 0043 -era del filtro de palabras clave, y `DomainRouter.route` lo
+  descartaba con un `del tags` en su primera linea- pero seguia viajando por dos
+  de las tres interfaces, mientras la CLI nunca lo expuso. Lo saco a la luz el
+  gate del catalogo (ADR 0046) al exigir que los parametros declarados coincidan
+  con las tres interfaces. Un cliente REST que lo siga enviando no recibe error;
+  la herramienta MCP si cambia de esquema, y por eso el impacto es minor
+  ([ficha v0.4/0002](docs/fixes/v0.4/0002-retirada-de-tags-de-domain-route.md)).
+  Impacto: **minor**.
 - `routing_rules` se retira del esquema de configuracion, ejecutando lo que
   ADR 0043 decidio y la linea del router dejo tolerado: la clave sale de
   `DomainConfig`, del cargador y del validador, y una config que la traiga falla

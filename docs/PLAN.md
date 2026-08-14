@@ -376,6 +376,11 @@ no estan en el catalogo. Como el generador tiene que saber cuales lleva cada
 accion -y `task.run` lleva `--quiet`/`--verbose` pese a no ser `streaming`-, el
 catalogo necesita declararlo explicitamente en su proyeccion CLI.
 
+Incluye la retirada de `tags` de `domain.route`
+([ficha v0.4/0002](fixes/v0.4/0002-retirada-de-tags-de-domain-route.md)), que el
+propio gate destapo: dos interfaces lo aceptaban y lo tiraban, y la tercera ni lo
+mencionaba.
+
 Criterio de salida: ninguna accion de CLI escrita a mano; el gate de MCP falla
 si una firma se desvia del catalogo; superficie CLI observable sin cambios (los
 tests de ayuda son la red); digest sin mover (la CLI no participa en la

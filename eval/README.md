@@ -163,9 +163,9 @@ catalogo antes de commitear.
 
 ## Bateria v0.4: plan explicito
 
-`eval/battery/v0.4/plan.yaml.frozen` fija el criterio de aceptacion de
+`eval/battery/v0.4/plan.yaml` fija el criterio de aceptacion de
 `task.plan` y de la entrada opcional `plan` de `task.run` (core ADR 0040,
-0047 y 0048). Se conserva fuera del runner hasta la fase v0.4-B3.
+0047 y 0048). Esta integrada en el runner desde la fase v0.4-B3.
 
 Casos congelados e invariante de cada uno:
 
@@ -205,9 +205,9 @@ Casos congelados e invariante de cada uno:
   tambien publica requisitos con `covered_by` y plan sin `covers`; la forma no
   depende de la procedencia.
 
-El digest se recalcula y se DECLARA al integrar estos 16 casos en la fase
-v0.4-B3, no durante su congelacion (ADR 0017). Hasta entonces debe permanecer
-`a60aa35b31acff2e9e286b6fc3b8c15b4293ce3331728b0f26aabe0234eb14b8`.
+Digest de conformidad declarado tras integrar los 16 casos del plan explicito
+(106 casos de conformidad totales):
+`f688bd37025c6c1e3d99f5afb81cc17ea6ab179fa23b93d5f1f579155f58ea96`.
 
 Tests pytest requeridos para v0.4-B3, por no ser expresables en la bateria
 declarativa vigente:

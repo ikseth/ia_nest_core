@@ -18,7 +18,7 @@ from ianest_core.config.schema import CoreConfig, TelemetryConfig
 from ianest_core.errors import CoreError
 from ianest_core.adapters import Event, ScriptedFakeAdapter
 from ianest_core.registry import ModelRegistry, StaticAvailabilityProvider
-from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime, TaskRuntime
+from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime, TaskResult, TaskRuntime
 
 EVAL_SCHEMA_VERSION = "1"
 
@@ -76,6 +76,8 @@ def _execute_case(case: dict[str, Any], *, config_path: str | Path | None) -> di
         return _execute_reasoning_run(case, config_path=config_path)
     if capability == "task.run":
         return _execute_task_run(case, config_path=config_path)
+    if capability == "task.plan":
+        return _execute_task_plan(case, config_path=config_path)
     if capability == "capability.list":
         return _execute_capability_list(case)
     if capability == "model.list":
@@ -295,13 +297,17 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
     )
     expected = case.get("expect", {})
     try:
-        result = runtime.run(
+        events = list(runtime.stream(
             prompt=case["input"].get("prompt", ""),
             mode=case["input"].get("mode", "pipeline"),
             effort=case["input"].get("effort"),
+            plan=case["input"].get("plan"),
+            requirements=case["input"].get("requirements"),
             identity_override=case["input"].get("identity", {}),
             request_id=case["id"],
-        )
+        ))
+        done = next(event for event in reversed(events) if event.type == "task_done")
+        result = TaskResult(**done.data)
     except CoreError as exc:
         if expected.get("error_type") == exc.type:
             assertions = _assertions(
@@ -354,6 +360,10 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         "degradations": result.degradations,
         "evaluation_attempts": result.evaluation_attempts,
         "token_budget_total": result.token_budget_total,
+        "plan_source": next(
+            (event.data.get("plan_source") for event in events if event.type == "plan_ready"),
+            None,
+        ),
         "checkpoints": result.checkpoints,
         "subtasks": _subtask_expectation(result.subtasks, expected.get("subtasks", [])),
         "checkpoint_counts": {
@@ -366,6 +376,9 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
         "chunk_index": coverage.get("chunk_index"),
         "units": _subtask_expectation(coverage.get("units", []), expected.get("units", [])),
     }
+    if "plan_ready" in expected:
+        plan_ready = next((event.data for event in events if event.type == "plan_ready"), {})
+        actual["plan_ready"] = _partial_value(plan_ready, expected["plan_ready"])
     for name in (
         "effort",
         "max_subtasks",
@@ -401,6 +414,33 @@ def _execute_task_run(case: dict[str, Any], *, config_path: str | Path | None) -
     )
     assertions = _assertions(actual, expected)
     return _case_result(case, assertions, domain=domain, model=model)
+
+
+def _execute_task_plan(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    config = _case_config(case, config_path=config_path)
+    runtime = TaskRuntime(
+        config,
+        availability=_case_availability(case),
+        adapter_factory=_task_adapters(case, config).get,
+        simulated=dict(case.get("world", {}).get("script", {}).get("simulated", {})),
+    )
+    expected = case.get("expect", {})
+    result = runtime.plan(
+        prompt=case["input"].get("prompt", ""),
+        effort=case["input"].get("effort"),
+        identity_override=case["input"].get("identity", {}),
+        request_id=case["id"],
+    )
+    actual: dict[str, Any] = {
+        "plan": result.plan,
+        "requirements": result.requirements,
+        "effort": result.effort,
+        "params": _partial_value(result.params, expected.get("params", {})),
+    }
+    trace_fields = expected.get("trace_fields", {})
+    actual.update({key: result.trace.get(key) for key in trace_fields})
+    assertions = _assertions(actual, {**expected, **trace_fields})
+    return _case_result(case, assertions)
 
 
 def _task_adapters(case: dict[str, Any], config: CoreConfig) -> dict[str, ScriptedFakeAdapter]:

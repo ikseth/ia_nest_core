@@ -113,12 +113,35 @@ def run_task(
     prompt: str,
     mode: str = "pipeline",
     effort: str | None = None,
+    plan: list[dict[str, Any]] | None = None,
+    requirements: list[dict[str, Any]] | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     return TaskRuntime(config, availability=availability).run(
-        prompt=prompt, mode=mode, effort=effort, identity_override=identity or {}
+        prompt=prompt,
+        mode=mode,
+        effort=effort,
+        plan=plan,
+        requirements=requirements,
+        identity_override=identity or {},
+    ).to_dict()
+
+
+def plan_task(
+    *,
+    config_path: str | Path,
+    prompt: str,
+    effort: str | None = None,
+    identity: dict[str, str] | None = None,
+    availability: AvailabilityProvider | None = None,
+) -> dict[str, Any]:
+    config = load_config(config_path)
+    return TaskRuntime(config, availability=availability).plan(
+        prompt=prompt,
+        effort=effort,
+        identity_override=identity or {},
     ).to_dict()
 
 

@@ -439,7 +439,7 @@ Criterio de salida (cumplido): 16 casos congelados en
 `eval/battery/v0.4/plan.yaml.frozen`, tests requeridos declarados en
 `eval/README.md`, digest sin mover.
 
-### Fase v0.4-B3a: runtime del plan explicito
+### Fase v0.4-B3a: runtime del plan explicito (completada 2026-08-14)
 
 La etapa PLAN como capacidad propia y la entrada de plan: `task.plan`, las
 entradas `plan`, `requirements` y `effort` de `task.run`, el corte

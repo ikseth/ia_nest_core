@@ -319,7 +319,10 @@ Con `plan` suministrado:
 - concede presupuesto como cualquier plan (`base + per_subtask * n`, ADR 0044),
   una vez, al entrar en FAN-OUT;
 - si vienen `requirements`, se comprueba cobertura contra el plan y se declara,
-  sin renegociar -renegociar es replanificar, y esta prohibido-; si no vienen, el
+  sin renegociar -renegociar es replanificar, y esta prohibido-. Unos requisitos
+  MAL FORMADOS -sin `id`, `statement` o `covered_by`, o con indices que no son
+  enteros- son `PlanParseError`, no degradacion: ausencia y basura son cosas
+  distintas, y solo la primera es una omision legitima. Si no vienen, el
   core no los reinventa y declara la degradacion `{stage: plan, reason:
   requirements_unavailable, action: skip_coverage_check}` con
   `requirements_covered=false`;

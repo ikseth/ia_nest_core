@@ -12,9 +12,9 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   MCP, en lugar del mismo dato escrito por triplicado. Nueva capacidad
   `capability.list` con paridad CLI/REST/MCP -nombre, parametros y proyeccion
   por interfaz de cada capacidad, con los huecos declarados-, `core_version` en
-  `capability.list` y en `runtime.health`, y variante bloqueante de `task.run`
-  por REST. Implementacion en las fases v0.4-A2/A3 del PLAN. Impacto: adicion
-  compatible (patch por politica; se publica dentro de v0.4.0).
+  `capability.list` y en `runtime.health`. Implementacion en las fases v0.4-A2/A3
+  del PLAN. Impacto: adicion compatible (patch por politica; se publica dentro
+  de v0.4.0).
 - Contrato del plan explicito de `task.run` (ADR 0040, enmendado por ADR 0047;
   cierra `extended CR-0001`): capacidad `task.plan`, entrada opcional `plan` en
   `task.run`, corte tipado `replan_unavailable` y campo `plan_source` en
@@ -29,6 +29,16 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   de v0.4.0).
 
 ### Cambiado
+- `task.run` pasa a devolver JSON en `POST /task/run` y su flujo SSE se muda a
+  la capacidad nueva `task.stream` -> `POST /task/stream` (ADR 0046, enmienda
+  D5-a). Motivo: las capas de encima derivan la ruta del NOMBRE de la capacidad
+  sin tabla intermedia, asi que `X.run` tiene que significar lo mismo en las
+  tres familias; hasta v0.3, `/task/run` era SSE mientras `/prompt/run` y
+  `/reasoning/run` eran JSON. Con esto la bandera `streaming` del catalogo pasa
+  de informativa a operativa para un reenviador generico. **Rompe** a quien haga
+  POST a `/task/run` esperando eventos: debe pasar a `/task/stream`. Avisado a
+  `ia_nest_extended` por el canal de CR antes de que suba su pin. Impacto:
+  **minor**.
 - `routing_rules` se retira del esquema de configuracion, ejecutando lo que
   ADR 0043 decidio y la linea del router dejo tolerado: la clave sale de
   `DomainConfig`, del cargador y del validador, y una config que la traiga falla

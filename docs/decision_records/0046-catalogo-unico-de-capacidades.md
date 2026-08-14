@@ -120,11 +120,46 @@ El catalogo obliga a que cada hueco sea una decision escrita. Se resuelven asi:
 - **`prompt.stream` y `reasoning.stream` quedan sin MCP, por forma del
   protocolo.** Una herramienta MCP devuelve un resultado; el equivalente al
   streaming es la variante bloqueante, que ya existe.
-- **`task.run` gana su variante bloqueante en REST** (`POST /task/run` sigue
-  siendo SSE; se anade el camino que devuelve la respuesta final en JSON). Es el
-  unico hueco real de los tres: MCP si tiene esa variante y REST no, con lo que
-  un cliente REST que solo quiere el resultado esta obligado a hablar SSE para
-  nada.
+- **`task.run` gana su variante bloqueante en REST.** Es el unico hueco real de
+  los tres: MCP si tiene esa variante y REST no, con lo que un cliente REST que
+  solo quiere el resultado esta obligado a hablar SSE para nada. La forma se fija
+  en la enmienda de abajo.
+
+### Enmienda D5-a: task.run pasa a JSON y nace task.stream (2026-08-14)
+
+Reconciliada el mismo dia que el ADR, al fijar las rutas para congelar la
+bateria. La redaccion original decia que `POST /task/run` seguiria siendo SSE y
+que el camino bloqueante se anadiria aparte. Se cambia, y este es el motivo:
+
+`ia_nest_extended` no lleva tabla de rutas. Su cliente DERIVA la ruta del nombre
+de la capacidad -`prompt.run` -> `/prompt/run`, sustituyendo puntos por barras-
+para que una capacidad nueva del core le sea alcanzable sin tocar codigo
+(`clients.py`, `capability_route`). Es exactamente el mecanismo generico que
+`meta ADR 0007` persigue, y convierte el NOMBRE de la capacidad en contrato.
+
+Con `task.run` devolviendo SSE, el sufijo `.run` significaria JSON en dos
+familias y flujo en la tercera, y quien reenvia de forma generica tendria que
+saberlo de memoria: justo el conocimiento por capacidad que el catalogo viene a
+eliminar. Anadir el bloqueante con un nombre fuera de patron (`task.complete`,
+`task.result`) traslada el problema al nombre.
+
+Forma adoptada, alineada con `prompt` y `reasoning`:
+
+- `task.run` -> `POST /task/run`, JSON con el resultado final.
+- `task.stream` -> `POST /task/stream`, SSE, que es lo que hoy hace `/task/run`.
+
+`X.run` es siempre bloqueante y `X.stream` siempre flujo, en las tres familias.
+La bandera `streaming` del catalogo deja de ser informativa y pasa a ser
+operativa: un reenviador generico la consulta en vez de llevar la lista a mano.
+
+Coste, dicho sin adornos: **rompe** a quien hoy haga POST a `/task/run`
+esperando eventos, y ese alguien es `ia_nest_extended`, que declara `task.run`
+entre las capacidades que sobreescribe. Se asume porque su pin (`core >=0.2
+<0.4`) impide que v0.4.0 le entre sola, porque el aviso esta dado por el canal
+de CR antes de que suba el pin, y porque la alternativa era conservar para
+siempre una asimetria en el contrato que este ADR existe para eliminar.
+
+Impacto de esta pieza: rompe contrato REST -> MINOR, coherente con la linea.
 
 ## Motivo de la forma elegida
 

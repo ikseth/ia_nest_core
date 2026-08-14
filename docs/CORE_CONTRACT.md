@@ -89,6 +89,12 @@ su hueco explicito. Los huecos vigentes y su motivo estan en ADR 0046:
 `model.pull` e `init` son operacion de operador y viven solo en CLI;
 `prompt.stream` y `reasoning.stream` no tienen forma en MCP.
 
+Convencion de nombres, que es contrato porque las capas de encima derivan la
+ruta del nombre (ADR 0046, enmienda D5-a): `X.run` es SIEMPRE bloqueante y
+`X.stream` SIEMPRE flujo de eventos. En consecuencia `task.run` devuelve JSON
+por `POST /task/run` y su flujo vive en `task.stream` -> `POST /task/stream`
+(linea v0.4; hasta v0.3 `/task/run` era SSE).
+
 ### `model.list`
 
 Lista modelos conocidos y su estado.

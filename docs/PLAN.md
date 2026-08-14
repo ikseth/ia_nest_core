@@ -304,7 +304,8 @@ juntos:
 
 - **Tramo A**: cerrar `extended CR-0002` (ADR 0046) con un catalogo unico de
   capacidades del que se derivan las interfaces, y la capacidad
-  `capability.list`.
+  `capability.list`. Incluye la unica ruptura de la linea: `task.run` pasa a
+  JSON y su flujo se muda a `task.stream` (enmienda D5-a).
 - **Tramo B**: cerrar `extended CR-0001` (ADR 0040, enmendado por ADR 0047)
   llevando hasta el nivel de subtarea la costura de entrada que el core ya tiene
   -el prompt-, sin abrir ninguna costura hacia arriba. La descomposicion se
@@ -334,20 +335,28 @@ respuesta por handoff.
 
 ### Fase v0.4-A2: bateria del catalogo
 
-Casos de conformance deterministas: `capability.list` enumera todas las
-capacidades declaradas con su proyeccion por interfaz; una capacidad con hueco
-declarado lo devuelve nulo; `core_version` presente en `capability.list` y en
-`runtime.health`; `task.run` bloqueante por REST equivale al SSE en contenido
-final. Tests de conformidad del gate: los subcomandos construidos, las rutas
-construidas y las herramientas MCP escritas coinciden con el catalogo.
+Casos de conformance deterministas, congelados: `capability.list` enumera las
+capacidades declaradas con su proyeccion por interfaz y su orden determinista;
+una capacidad con hueco declarado lo devuelve nulo; `core_version` coincide con
+el manifiesto; `identity` y `streaming` correctos; parametros con sus `choices`
+y defectos.
 
-Criterio de salida: bateria escrita y congelada antes de tocar el runtime.
+Los tests del GATE (rutas REST construidas, subcomandos CLI construidos y firmas
+MCP escritas, los tres contra el catalogo) y la equivalencia
+`/task/run` JSON contra `/task/stream` SSE se DECLARAN aqui en `eval/README.md`
+como tests pytest requeridos, y se escriben en la fase A3: no son expresables en
+la bateria declarativa, y no pueden existir antes que el catalogo.
+
+Criterio de salida: bateria congelada y tests requeridos declarados antes de
+tocar el runtime; digest sin mover.
 
 ### Fase v0.4-A3: implementacion y paridad
 
 `capabilities.py` como fuente unica; CLI y tabla de rutas REST derivadas de el;
-herramientas MCP asertadas contra el; `capability.list` con paridad
-CLI/REST/MCP.
+herramientas MCP asertadas contra el (los tests del gate declarados en A2);
+`capability.list` con paridad CLI/REST/MCP; y la alineacion de nombres de la
+enmienda D5-a: `task.run` bloqueante en `POST /task/run` y `task.stream` con el
+SSE que hoy vive en `/task/run`.
 
 Criterio de salida: conformance reproducible en verde con digest declarado;
 superficie CLI observable sin cambios respecto a hoy (los tests de ayuda son la

@@ -88,6 +88,11 @@ Consecuencias:
 - El checkpoint `plan_ready` emite los requisitos con `covered_by` y el plan sin
   `covers`, en las DOS vias (plan derivado y plan suministrado): una sola forma,
   no una por procedencia.
+- **`mode=coverage` NO cambia.** Sus `units[]` conservan su forma actual. La
+  regla nace de que otra capa EDITE la estructura, y las unidades de cobertura no
+  se entregan para editar: no hay entrada de plan en coverage (ADR 0040 lo dejo
+  fuera) ni consumidor que las manipule. Uniformar por simetria estetica seria
+  cambiar un contrato publicado sin motivo.
 - El formato que el core pide a su planificador NO cambia: se le sigue pidiendo
   `covers` por subtarea, y el core invierte al construir la salida publica. Es
   una transformacion de tres lineas y evita re-afinar el prompt del

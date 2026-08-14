@@ -101,6 +101,53 @@ conformidad totales; el caso pipeline `rerun` aserta el campo aditivo
 `iteration` en sus subtareas):
 `eb0113e69fdc9fc4674332995afc8950a8acc165bcc65cfa26bec4ed7d02f3c4`.
 
+## Bateria v0.4: catalogo de capacidades
+
+`eval/battery/v0.4/capability.yaml.frozen` fija el criterio de aceptacion de
+`capability.list` (ADR 0046) ANTES de implementarlo. El sufijo `.frozen` deja
+sus casos fuera del `rglob("*.yaml")` del runner durante la fase v0.4-A2.
+
+Casos congelados e invariante de cada uno:
+
+- `capability_catalog_exact_ordered_names`: los 15 nombres exactos, ordenados
+  por `name` ascendente.
+- `capability_catalog_lists_itself`: `capability.list` aparece en su salida.
+- `capability_catalog_prompt_run_complete_entry`: los ocho campos y valores
+  exactos de la entrada completa de `prompt.run`.
+- `capability_catalog_model_pull_declares_rest_mcp_gaps`: `model.pull` declara
+  `rest` y `mcp` nulos, y conserva su proyeccion CLI.
+- `capability_catalog_prompt_stream_declares_mcp_gap`: `prompt.stream` declara
+  `mcp` nulo y conserva su proyeccion REST.
+- `capability_catalog_task_run_stream_split`: `task.run` es bloqueante en
+  `/task/run` y `task.stream` es streaming en `/task/stream`.
+- `capability_catalog_runtime_health_cli_alias`: `runtime.health` declara
+  `detect` como alias CLI.
+- `capability_catalog_exact_identity_set`: solo `domain.route`, `prompt.run`,
+  `reasoning.run`, `task.run` y `task.stream` transportan identidad.
+- `capability_catalog_task_run_mode_and_effort_params`: `mode` y `effort`
+  declaran sus `choices` y valores por defecto.
+
+La comparacion de `core_version` con la version de `pyproject.toml` requiere
+leer otro artefacto y no es expresable en la bateria declarativa vigente. Se
+declara abajo como test pytest requerido en vez de forzar el formato.
+
+El digest se recalcula y se DECLARA al integrar la bateria en la fase v0.4-A3,
+no durante su congelacion (ADR 0017).
+
+Tests pytest requeridos para v0.4-A3, por no ser expresables en la bateria
+declarativa:
+
+- `core_version` de `capability.list` coincide con la version declarada en
+  `pyproject.toml`.
+- La tabla de rutas REST construida coincide con el catalogo en ruta y metodo.
+- Los subcomandos del parser CLI construido coinciden con el catalogo en grupo,
+  accion y alias.
+- Los nombres y las firmas de las herramientas MCP coinciden con el catalogo;
+  este es el gate de asercion de ADR 0046 que impide la deriva.
+- `POST /task/run` devuelve JSON y `POST /task/stream` devuelve SSE, con el
+  mismo contenido final.
+- `runtime.health` declara el mismo `core_version` que `capability.list`.
+
 ## Bateria del router semantico (fases 3a y 3b-i)
 
 `eval/battery/router/domain_route.yaml` integra los 4 casos de

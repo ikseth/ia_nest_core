@@ -19,7 +19,8 @@ aqui y no se duplica en este repo:
 - `docs/DOCTRINA_MULTI_IA.md`: roles, modo ciego, regla de la inconsistencia,
   regla del registro, handoff.
 - `docs/CONVENCIONES_TRANSVERSALES.md`: docs en ASCII puro, identificadores en
-  ingles snake_case, citas `<repo> ADR NNNN`, repo publico.
+  ingles snake_case, citas `<repo> ADR NNNN`, repo publico, y hogar unico de los
+  documentos (se referencia, no se copia; meta ADR 0008).
 - `docs/REGISTRO_CAPAS.md`: quien existe en el ente, quien depende de quien y
   la regla de vinculo por SemVer. `docs/FRONTERAS.md` de este repo conserva la
   costura que el core expone a cada capa.

@@ -15,6 +15,7 @@ ACTIONS = [
     ("prompt", "stream"),
     ("reasoning", "run"),
     ("reasoning", "stream"),
+    ("task", "plan"),
     ("task", "run"),
     ("task", "stream"),
     ("capability", "list"),

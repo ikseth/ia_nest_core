@@ -82,6 +82,19 @@ def create_app(config_path: str | Path = "config/core.yaml"):
                 prompt=payload["prompt"],
                 mode=payload.get("mode", "pipeline"),
                 effort=payload.get("effort"),
+                plan=payload.get("plan"),
+                requirements=payload.get("requirements"),
+                identity=payload.get("identity", {}),
+            )
+        )
+
+    async def task_plan(request: Request):
+        payload = await request.json()
+        return _json(
+            service.plan_task(
+                config_path=config_path,
+                prompt=payload["prompt"],
+                effort=payload.get("effort"),
                 identity=payload.get("identity", {}),
             )
         )
@@ -151,6 +164,7 @@ def create_app(config_path: str | Path = "config/core.yaml"):
         "reasoning.run": reasoning_run,
         "reasoning.stream": reasoning_stream,
         "runtime.health": runtime_health,
+        "task.plan": task_plan,
         "task.run": task_run,
         "task.stream": task_stream,
     }

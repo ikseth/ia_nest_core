@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from ianest_core import service
-from ianest_core.capabilities import CAPABILITIES, CLI_GROUPS, Capability, CapabilityParam
+from ianest_core.capabilities import CAPABILITIES, CLI_GROUPS, Capability, CapabilityParam, CliInput
 from ianest_core.dotenv import load_dotenv
 from ianest_core.errors import CoreError
 
@@ -17,6 +17,7 @@ TEMPLATE_FILES = {
     "minimal": "core.example.yaml",
     "lab": "core.lab.example.yaml",
 }
+_MISSING = object()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,7 +25,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     load_dotenv()
     try:
-        renderer = _RENDERS.get(_capability_name(args))
+        capability_name = _capability_name(args)
+        capability = next((item for item in CAPABILITIES if item.name == capability_name), None)
+        if capability is not None:
+            _resolve_cli_inputs(args, capability)
+        renderer = _RENDERS.get(capability_name)
         if renderer is not None:
             return renderer(args)
     except CoreError as exc:
@@ -117,8 +122,16 @@ def _add_capability_parser(
         description=projection.description,
         epilog=projection.epilog,
     )
+    cli_input_targets = {target for input in projection.inputs for target in input.targets}
     for parameter in capability.params:
-        _add_capability_parameter(parser, parameter)
+        if parameter.cli:
+            _add_capability_parameter(
+                parser,
+                parameter,
+                suppress_default=parameter.name in cli_input_targets,
+            )
+    for input in projection.inputs:
+        _add_cli_input(parser, input)
     for flag in projection.flags:
         parser.add_argument(
             f"--{flag}",
@@ -129,7 +142,12 @@ def _add_capability_parser(
         _add_identity_arguments(parser)
 
 
-def _add_capability_parameter(parser: argparse.ArgumentParser, parameter: CapabilityParam) -> None:
+def _add_capability_parameter(
+    parser: argparse.ArgumentParser,
+    parameter: CapabilityParam,
+    *,
+    suppress_default: bool = False,
+) -> None:
     if parameter.type == "array":
         parser.add_argument(
             parameter.name,
@@ -152,9 +170,50 @@ def _add_capability_parameter(parser: argparse.ArgumentParser, parameter: Capabi
         kwargs["choices"] = parameter.choices
     if parameter.default is not None:
         kwargs["default"] = parameter.default
+    elif suppress_default:
+        kwargs["default"] = argparse.SUPPRESS
     if parameter.metavar is not None:
         kwargs["metavar"] = parameter.metavar
     parser.add_argument(argument, **kwargs)
+
+
+def _add_cli_input(parser: argparse.ArgumentParser, input: CliInput) -> None:
+    parser.add_argument(
+        f"--{input.name}",
+        metavar=input.metavar,
+        help=input.summary,
+    )
+
+
+def _resolve_cli_inputs(args: argparse.Namespace, capability: Capability) -> None:
+    projection = capability.cli
+    if projection is None:
+        return
+    for input in projection.inputs:
+        path = getattr(args, input.name.replace("-", "_"), None)
+        if path is None:
+            continue
+        payload = _read_cli_input(input, Path(path))
+        for target in input.targets:
+            if target in payload and getattr(args, target, _MISSING) is _MISSING:
+                setattr(args, target, payload[target])
+    for parameter in capability.params:
+        if not hasattr(args, parameter.name):
+            setattr(args, parameter.name, parameter.default)
+
+
+def _read_cli_input(input: CliInput, path: Path) -> dict[str, object]:
+    if input.source != "json_file":  # pragma: no cover - guarded by catalog vocabulary
+        raise AssertionError(f"unsupported CLI input source: {input.source}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise CoreError("ConfigError", f"cannot read {path}: {exc}", input.name) from exc
+    except json.JSONDecodeError as exc:
+        raise CoreError("ConfigError", f"invalid JSON in {path}: {exc.msg}", input.name) from exc
+    if not isinstance(payload, dict):
+        raise CoreError("ConfigError", f"JSON input {path} must be an object", input.name)
+    return payload
 
 
 def _print_group_help(parser: argparse.ArgumentParser, command: str | None) -> None:
@@ -298,6 +357,8 @@ def _task_run(args: argparse.Namespace) -> int:
         prompt=args.prompt,
         mode=args.mode,
         effort=args.effort,
+        plan=args.plan,
+        requirements=args.requirements,
         identity=_identity_override(args),
     ):
         if args.verbose and started_at is None:
@@ -340,6 +401,22 @@ def _task_stream(args: argparse.Namespace) -> int:
         identity=_identity_override(args),
     ):
         print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def _task_plan(args: argparse.Namespace) -> int:
+    result = service.plan_task(
+        config_path=args.config,
+        prompt=args.prompt,
+        effort=args.effort,
+        identity=_identity_override(args),
+    )
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        for subtask in result["plan"]:
+            prompt = str(subtask["prompt"]).replace("\n", " ")
+            print(f"{subtask['index']}\t{subtask['domain']}\t{prompt[:80]}")
     return 0
 
 
@@ -536,6 +613,7 @@ _RENDERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "prompt.stream": _prompt_stream,
     "reasoning.run": _reasoning_run,
     "reasoning.stream": _reasoning_stream,
+    "task.plan": _task_plan,
     "task.run": _task_run,
     "task.stream": _task_stream,
     "capability.list": _capability_list,

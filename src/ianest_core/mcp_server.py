@@ -51,12 +51,29 @@ def create_server(
         prompt: str,
         mode: str = "pipeline",
         effort: str | None = None,
+        plan: list[dict[str, Any]] | None = None,
+        requirements: list[dict[str, Any]] | None = None,
         identity: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         return service.run_task(
             config_path=config_path,
             prompt=prompt,
             mode=mode,
+            effort=effort,
+            plan=plan,
+            requirements=requirements,
+            identity=identity or {},
+        )
+
+    @server.tool(name="task.plan", structured_output=True)
+    def task_plan(
+        prompt: str,
+        effort: str | None = None,
+        identity: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        return service.plan_task(
+            config_path=config_path,
+            prompt=prompt,
             effort=effort,
             identity=identity or {},
         )

@@ -151,6 +151,8 @@ def stream_task(
     prompt: str,
     mode: str = "pipeline",
     effort: str | None = None,
+    plan: list[dict[str, Any]] | None = None,
+    requirements: list[dict[str, Any]] | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
 ) -> Iterator[dict[str, Any]]:
@@ -160,6 +162,8 @@ def stream_task(
         prompt=prompt,
         mode=mode,
         effort=effort,
+        plan=plan,
+        requirements=requirements,
         identity_override=identity or {},
     ):
         yield {"type": event.type, "data": event.data}

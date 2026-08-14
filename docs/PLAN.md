@@ -448,16 +448,22 @@ cobertura (`covers` sale de `plan[]`, los requisitos ganan `covered_by`), con la
 bateria integrada y el digest recalculado y DECLARADO: cambia la forma de un
 evento publico, y esta anunciado en ADR 0048.
 
-### Fase v0.4-B3b: paridad de interfaces
+### Fase v0.4-B3b: paridad de interfaces (completada 2026-08-14)
 
 `task.plan` entra en el catalogo de capacidades y de ahi salen su subcomando, su
 ruta REST y su herramienta MCP; la entrada de plan se declara como parametro. El
 plan viaja por FICHERO en la CLI (ADR 0040: un plan como argumento de linea de
 comandos es hostil). Tests de paridad declarados en `eval/README.md`.
 
-Es la primera capacidad que nace despues del catalogo, asi que sirve de prueba
-del invariante de ADR 0046: si anadirla obliga a editar la CLI o el MCP a mano,
-el catalogo no cumplia lo que prometia.
+Es la primera capacidad que nace despues del catalogo, asi que sirvio de prueba
+del invariante de ADR 0046. Medido: 9 ficheros, de los que 5 son de la enmienda
+D1-b del modelo -que solo se paga una vez- y 7 de la capacidad, con 3 en comun.
+De esos 7, ninguno es una tabla de rutas ni una lista de subcomandos: son el
+declarativo del catalogo, el handler REST, la herramienta MCP, el render de la
+CLI, la funcion de servicio y sus tests. Es lo que D2 dice que sigue siendo
+codigo. La promesa del catalogo no era que una capacidad saliera gratis, sino que
+su CATALOGO no estuviera duplicado y la deriva fuese imposible; eso se cumplio,
+y el gate lo comprobo sin que nadie lo tocara.
 
 Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
 `extended` ejerce la via de punta a punta con su RAG por subtarea (leccion de

@@ -4,13 +4,14 @@ import argparse
 import importlib.util
 import json
 import tomllib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from ianest_core import service
-from ianest_core.capabilities import CAPABILITIES
+from ianest_core.capabilities import CAPABILITIES, _assert_catalog_invariants
 from ianest_core.cli import _build_parser, main
 
 
@@ -72,19 +73,29 @@ def test_cli_parser_matches_catalog_in_both_directions() -> None:
             for action in parser._actions
             if not isinstance(action, (argparse._HelpAction, argparse._SubParsersAction))
         }
-        expected_arguments = {parameter.name for parameter in capability.params}
+        expected_arguments = {
+            parameter.name
+            for parameter in capability.params
+            if parameter.cli
+        }
+        expected_arguments.update(input.name.replace("-", "_") for input in projection.inputs)
         expected_arguments.update(projection.flags)
         if capability.identity:
             expected_arguments.update(IDENTITY_ARGUMENTS)
         assert set(actions) == expected_arguments
 
         for parameter in capability.params:
+            if not parameter.cli:
+                continue
             action = actions[parameter.name]
             assert _cli_param_type(action) == parameter.type
             assert action.required is parameter.required
             actual_choices = tuple(action.choices) if action.choices is not None else None
             assert actual_choices == parameter.choices
-            assert _cli_default(action) == parameter.default
+            if any(parameter.name in input.targets for input in projection.inputs):
+                assert action.default == argparse.SUPPRESS
+            else:
+                assert _cli_default(action) == parameter.default
             assert action.metavar == parameter.metavar
             assert _resolved_help(action) == parameter.summary
             if action.option_strings:
@@ -92,8 +103,25 @@ def test_cli_parser_matches_catalog_in_both_directions() -> None:
             else:
                 assert parameter.type == "array"
 
+        for input in projection.inputs:
+            action = actions[input.name.replace("-", "_")]
+            assert action.option_strings == [f"--{input.name}"]
+            assert action.metavar == input.metavar
+            assert _resolved_help(action) == input.summary
+
         for flag in projection.flags:
             assert actions[flag].option_strings == [f"--{flag}"]
+
+
+def test_catalog_rejects_cli_disabled_parameter_without_input_target() -> None:
+    task_run = next(capability for capability in CAPABILITIES if capability.name == "task.run")
+    plan = next(parameter for parameter in task_run.params if parameter.name == "plan")
+    assert plan.cli is False
+    broken = replace(task_run, cli=replace(task_run.cli, inputs=()))
+    catalog = tuple(broken if capability.name == broken.name else capability for capability in CAPABILITIES)
+
+    with pytest.raises(AssertionError):
+        _assert_catalog_invariants(catalog)
 
 
 @pytest.mark.skipif(importlib.util.find_spec("mcp") is None, reason="MCP extra not installed")

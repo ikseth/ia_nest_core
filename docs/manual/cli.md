@@ -25,7 +25,7 @@ configuracion ni contacta con el backend.
     ianest [--config RUTA] GRUPO ACCION [opciones]
 
 `GRUPO` y `ACCION` son obligatorios (dos palabras). Ejemplos: `prompt run`,
-`prompt stream`, `reasoning run`, `reasoning stream`, `task run`, `task stream`,
+`prompt stream`, `reasoning run`, `reasoning stream`, `task plan`, `task run`, `task stream`,
 `capability list`, `domain route`, `domain list`, `model list`, `model pull`,
 `config validate`, `eval run`, `runtime detect`, `runtime health`.
 
@@ -78,6 +78,10 @@ Flags de identidad (opcionales): `--user-id`, `--service`, `--session-id`,
     # esfuerzo por peticion; sin --effort usa orchestration.default_effort
     ianest --config config/core.yaml task run --prompt "Analiza ..." --effort high
 
+    # derivar, editar y ejecutar un plan sin poner JSON estructurado en la linea
+    ianest --config config/core.yaml task plan --prompt "Analiza ..." --json > plan.json
+    ianest --config config/core.yaml task run --prompt "Analiza ..." --plan-file plan.json
+
     # vista JSONL de todos los eventos de la tarea
     ianest --config config/core.yaml task stream --prompt "Analiza ..." --mode pipeline
 
@@ -85,6 +89,10 @@ Flags de identidad (opcionales): `--user-id`, `--service`, `--session-id`,
 identificador; los limites de cada nivel los declara el operador en la config.
 En `--json`, `params.effort` publica el nivel resuelto junto a los limites
 efectivos.
+
+`--plan-file RUTA` lee el objeto JSON de `task plan --json` y usa los campos
+`plan`, `requirements` y `effort` que contenga. Un argumento explicito, como
+`--effort high`, tiene prioridad sobre el valor del fichero.
 
 `task run` avisa por stderr de cada degradacion declarada (por ejemplo, si el
 evaluador no logra emitir una decision entendible y el core conserva el

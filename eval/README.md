@@ -207,7 +207,17 @@ Casos congelados e invariante de cada uno:
 
 Digest de conformidad declarado tras integrar los 16 casos del plan explicito
 (106 casos de conformidad totales):
-`f688bd37025c6c1e3d99f5afb81cc17ea6ab179fa23b93d5f1f579155f58ea96`.
+`889c068d4d3cf663cf94302f382d76a9f015d5ac6876598f6fe4d11f9c221b0b`.
+
+Ese digest incorpora tambien la entrada de `task.plan` en los dos casos del
+catalogo que asertan la lista EXACTA de capacidades y el conjunto EXACTO de las
+que transportan identidad.
+
+**Que esos dos casos se muevan al anadir una capacidad es intencionado, no un
+estorbo.** Se escribieron exactos a proposito: que aparezca o desaparezca una
+capacidad publica del core tiene que ser un hecho declarado y visible en el
+digest, no algo que se cuele. Si algun dia molesta, la respuesta NO es relajarlos
+a "contiene estas": es declarar el digest nuevo, que es una linea.
 
 Tests pytest requeridos para v0.4-B3, por no ser expresables en la bateria
 declarativa vigente:

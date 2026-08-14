@@ -102,8 +102,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="ejecuta un prompt",
         description="Ejecuta un prompt contra un modelo local.",
         epilog=(
-            "Resolucion: --model tiene prioridad sobre --domain. Sin ambos, "
-            "el router selecciona el dominio y el modelo."
+            "Resolucion: --model tiene prioridad sobre --domain. Sin ambos, usa "
+            "el dominio por defecto; no enruta. Para enrutar por sentido, "
+            "'ianest domain route' o 'ianest task run'."
         ),
     )
     _add_inference_arguments(run_parser)
@@ -115,7 +116,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "stream",
         help="emite los fragmentos del prompt mientras se ejecuta",
         description="Ejecuta un prompt: la respuesta va a stdout y el progreso a stderr.",
-        epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
+        epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
     )
     _add_inference_arguments(prompt_stream_parser)
     _add_json_argument(prompt_stream_parser, "cada evento como JSONL")
@@ -134,7 +135,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "run",
         help="ejecuta el razonamiento y devuelve el resultado final",
         description="Ejecuta razonamiento iterativo y devuelve su salida final.",
-        epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
+        epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
     )
     _add_inference_arguments(reasoning_run_parser)
     _add_json_argument(reasoning_run_parser, "resultado")
@@ -145,7 +146,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "stream",
         help="emite los eventos del razonamiento mientras se ejecuta",
         description="Ejecuta razonamiento iterativo: la salida va a stdout y el progreso por paso a stderr.",
-        epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
+        epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
     )
     _add_inference_arguments(reasoning_stream_parser)
     _add_json_argument(reasoning_stream_parser, "cada evento como JSONL")

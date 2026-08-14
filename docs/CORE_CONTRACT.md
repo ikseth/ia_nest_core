@@ -63,6 +63,32 @@ Debe comprobar:
 - disponibilidad basica de modelos,
 - deteccion de GPU cuando aplique.
 
+Declara ademas `core_version` (ADR 0046): la version del propio core, que es la
+cifra con la que las capas de encima fijan su vinculo por SemVer (ADR 0032). Es
+consulta de introspeccion: no requiere identidad.
+
+### `capability.list` (linea v0.4: contrato fijado, implementacion pendiente)
+
+Enumera las capacidades que el core expone y como se invocan (ADR 0046). Es
+introspeccion: no requiere identidad.
+
+El catalogo del que responde es la FUENTE UNICA de la que se derivan la CLI y
+las rutas REST, y contra la que se asertan las herramientas MCP. No es una lista
+mantenida aparte.
+
+Debe devolver `core_version` y, por capacidad:
+
+- nombre canonico y descripcion corta,
+- si transporta identidad y si su respuesta es streaming,
+- sus parametros (nombre, tipo, obligatoriedad, valores admitidos, defecto),
+- su proyeccion en cada interfaz: ruta y metodo REST, grupo y accion CLI,
+  nombre de herramienta MCP; NULO en la interfaz donde no se expone.
+
+Las capacidades que no se exponen en alguna interfaz se declaran igualmente, con
+su hueco explicito. Los huecos vigentes y su motivo estan en ADR 0046:
+`model.pull` e `init` son operacion de operador y viven solo en CLI;
+`prompt.stream` y `reasoning.stream` no tienen forma en MCP.
+
 ### `model.list`
 
 Lista modelos conocidos y su estado.
@@ -131,7 +157,28 @@ Debe tener:
 - salida observable,
 - capacidad de desactivar pasos no necesarios.
 
-### `task.run` (linea v0.2: contrato fijado, implementacion en curso)
+### `task.plan` (linea v0.4: contrato fijado, implementacion pendiente)
+
+Ejecuta SOLO la etapa PLAN de `task.run` y devuelve el plan sin ejecutarlo
+(ADR 0040, enmendado por ADR 0047). Alcance `mode=pipeline`.
+
+Acepta `effort` con el mismo vocabulario y la misma precedencia que `task.run`
+(ADR 0045).
+
+Debe devolver:
+
+- por subtarea: `index`, `prompt`, `domain` ya resuelto con la precedencia del
+  ADR 0019, `domain_hint_ignored` cuando proceda y `depends_on`,
+- los `requirements` extraidos (id y enunciado),
+- `params`, con el `effort` resuelto y los limites efectivos con los que se
+  derivo el plan,
+- trazabilidad.
+
+No ejecuta subtareas, ni COMBINE, ni EVALUATE. La descomposicion se queda en el
+core; quien quiera enriquecer cada subtarea lo hace entre esta capacidad y
+`task.run` (ADR 0031, via 2).
+
+### `task.run`
 
 Ejecuta una tarea compleja orquestando los modelos del roster (ADR 0036):
 descompone en subtareas (PLAN), enruta cada una (ROUTE, precedencia ADR 0019;
@@ -149,7 +196,8 @@ Debe tener:
 - checkpoints observables del flujo D2: `task_received`, `plan_ready`,
   `subtask_done`, `combine_ready`, `iteration_end`, `task_done`,
 - cortes tipados: `task_done | max_subtasks | max_iterations | max_replans |
-  max_time | max_total_tokens | error`,
+  max_time | max_total_tokens | error`, mas `replan_unavailable` cuando el plan
+  viene suministrado (linea v0.4),
 - limites configurables (seccion `orchestration` de la config; incluye
   re-planificaciones y tope de paralelismo),
 - identidad propagada a cada subtarea,
@@ -224,6 +272,29 @@ sigue sin producir `done | rerun | replan`, asume `done` y declara
 `{stage: evaluate, reason: undecipherable_decision, action: assume_done}`. Una
 degradacion no es un corte, no amplia el catalogo de cortes tipados y conserva
 el resultado ya producido.
+
+Entrada `plan` opcional (ADR 0040, enmendado por ADR 0047; linea v0.4:
+contrato fijado, implementacion pendiente). Alcance `mode=pipeline`. Sin `plan`,
+`task.run` se comporta exactamente como sin esta entrada: opt-in, cero
+regresion.
+
+Con `plan` suministrado:
+
+- el core no llama al planificador: valida el plan con las reglas ya vigentes y
+  sus errores tipados -forma (`PlanParseError`), ciclos o indices invalidos
+  (`PlanDependencyError`), tamano (corte `max_subtasks`)- y entra en FAN-OUT;
+- NO se re-planifica: si EVALUATE decide `replan`, la tarea corta con
+  `replan_unavailable`. `rerun` sigue disponible;
+- `plan_ready` declara `plan_source`: `planner | supplied`;
+- el esfuerzo lo hereda del plan si la peticion no declara `effort`; si lo
+  declara, manda el explicito y el plan se valida contra sus limites;
+- concede presupuesto como cualquier plan (`base + per_subtask * n`, ADR 0044),
+  una vez, al entrar en FAN-OUT;
+- si el plan trae `requirements`, se comprueba cobertura contra el y se declara,
+  sin renegociar; si no los trae, el core no los reinventa y declara la
+  degradacion `{stage: plan, reason: requirements_unavailable, action:
+  skip_coverage_check}` con `requirements_covered=false`;
+- `plan_attempts` vale 0, porque cuenta derivaciones del planificador.
 
 Modos de ejecucion (ADR 0038, linea v0.3): el consumidor selecciona el
 modo de forma explicita; no hay promocion automatica.
@@ -340,6 +411,10 @@ Criterios de uso:
   heterogeneas que se combinan.
 - `task.run` (mode=coverage): tarea con unidades enumerables y
   verificables que debe completarse con garantia de cobertura.
+- `task.plan`: obtener la descomposicion sin ejecutarla, para intervenir
+  entre el plan y su ejecucion (linea v0.4).
+- `capability.list`: descubrir que capacidades hay y como se invocan, sin
+  ejecutar ninguna (linea v0.4).
 
 `finish_reason=stop` no acredita completitud semantica: si el consumidor
 necesita esa garantia, la capacidad correcta es `task.run` en modo

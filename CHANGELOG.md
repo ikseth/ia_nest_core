@@ -5,6 +5,54 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+### Anadido
+- Contrato del catalogo unico de capacidades (ADR 0046, cierra
+  `extended CR-0002`): un catalogo declarativo pasa a ser la fuente de la que se
+  derivan la CLI y las rutas REST y contra la que se asertan las herramientas
+  MCP, en lugar del mismo dato escrito por triplicado. Nueva capacidad
+  `capability.list` con paridad CLI/REST/MCP -nombre, parametros y proyeccion
+  por interfaz de cada capacidad, con los huecos declarados-, `core_version` en
+  `capability.list` y en `runtime.health`, y variante bloqueante de `task.run`
+  por REST. Implementacion en las fases v0.4-A2/A3 del PLAN. Impacto: adicion
+  compatible (patch por politica; se publica dentro de v0.4.0).
+- Contrato del plan explicito de `task.run` (ADR 0040, enmendado por ADR 0047;
+  cierra `extended CR-0001`): capacidad `task.plan`, entrada opcional `plan` en
+  `task.run`, corte tipado `replan_unavailable` y campo `plan_source` en
+  `plan_ready`. ADR 0047 fija lo que ADR 0040 no podia prever por ser anterior a
+  ADR 0041, 0044 y 0045: el plan suministrado hereda su `effort` salvo que la
+  peticion declare otro, concede presupuesto como cualquier plan, transporta sus
+  `requirements` -y si no los trae, el core lo declara como degradacion
+  `requirements_unavailable` en vez de afirmar una cobertura que nadie
+  comprobo-, y `plan_attempts` vale 0 porque cuenta derivaciones del
+  planificador. Alcance `mode=pipeline`. Implementacion en las fases v0.4-B2/B3
+  del PLAN. Impacto: adicion compatible (patch por politica; se publica dentro
+  de v0.4.0).
+
+### Cambiado
+- `routing_rules` se retira del esquema de configuracion, ejecutando lo que
+  ADR 0043 decidio y la linea del router dejo tolerado: la clave sale de
+  `DomainConfig`, del cargador y del validador, y una config que la traiga falla
+  con `ConfigError` (`field=routing_rules`) y un mensaje que nombra la
+  alternativa (`router` mas la `description` de cada dominio). Se hace en esta
+  linea porque romper contrato de config es minor y v0.4.0 ya lo es.
+  Implementacion en la fase v0.4-C del PLAN
+  ([ficha v0.4/0001](docs/fixes/v0.4/0001-retirada-de-routing-rules.md)).
+  Impacto: **minor**.
+
+### Corregido
+- Ayuda de la CLI alineada con ADR 0043: los epilogos de `prompt run/stream` y
+  `reasoning run/stream` afirmaban que sin `--model` ni `--domain` "se usa el
+  router". No es asi desde la fase 3b-i: se resuelve el dominio por defecto SIN
+  enrutar. Solo texto de ayuda; sin cambio de comportamiento. Impacto: patch.
+- Registro alineado con el codigo publicado, sin cambio de producto: la entrada
+  del router semantico de v0.3.0 recoge tambien la fase 3b-ii (retirada del modo
+  keyword), que se publico en esa version y no estaba anotada; `docs/PLAN.md`
+  marca las fases 2 y 3 de esa linea como completadas y deja anotado lo que
+  queda (`routing_rules` sigue en el esquema como clave ignorada);
+  `docs/VERSIONADO.md` deja de enumerar un subconjunto de capacidades como
+  contrato publico (omitia `task.run`) y remite a `CORE_CONTRACT.md`;
+  `CORE_CONTRACT.md` retira de `task.run` el rotulo "implementacion en curso".
+
 ## [v0.3.0] - 2026-08-12
 
 ### Anadido
@@ -65,12 +113,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   `base: 2000`, `per_subtask: 3000`. Impacto: **minor** (desaparece un corte
   tipado del contrato y se retiran campos del esquema).
 
-- Router semantico, fase 3b-i (ADR 0043): `prompt.run` sin modelo ni dominio
-  resuelve directamente el dominio por defecto, y `task.run` enruta de forma
-  explicita cada subtarea que no tenga `domain` ni un `domain_hint` resoluble.
-  El modo keyword se conserva transitoriamente para configuraciones sin
-  `router`. Conformance 43/43 y digest recalculado. Impacto: minor, como parte
-  del cambio de contrato de config ya declarado por ADR 0043.
+- Router semantico, fases 3a, 3b-i y 3b-ii (ADR 0043): `domain.route` clasifica
+  por sentido con el `router` declarado; `prompt.run` sin modelo ni dominio
+  resuelve directamente el dominio por defecto, sin router; `task.run` enruta de
+  forma explicita cada subtarea que no tenga `domain` ni un `domain_hint`
+  resoluble; y el modo keyword queda RETIRADO (el router semantico es el unico:
+  sin `router` en la config, enrutar es `RoutingError`). Conformance 42/42 y
+  digest recalculado. `routing_rules` sobrevive en el esquema como clave
+  ignorada; su retirada queda pendiente (`docs/PLAN.md`). Impacto: minor, como
+  parte del cambio de contrato de config ya declarado por ADR 0043.
 - Salida de la CLI: stdout lleva solo la respuesta, el progreso va a stderr
   como linea concisa, `--json` intacto y nueva bandera `--quiet`; uniforme en
   `prompt.run`, `reasoning.run` y `task.run` (ADR 0039). Impacto: patch.

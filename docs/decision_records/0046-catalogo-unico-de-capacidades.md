@@ -76,6 +76,34 @@ el catalogo, que es justo lo que este ADR viene a eliminar. Consecuencia
 buscada: una capa superior que construya su propio CLI obtiene por
 `capability.list` los textos de ayuda, no solo los nombres.
 
+Enmienda D1-b (2026-08-14): un parametro puede NO tener argumento propio en la
+CLI, y la CLI puede recoger varios parametros de una sola entrada. Lo destapo
+`task.plan`, la primera capacidad que nace despues de este ADR: por REST y MCP
+recibe `plan` y `requirements` como estructuras, y por CLI el plan viaja por
+FICHERO (`core ADR 0040`: un plan como argumento de linea de comandos es hostil).
+
+Se anaden dos cosas al modelo, las dos genericas:
+
+- `CapabilityParam.cli`: si ese parametro tiene argumento propio en la CLI.
+- `CliProjection.inputs`: entradas de la CLI que RELLENAN parametros, con
+  `name`, `source` -vocabulario fijo, hoy solo `json_file`-, `targets` (los
+  parametros que rellena), `metavar` y su texto.
+
+Con una invariante que el propio modulo aserta: **todo parametro con `cli=False`
+tiene que aparecer en los `targets` de alguna entrada**. Sin ella, un parametro
+podria desaparecer de la CLI sin que nadie lo notase, que es exactamente el tipo
+de deriva que este ADR persigue.
+
+Precedencia, para que no quede a interpretacion: **un argumento explicito gana al
+valor que traiga el fichero**. Es la misma regla que el resto del core -lo
+explicito manda- y evita que un fichero viejo sobreescriba en silencio lo que el
+operador acaba de escribir.
+
+Se descarto resolverlo en el render, que es codigo y podria leer el fichero: la
+CLI dejaria de declarar en el catalogo un argumento que si existe, y el gate
+bidireccional lo cazaria como deriva. La forma tiene que estar en el catalogo,
+que para eso es la fuente.
+
 Los parametros ya son contrato publico hoy (una bandera CLI nueva o un campo de
 cuerpo REST nuevo son adicion compatible segun `docs/VERSIONADO.md`). El
 catalogo no los convierte en contrato: los hace legibles por maquina.

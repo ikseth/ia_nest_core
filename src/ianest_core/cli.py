@@ -103,7 +103,7 @@ def _build_parser() -> argparse.ArgumentParser:
     prompt_subparsers = _action_subparsers(prompt_parser, "prompt_command")
     run_parser = prompt_subparsers.add_parser(
         "run",
-        help="ejecuta un prompt",
+        help="ejecuta un prompt contra un modelo o dominio declarado",
         description="Ejecuta un prompt contra un modelo local.",
         epilog=(
             "Resolucion: --model tiene prioridad sobre --domain. Sin ambos, usa "

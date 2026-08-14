@@ -159,7 +159,12 @@ CAPABILITIES: tuple[Capability, ...] = (
                 choices=("lab", "minimal"),
                 default="minimal",
             ),
-            _param("force", "boolean", "sobrescribe archivos existentes", default=False),
+            _param(
+                "force",
+                "boolean",
+                "sobrescribe config/core.yaml y .env si ya existen",
+                default=False,
+            ),
         ),
         None,
         CliProjection("init", None),

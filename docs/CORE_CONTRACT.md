@@ -80,9 +80,11 @@ Debe devolver `core_version` y, por capacidad:
 
 - nombre canonico y descripcion corta,
 - si transporta identidad y si su respuesta es streaming,
-- sus parametros (nombre, tipo, obligatoriedad, valores admitidos, defecto),
-- su proyeccion en cada interfaz: ruta y metodo REST, grupo y accion CLI,
-  nombre de herramienta MCP; NULO en la interfaz donde no se expone.
+- sus parametros (nombre, tipo, obligatoriedad, valores admitidos, defecto,
+  metavar),
+- su proyeccion en cada interfaz: ruta y metodo REST; grupo, accion, alias,
+  textos de ayuda y banderas de render de la CLI; nombre de herramienta MCP.
+  NULO en la interfaz donde no se expone.
 
 Las capacidades que no se exponen en alguna interfaz se declaran igualmente, con
 su hueco explicito. Los huecos vigentes y su motivo estan en ADR 0046:

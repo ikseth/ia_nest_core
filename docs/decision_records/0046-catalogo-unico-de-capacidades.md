@@ -64,6 +64,18 @@ invocan. Campos de cada entrada:
 - `cli`: `{group, action, aliases}` o nulo.
 - `mcp`: `{tool}` o nulo.
 
+Enmienda D1-a (2026-08-14): la proyeccion CLI declara tambien el TEXTO y las
+BANDERAS DE RENDER de la accion -`description`, `epilog` y `flags`, con `flags`
+sobre el vocabulario `json | quiet | verbose`-, y cada parametro declara su
+`metavar`. Motivo: al derivar el parser del catalogo, la ayuda escrita a mano
+deja de ser codigo y pasa a ser DATO, y las banderas de render no son derivables
+de ningun campo -`task.run` lleva `--quiet` y `--verbose` pese a tener
+`streaming: false`, porque la CLI consume el flujo por dentro para pintar
+progreso-. Si no se declaran, el generador necesita conocimiento que no esta en
+el catalogo, que es justo lo que este ADR viene a eliminar. Consecuencia
+buscada: una capa superior que construya su propio CLI obtiene por
+`capability.list` los textos de ayuda, no solo los nombres.
+
 Los parametros ya son contrato publico hoy (una bandera CLI nueva o un campo de
 cuerpo REST nuevo son adicion compatible segun `docs/VERSIONADO.md`). El
 catalogo no los convierte en contrato: los hace legibles por maquina.

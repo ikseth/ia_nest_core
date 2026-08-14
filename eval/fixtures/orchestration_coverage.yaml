@@ -51,24 +51,18 @@ domains:
     preferred_model: fake_code
     fallback_models: [fake_general]
     profile: default
-    routing_rules:
-      keywords: [codigo, funcion, script]
     status: active
   - id: razonamiento
     description: "Razonamiento paso a paso (fixture)"
     preferred_model: fake_reason
     fallback_models: []
     profile: default
-    routing_rules:
-      keywords: [razona, deduce]
     status: active
   - id: general
     description: "Dominio general por defecto (fixture)"
     preferred_model: fake_general
     fallback_models: []
     profile: default
-    routing_rules:
-      keywords: []
     status: active
 
 profiles:

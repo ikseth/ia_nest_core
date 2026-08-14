@@ -1,6 +1,8 @@
 # Decision 0040: enriquecimiento por subtarea en task.run (extended CR-0001): granularidad de la entrada, no costura nueva
 
 Fecha: 2026-07-27
+Enmendado por: ADR 0047 (el plan suministrado frente a esfuerzo, presupuesto y
+requisitos; reglas que ADR 0041, 0044 y 0045 hicieron necesarias despues)
 
 ## Decision
 

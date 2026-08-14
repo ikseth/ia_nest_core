@@ -50,8 +50,7 @@ class DomainRouter:
         self.config = config
         self.adapter_factory = adapter_factory
 
-    def route(self, prompt: str, tags: list[str] | None = None) -> RouteResult:
-        del tags
+    def route(self, prompt: str) -> RouteResult:
         if self.config.router is None:
             raise RoutingError("routing requires config.router", "router")
         return self._route_semantic(prompt)

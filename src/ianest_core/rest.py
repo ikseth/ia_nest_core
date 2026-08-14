@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from ianest_core import service
+from ianest_core.capabilities import CAPABILITIES
 from ianest_core.dotenv import load_dotenv
 from ianest_core.errors import CoreError
 
@@ -75,6 +76,18 @@ def create_app(config_path: str | Path = "config/core.yaml"):
 
     async def task_run(request: Request):
         payload = await request.json()
+        return _json(
+            service.run_task(
+                config_path=config_path,
+                prompt=payload["prompt"],
+                mode=payload.get("mode", "pipeline"),
+                effort=payload.get("effort"),
+                identity=payload.get("identity", {}),
+            )
+        )
+
+    async def task_stream(request: Request):
+        payload = await request.json()
 
         def events():
             for event in service.stream_task(
@@ -94,7 +107,6 @@ def create_app(config_path: str | Path = "config/core.yaml"):
             service.route_domain(
                 config_path=config_path,
                 prompt=payload["prompt"],
-                tags=payload.get("tags", []),
                 identity=payload.get("identity", {}),
             )
         )
@@ -121,21 +133,31 @@ def create_app(config_path: str | Path = "config/core.yaml"):
     async def runtime_health(request: Request):
         return _json(service.health(config_path=config_path))
 
+    async def capability_list(request: Request):
+        return _json(service.list_capabilities())
+
     async def core_error_handler(request: Request, exc: CoreError):
         return JSONResponse({"error": exc.to_dict()}, status_code=400)
 
+    handlers = {
+        "capability.list": capability_list,
+        "config.validate": config_validate,
+        "domain.list": domain_list,
+        "domain.route": domain_route,
+        "eval.run": eval_run,
+        "model.list": model_list,
+        "prompt.run": prompt_run,
+        "prompt.stream": prompt_stream,
+        "reasoning.run": reasoning_run,
+        "reasoning.stream": reasoning_stream,
+        "runtime.health": runtime_health,
+        "task.run": task_run,
+        "task.stream": task_stream,
+    }
     routes = [
-        Route("/prompt/run", prompt_run, methods=["POST"]),
-        Route("/prompt/stream", prompt_stream, methods=["POST"]),
-        Route("/reasoning/run", reasoning_run, methods=["POST"]),
-        Route("/reasoning/stream", reasoning_stream, methods=["POST"]),
-        Route("/task/run", task_run, methods=["POST"]),
-        Route("/domain/route", domain_route, methods=["POST"]),
-        Route("/model/list", model_list, methods=["GET"]),
-        Route("/domain/list", domain_list, methods=["GET"]),
-        Route("/config/validate", config_validate, methods=["POST"]),
-        Route("/eval/run", eval_run, methods=["POST"]),
-        Route("/runtime/health", runtime_health, methods=["GET"]),
+        Route(capability.rest.path, handlers[capability.name], methods=[capability.rest.method])
+        for capability in CAPABILITIES
+        if capability.rest is not None
     ]
     return Starlette(routes=routes, exception_handlers={CoreError: core_error_handler})
 

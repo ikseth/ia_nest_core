@@ -305,8 +305,7 @@
         max_total_tokens: 16384
   input: {}
   expect:
-    # Se ignoran, como `routing_rules` tras ADR 0043: una config vieja no se
-    # rompe, simplemente deja de significar.
+    # Se ignoran: una config vieja no se rompe, simplemente dejan de significar.
     valid: true
 
 # --------------------------------------------------------------------------

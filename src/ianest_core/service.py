@@ -5,10 +5,13 @@ import os
 import platform
 import shutil
 import subprocess
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from ianest_core.config import load_config, load_config_data, validate_config_dict
+from ianest_core import __version__
+from ianest_core.capabilities import CAPABILITIES
 from ianest_core.config.schema import ModelConfig
 from ianest_core.evaluation import run_eval as run_eval_core
 from ianest_core.errors import CoreError
@@ -17,6 +20,13 @@ from ianest_core.registry import AvailabilityProvider, ModelRegistry
 from ianest_core.runtime import DomainRuntime, PromptRuntime, ReasoningRuntime, TaskRuntime
 
 MCP_PROTOCOL_VERSION_FALLBACK = "2025-03-26"
+
+
+def list_capabilities() -> dict[str, Any]:
+    return {
+        "core_version": __version__,
+        "capabilities": [asdict(capability) for capability in CAPABILITIES],
+    }
 
 
 def run_prompt(
@@ -136,14 +146,12 @@ def route_domain(
     *,
     config_path: str | Path,
     prompt: str,
-    tags: list[str] | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     result = DomainRuntime(config, availability=availability).route(
         prompt=prompt,
-        tags=tags or [],
         identity_override=identity or {},
     )
     return result.to_dict()
@@ -233,6 +241,7 @@ def detect_runtime(*, config_path: str | Path, availability: AvailabilityProvide
     models = registry.model_records()
     return {
         "status": "ok",
+        "core_version": __version__,
         "process": {"ok": True, "pid": os.getpid()},
         "runtime": _runtime_status(),
         "backend": {

@@ -8,7 +8,7 @@ import pytest
 from ianest_core import cli
 
 
-GROUPS = ["prompt", "reasoning", "task", "domain", "model", "config", "eval", "runtime"]
+GROUPS = ["prompt", "reasoning", "task", "capability", "domain", "model", "config", "eval", "runtime"]
 ACTIONS = [
     ("init",),
     ("prompt", "run"),
@@ -16,6 +16,8 @@ ACTIONS = [
     ("reasoning", "run"),
     ("reasoning", "stream"),
     ("task", "run"),
+    ("task", "stream"),
+    ("capability", "list"),
     ("domain", "route"),
     ("domain", "list"),
     ("model", "list"),
@@ -80,7 +82,9 @@ def test_prompt_help_explains_model_precedence(capsys: pytest.CaptureFixture[str
     output = _help(["prompt", "run"], capsys)
     normalized = " ".join(output.split())
     assert "--model tiene prioridad sobre --domain" in normalized
-    assert "router selecciona el dominio y el modelo" in normalized
+    # ADR 0043: prompt.run no enruta; sin declarar nada va al dominio por defecto.
+    assert "usa el dominio por defecto; no enruta" in normalized
+    assert "router" not in normalized
 
 
 def test_task_run_help_explains_execution_modes(capsys: pytest.CaptureFixture[str]) -> None:

@@ -5,10 +5,12 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import Callable
 
-from ianest_core.errors import CoreError
 from ianest_core import service
+from ianest_core.capabilities import CAPABILITIES, CLI_GROUPS, Capability, CapabilityParam
 from ianest_core.dotenv import load_dotenv
+from ianest_core.errors import CoreError
 
 DEFAULT_ENDPOINT = "http://localhost:11434/v1"
 TEMPLATE_FILES = {
@@ -22,34 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     load_dotenv()
     try:
-        if args.command == "init":
-            return _init(args)
-        if args.command == "prompt" and args.prompt_command == "run":
-            return _prompt_run(args)
-        if args.command == "prompt" and args.prompt_command == "stream":
-            return _prompt_stream(args)
-        if args.command == "reasoning" and args.reasoning_command == "run":
-            return _reasoning_run(args)
-        if args.command == "reasoning" and args.reasoning_command == "stream":
-            return _reasoning_stream(args)
-        if args.command == "task" and args.task_command == "run":
-            return _task_run(args)
-        if args.command == "domain" and args.domain_command == "route":
-            return _domain_route(args)
-        if args.command == "domain" and args.domain_command == "list":
-            return _domain_list(args)
-        if args.command == "model" and args.model_command == "list":
-            return _model_list(args)
-        if args.command == "model" and args.model_command == "pull":
-            return _model_pull(args)
-        if args.command == "config" and args.config_command == "validate":
-            return _config_validate(args)
-        if args.command == "eval" and args.eval_command == "run":
-            return _eval_run(args)
-        if args.command == "runtime" and args.runtime_command == "health":
-            return _runtime_health(args)
-        if args.command == "runtime" and args.runtime_command == "detect":
-            return _runtime_detect(args)
+        renderer = _RENDERS.get(_capability_name(args))
+        if renderer is not None:
+            return renderer(args)
     except CoreError as exc:
         return _emit_error(exc, json_output=getattr(args, "json", False))
     _print_group_help(parser, args.command)
@@ -72,201 +49,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="ruta de configuracion YAML (por defecto: %(default)s)",
     )
     subparsers = parser.add_subparsers(dest="command", title="grupos", metavar="GRUPO")
+    for group in CLI_GROUPS:
+        capabilities = _cli_capabilities(group.name)
+        direct = [capability for capability in capabilities if capability.cli.action is None]
+        if direct:
+            assert len(direct) == 1
+            _add_capability_parser(subparsers, direct[0], group.name, direct[0].summary)
+            continue
 
-    init_parser = subparsers.add_parser(
-        "init",
-        help="crea la configuracion inicial y el archivo .env",
-        description="Crea config/core.yaml y .env desde una plantilla y valida el resultado.",
-    )
-    init_parser.add_argument(
-        "--endpoint",
-        metavar="URL",
-        help=f"endpoint OpenAI-compatible; si se omite se pregunta (por defecto: {DEFAULT_ENDPOINT})",
-    )
-    init_parser.add_argument(
-        "--template",
-        choices=sorted(TEMPLATE_FILES),
-        default="minimal",
-        help="plantilla de configuracion (por defecto: %(default)s)",
-    )
-    init_parser.add_argument(
-        "--force", action="store_true", help="sobrescribe config/core.yaml y .env si ya existen"
-    )
-
-    prompt_parser = _group_parser(
-        subparsers, "prompt", "ejecuta inferencias", "Ejecuta prompts mediante los modelos y dominios declarados."
-    )
-    prompt_subparsers = _action_subparsers(prompt_parser, "prompt_command")
-    run_parser = prompt_subparsers.add_parser(
-        "run",
-        help="ejecuta un prompt",
-        description="Ejecuta un prompt contra un modelo local.",
-        epilog=(
-            "Resolucion: --model tiene prioridad sobre --domain. Sin ambos, "
-            "el router selecciona el dominio y el modelo."
-        ),
-    )
-    _add_inference_arguments(run_parser)
-    _add_json_argument(run_parser, "resultado")
-    _add_quiet_argument(run_parser)
-    _add_verbose_argument(run_parser)
-    _add_identity_arguments(run_parser)
-    prompt_stream_parser = prompt_subparsers.add_parser(
-        "stream",
-        help="emite los fragmentos del prompt mientras se ejecuta",
-        description="Ejecuta un prompt: la respuesta va a stdout y el progreso a stderr.",
-        epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
-    )
-    _add_inference_arguments(prompt_stream_parser)
-    _add_json_argument(prompt_stream_parser, "cada evento como JSONL")
-    _add_quiet_argument(prompt_stream_parser)
-    _add_verbose_argument(prompt_stream_parser)
-    _add_identity_arguments(prompt_stream_parser)
-
-    reasoning_parser = _group_parser(
-        subparsers,
-        "reasoning",
-        "ejecuta razonamiento iterativo",
-        "Ejecuta razonamiento controlado con los limites declarados en el perfil.",
-    )
-    reasoning_subparsers = _action_subparsers(reasoning_parser, "reasoning_command")
-    reasoning_run_parser = reasoning_subparsers.add_parser(
-        "run",
-        help="ejecuta el razonamiento y devuelve el resultado final",
-        description="Ejecuta razonamiento iterativo y devuelve su salida final.",
-        epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
-    )
-    _add_inference_arguments(reasoning_run_parser)
-    _add_json_argument(reasoning_run_parser, "resultado")
-    _add_quiet_argument(reasoning_run_parser)
-    _add_verbose_argument(reasoning_run_parser)
-    _add_identity_arguments(reasoning_run_parser)
-    reasoning_stream_parser = reasoning_subparsers.add_parser(
-        "stream",
-        help="emite los eventos del razonamiento mientras se ejecuta",
-        description="Ejecuta razonamiento iterativo: la salida va a stdout y el progreso por paso a stderr.",
-        epilog="--model tiene prioridad sobre --domain; sin ambos se usa el router.",
-    )
-    _add_inference_arguments(reasoning_stream_parser)
-    _add_json_argument(reasoning_stream_parser, "cada evento como JSONL")
-    _add_quiet_argument(reasoning_stream_parser)
-    _add_verbose_argument(reasoning_stream_parser)
-    _add_identity_arguments(reasoning_stream_parser)
-
-    task_parser = _group_parser(
-        subparsers, "task", "orquesta tareas multi-modelo",
-        "Planifica, enruta, ejecuta, combina y evalua una tarea compleja.",
-    )
-    task_subparsers = _action_subparsers(task_parser, "task_command")
-    task_run_parser = task_subparsers.add_parser(
-        "run", help="ejecuta una tarea y muestra sus checkpoints",
-        description="Ejecuta task.run: la respuesta va a stdout y el progreso a stderr (--quiet lo silencia).",
-        epilog=(
-            "pipeline ejecuta el flujo multi-modelo de cinco etapas; coverage "
-            "genera y valida unidades enumerables hasta completar su cobertura."
-        ),
-    )
-    task_run_parser.add_argument("--prompt", required=True, metavar="TEXTO", help="tarea que se desea ejecutar")
-    task_run_parser.add_argument(
-        "--mode",
-        choices=["pipeline", "coverage"],
-        default="pipeline",
-        help="modo de ejecucion de task.run (por defecto: %(default)s)",
-    )
-    task_run_parser.add_argument(
-        "--effort",
-        choices=["low", "medium", "high"],
-        help="nivel de esfuerzo; sin bandera usa orchestration.default_effort",
-    )
-    _add_json_argument(task_run_parser, "cada checkpoint como JSONL")
-    _add_quiet_argument(task_run_parser)
-    _add_verbose_argument(task_run_parser)
-    _add_identity_arguments(task_run_parser)
-
-    domain_parser = _group_parser(
-        subparsers, "domain", "consulta y enruta dominios", "Consulta los dominios declarados o enruta un prompt."
-    )
-    domain_subparsers = _action_subparsers(domain_parser, "domain_command")
-    route_parser = domain_subparsers.add_parser(
-        "route",
-        help="propone dominio y modelo para un prompt",
-        description="Evalua las reglas declaradas y propone el dominio y modelo aplicables.",
-    )
-    route_parser.add_argument("--prompt", required=True, metavar="TEXTO", help="texto que se desea enrutar")
-    _add_json_argument(route_parser, "resultado")
-    _add_identity_arguments(route_parser)
-    domain_list_parser = domain_subparsers.add_parser(
-        "list", help="lista los dominios declarados", description="Lista dominios, modelo preferido y estado."
-    )
-    _add_json_argument(domain_list_parser, "listado")
-
-    model_parser = _group_parser(
-        subparsers, "model", "consulta y aprovisiona modelos", "Consulta modelos o descarga los declarados que falten."
-    )
-    model_subparsers = _action_subparsers(model_parser, "model_command")
-    model_list_parser = model_subparsers.add_parser(
-        "list", help="lista los modelos conocidos", description="Lista modelos, proveedor, disponibilidad y perfil."
-    )
-    _add_json_argument(model_list_parser, "listado")
-    model_pull_parser = model_subparsers.add_parser(
-        "pull",
-        help="descarga modelos mediante el provisioner del backend",
-        description="Descarga modelos ausentes mediante el provisioner compatible con su proveedor.",
-    )
-    model_pull_parser.add_argument(
-        "models",
-        nargs="*",
-        metavar="MODELO",
-        help="id o nombre de modelo; sin valores procesa todos los modelos declarados",
-    )
-    _add_json_argument(model_pull_parser, "resultado")
-
-    config_parser = _group_parser(
-        subparsers, "config", "valida la configuracion", "Opera sobre la configuracion declarativa del core."
-    )
-    config_subparsers = _action_subparsers(config_parser, "config_command")
-    validate_parser = config_subparsers.add_parser(
-        "validate", help="valida el archivo YAML", description="Valida modelos, dominios, perfiles y referencias."
-    )
-    _add_json_argument(validate_parser, "resultado")
-
-    eval_parser = _group_parser(
-        subparsers, "eval", "ejecuta baterias de evaluacion", "Ejecuta evaluaciones de conformidad o smoke."
-    )
-    eval_subparsers = _action_subparsers(eval_parser, "eval_command")
-    eval_run_parser = eval_subparsers.add_parser(
-        "run", help="ejecuta una pista de evaluacion", description="Ejecuta los casos de la pista seleccionada."
-    )
-    eval_run_parser.add_argument(
-        "--track",
-        choices=["conformance", "smoke"],
-        default="conformance",
-        help="pista determinista o contra backend real (por defecto: %(default)s)",
-    )
-    eval_run_parser.add_argument(
-        "--battery-dir",
-        default="eval/battery",
-        metavar="DIRECTORIO",
-        help="directorio de la bateria (por defecto: %(default)s)",
-    )
-    _add_json_argument(eval_run_parser, "resultado completo")
-
-    runtime_parser = _group_parser(
-        subparsers, "runtime", "inspecciona runtime, backend y GPU", "Consulta salud y deteccion del entorno de ejecucion."
-    )
-    runtime_subparsers = _action_subparsers(runtime_parser, "runtime_command")
-    health_parser = runtime_subparsers.add_parser(
-        "health",
-        help="detecta runtime, backend y GPU",
-        description="Informa de core, backend, modelos, GPU y version de protocolo MCP.",
-    )
-    _add_json_argument(health_parser, "informe")
-    detect_parser = runtime_subparsers.add_parser(
-        "detect",
-        help="alias de health; detecta runtime, backend y GPU",
-        description="Informa de core, backend, modelos, GPU y version de protocolo MCP.",
-    )
-    _add_json_argument(detect_parser, "informe")
+        group_parser = _group_parser(subparsers, group.name, group.summary, group.description)
+        action_subparsers = _action_subparsers(group_parser, f"{group.name}_command")
+        for capability in capabilities:
+            projection = capability.cli
+            assert projection is not None and projection.action is not None
+            _add_capability_parser(action_subparsers, capability, projection.action, capability.summary)
+            for alias in projection.aliases:
+                _add_capability_parser(
+                    action_subparsers,
+                    capability,
+                    alias,
+                    dict(projection.alias_summaries)[alias],
+                )
     return parser
 
 
@@ -283,6 +86,77 @@ def _action_subparsers(parser: argparse.ArgumentParser, dest: str) -> argparse._
     return parser.add_subparsers(dest=dest, title="acciones", metavar="ACCION")
 
 
+def _cli_capabilities(group: str) -> list[Capability]:
+    return sorted(
+        (
+            capability
+            for capability in CAPABILITIES
+            if capability.cli is not None and capability.cli.group == group
+        ),
+        key=_cli_capability_order,
+    )
+
+
+def _cli_capability_order(capability: Capability) -> tuple[int, str]:
+    projection = capability.cli
+    assert projection is not None
+    return projection.order, capability.name
+
+
+def _add_capability_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    capability: Capability,
+    action: str,
+    summary: str,
+) -> None:
+    projection = capability.cli
+    assert projection is not None
+    parser = subparsers.add_parser(
+        action,
+        help=summary,
+        description=projection.description,
+        epilog=projection.epilog,
+    )
+    for parameter in capability.params:
+        _add_capability_parameter(parser, parameter)
+    for flag in projection.flags:
+        parser.add_argument(
+            f"--{flag}",
+            action="store_true",
+            help=dict(projection.flag_help)[flag],
+        )
+    if capability.identity:
+        _add_identity_arguments(parser)
+
+
+def _add_capability_parameter(parser: argparse.ArgumentParser, parameter: CapabilityParam) -> None:
+    if parameter.type == "array":
+        parser.add_argument(
+            parameter.name,
+            nargs="*",
+            metavar=parameter.metavar,
+            help=parameter.summary,
+        )
+        return
+
+    argument = f"--{parameter.name.replace('_', '-')}"
+    if parameter.type == "boolean":
+        parser.add_argument(argument, action="store_true", help=parameter.summary)
+        return
+
+    kwargs: dict[str, object] = {
+        "help": parameter.summary,
+        "required": parameter.required,
+    }
+    if parameter.choices is not None:
+        kwargs["choices"] = parameter.choices
+    if parameter.default is not None:
+        kwargs["default"] = parameter.default
+    if parameter.metavar is not None:
+        kwargs["metavar"] = parameter.metavar
+    parser.add_argument(argument, **kwargs)
+
+
 def _print_group_help(parser: argparse.ArgumentParser, command: str | None) -> None:
     if command is not None:
         for action in parser._actions:
@@ -292,32 +166,6 @@ def _print_group_help(parser: argparse.ArgumentParser, command: str | None) -> N
                     group_parser.print_help()
                     return
     parser.print_help()
-
-
-def _add_inference_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--prompt", required=True, metavar="TEXTO", help="texto que se enviara al modelo")
-    parser.add_argument("--domain", metavar="DOMINIO", help="dominio declarado usado para resolver el modelo")
-    parser.add_argument("--model", metavar="MODELO", help="modelo directo; tiene prioridad sobre --domain")
-
-
-def _add_json_argument(parser: argparse.ArgumentParser, content: str) -> None:
-    parser.add_argument("--json", action="store_true", help=f"emite {content}")
-
-
-def _add_quiet_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="suprime el progreso en stderr; no afecta a la respuesta",
-    )
-
-
-def _add_verbose_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="enriquece el progreso en stderr; no afecta a la respuesta",
-    )
 
 
 def _add_identity_arguments(parser: argparse.ArgumentParser) -> None:
@@ -483,6 +331,18 @@ def _task_run(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def _task_stream(args: argparse.Namespace) -> int:
+    for event in service.stream_task(
+        config_path=args.config,
+        prompt=args.prompt,
+        mode=args.mode,
+        effort=args.effort,
+        identity=_identity_override(args),
+    ):
+        print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
 def _emit_progress(
     message: str,
     *,
@@ -584,6 +444,16 @@ def _domain_route(args: argparse.Namespace) -> int:
     return 0
 
 
+def _capability_list(args: argparse.Namespace) -> int:
+    result = service.list_capabilities()
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        for capability in result["capabilities"]:
+            print(f"{capability['name']}\t{capability['summary']}")
+    return 0
+
+
 def _domain_list(args: argparse.Namespace) -> int:
     result = service.list_domains(config_path=args.config)
     if args.json:
@@ -651,6 +521,44 @@ def _runtime_detect(args: argparse.Namespace) -> int:
         gpu = "gpu" if result["gpu"]["available"] else "no_gpu"
         print(f"{result['status']}\t{gpu}\tpython {result['runtime']['python']}")
     return 0
+
+
+def _capability_name(args: argparse.Namespace) -> str | None:
+    if args.command is None:
+        return None
+    action = getattr(args, f"{args.command}_command", None)
+    return f"{args.command}.{action}" if action is not None else args.command
+
+
+_RENDERS: dict[str, Callable[[argparse.Namespace], int]] = {
+    "init": _init,
+    "prompt.run": _prompt_run,
+    "prompt.stream": _prompt_stream,
+    "reasoning.run": _reasoning_run,
+    "reasoning.stream": _reasoning_stream,
+    "task.run": _task_run,
+    "task.stream": _task_stream,
+    "capability.list": _capability_list,
+    "domain.route": _domain_route,
+    "domain.list": _domain_list,
+    "model.list": _model_list,
+    "model.pull": _model_pull,
+    "config.validate": _config_validate,
+    "eval.run": _eval_run,
+    "runtime.health": _runtime_health,
+    "runtime.detect": _runtime_detect,
+}
+
+assert set(_RENDERS) == {
+    capability.name
+    for capability in CAPABILITIES
+    if capability.cli is not None
+} | {
+    f"{capability.cli.group}.{alias}"
+    for capability in CAPABILITIES
+    if capability.cli is not None
+    for alias in capability.cli.aliases
+}
 
 
 def _identity_override(args: argparse.Namespace) -> dict[str, str]:

@@ -22,6 +22,10 @@ def create_server(
 
     server = FastMCP("ia_nest_core", host=host, port=port)
 
+    @server.tool(name="capability.list", structured_output=True)
+    def capability_list() -> dict[str, Any]:
+        return service.list_capabilities()
+
     @server.tool(name="prompt.run", structured_output=True)
     def prompt_run(prompt: str, model: str | None = None, domain: str | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:
         return service.run_prompt(
@@ -58,11 +62,10 @@ def create_server(
         )
 
     @server.tool(name="domain.route", structured_output=True)
-    def domain_route(prompt: str, tags: list[str] | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:
+    def domain_route(prompt: str, identity: dict[str, str] | None = None) -> dict[str, Any]:
         return service.route_domain(
             config_path=config_path,
             prompt=prompt,
-            tags=tags or [],
             identity=identity or {},
         )
 

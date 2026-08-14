@@ -96,6 +96,23 @@ def test_cli_task_run_emits_checkpoints_as_jsonl(monkeypatch, capsys) -> None:
     assert calls[0]["effort"] == "high"
 
 
+def test_cli_task_stream_emits_event_view(monkeypatch, capsys) -> None:
+    calls = []
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: calls.append(kwargs) or iter(EVENTS))
+
+    exit_code = main([
+        "--config", "unused", "task", "stream", "--prompt", "tarea",
+        "--mode", "coverage", "--effort", "high",
+    ])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert [json.loads(line) for line in captured.out.splitlines()] == EVENTS
+    assert captured.err == ""
+    assert calls[0]["mode"] == "coverage"
+    assert calls[0]["effort"] == "high"
+
+
 def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys) -> None:
     events = [
         {"type": "task_received", "data": {"prompt": "tarea"}},
@@ -388,7 +405,7 @@ def test_cli_reasoning_stream_quiet_suppresses_steps(monkeypatch, capsys) -> Non
 
 
 @pytest.mark.skipif(importlib.util.find_spec("starlette") is None, reason="REST extra not installed")
-def test_rest_task_run_is_sse(monkeypatch) -> None:
+def test_rest_task_run_is_json_and_task_stream_is_sse(monkeypatch) -> None:
     import anyio
     import starlette.responses
     from ianest_core.rest import create_app
@@ -406,27 +423,38 @@ def test_rest_task_run_is_sse(monkeypatch) -> None:
             self.media_type = media_type
 
     monkeypatch.setattr(starlette.responses, "StreamingResponse", StreamingResponse)
-    calls = []
-    monkeypatch.setattr(service, "stream_task", lambda **kwargs: calls.append(kwargs) or iter(EVENTS))
+    run_calls = []
+    stream_calls = []
+    final = EVENTS[-1]["data"]
+    monkeypatch.setattr(service, "run_task", lambda **kwargs: run_calls.append(kwargs) or final)
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: stream_calls.append(kwargs) or iter(EVENTS))
     app = create_app("unused")
-    endpoint = next(route.endpoint for route in app.routes if route.path == "/task/run")
+    endpoints = {route.path: route.endpoint for route in app.routes}
 
     async def call_task():
-        response = await endpoint(Request({"prompt": "tarea", "mode": "coverage", "effort": "high"}))
-        default_response = await endpoint(Request({"prompt": "tarea"}))
-        return response, default_response
+        response = await endpoints["/task/run"](
+            Request({"prompt": "tarea", "mode": "coverage", "effort": "high"})
+        )
+        stream = await endpoints["/task/stream"](Request({"prompt": "tarea"}))
+        return response, stream
 
-    response, default_response = anyio.run(call_task)
-    body = "".join(response.content)
+    response, stream = anyio.run(call_task)
+    assert json.loads(response.body) == final
+    body = "".join(stream.content)
     assert "event: task_received" in body
     assert "event: task_done" in body
     assert '"evaluation_attempts": 1' in body
     assert '"degradations": []' in body
-    assert calls[0]["mode"] == "coverage"
-    assert calls[0]["effort"] == "high"
-    list(default_response.content)
-    assert calls[1]["mode"] == "pipeline"
-    assert calls[1]["effort"] is None
+    task_done_data = next(
+        json.loads(line.removeprefix("data: "))
+        for line in body.splitlines()
+        if line.startswith("data: ") and '"type": "task_done"' in line
+    )["data"]
+    assert task_done_data == final
+    assert run_calls[0]["mode"] == "coverage"
+    assert run_calls[0]["effort"] == "high"
+    assert stream_calls[0]["mode"] == "pipeline"
+    assert stream_calls[0]["effort"] is None
 
 
 @pytest.mark.skipif(importlib.util.find_spec("mcp") is None, reason="MCP extra not installed")

@@ -1,3 +1,8 @@
 """IA_NEST Core package."""
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("ianest-core")
+except PackageNotFoundError:
+    __version__ = "0.0.0.dev0"

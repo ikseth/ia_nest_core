@@ -1,0 +1,153 @@
+# Bateria congelada de capability.list (linea v0.4, ADR 0046).
+# La fase v0.4-A3 implementa la capacidad y su ejecutor de evaluacion, y
+# entonces integra estos casos quitando el sufijo .frozen.
+
+- id: capability_catalog_exact_ordered_names
+  track: conformance
+  description: "ADR 0046: el catalogo enumera exactamente las 15 capacidades en orden por name."
+  capability: capability.list
+  input: {}
+  expect:
+    capability_names:
+      - capability.list
+      - config.validate
+      - domain.list
+      - domain.route
+      - eval.run
+      - init
+      - model.list
+      - model.pull
+      - prompt.run
+      - prompt.stream
+      - reasoning.run
+      - reasoning.stream
+      - runtime.health
+      - task.run
+      - task.stream
+
+- id: capability_catalog_lists_itself
+  track: conformance
+  description: "ADR 0046: capability.list aparece en su propia salida."
+  capability: capability.list
+  input: {}
+  expect:
+    entries:
+      - name: capability.list
+
+- id: capability_catalog_prompt_run_complete_entry
+  track: conformance
+  description: "ADR 0046: prompt.run declara sus ocho campos y valores exactos."
+  capability: capability.list
+  input: {}
+  expect:
+    entries:
+      - name: prompt.run
+        summary: "ejecuta un prompt contra un modelo o dominio declarado"
+        identity: true
+        streaming: false
+        params:
+          - name: prompt
+            type: string
+            required: true
+            choices: null
+            default: null
+            summary: "texto que se enviara al modelo"
+        rest:
+          path: /prompt/run
+          method: POST
+        cli:
+          group: prompt
+          action: run
+          aliases: []
+        mcp:
+          tool: prompt.run
+
+- id: capability_catalog_model_pull_declares_rest_mcp_gaps
+  track: conformance
+  description: "ADR 0046: model.pull declara los huecos REST y MCP y conserva CLI."
+  capability: capability.list
+  input: {}
+  expect:
+    entries:
+      - name: model.pull
+        rest: null
+        cli:
+          group: model
+          action: pull
+          aliases: []
+        mcp: null
+
+- id: capability_catalog_prompt_stream_declares_mcp_gap
+  track: conformance
+  description: "ADR 0046: prompt.stream declara hueco MCP y proyeccion REST."
+  capability: capability.list
+  input: {}
+  expect:
+    entries:
+      - name: prompt.stream
+        rest:
+          path: /prompt/stream
+          method: POST
+        mcp: null
+
+- id: capability_catalog_task_run_stream_split
+  track: conformance
+  description: "ADR 0046 D5-a: task.run es bloqueante y task.stream es el flujo separado."
+  capability: capability.list
+  input: {}
+  expect:
+    entries:
+      - name: task.run
+        streaming: false
+        rest:
+          path: /task/run
+          method: POST
+      - name: task.stream
+        streaming: true
+        rest:
+          path: /task/stream
+          method: POST
+
+- id: capability_catalog_runtime_health_cli_alias
+  track: conformance
+  description: "ADR 0046: runtime.health declara detect como alias CLI."
+  capability: capability.list
+  input: {}
+  expect:
+    entries:
+      - name: runtime.health
+        cli:
+          group: runtime
+          action: health
+          aliases: [detect]
+
+- id: capability_catalog_exact_identity_set
+  track: conformance
+  description: "ADR 0046: identity es true exactamente en las siete capacidades que transportan identidad."
+  capability: capability.list
+  input: {}
+  expect:
+    identity_capability_names:
+      - domain.route
+      - prompt.run
+      - prompt.stream
+      - reasoning.run
+      - reasoning.stream
+      - task.run
+      - task.stream
+
+- id: capability_catalog_task_run_mode_and_effort_params
+  track: conformance
+  description: "ADR 0046: task.run declara choices y default de mode y effort."
+  capability: capability.list
+  input: {}
+  expect:
+    entries:
+      - name: task.run
+        params:
+          - name: mode
+            choices: [pipeline, coverage]
+            default: pipeline
+          - name: effort
+            choices: [low, medium, high]
+            default: null

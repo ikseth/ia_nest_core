@@ -113,7 +113,6 @@ domains:
     preferred_model: present
     fallback_models: []
     profile: default
-    routing_rules: {keywords: []}
     status: active
 profiles:
   - id: default

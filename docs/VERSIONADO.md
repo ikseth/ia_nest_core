@@ -16,8 +16,12 @@ publico, y como registra sus correcciones pequenas.
 El SemVer de este core se mide contra su contrato publico, no contra el codigo
 interno. Cuenta como contrato:
 
-- Las capacidades de `docs/CORE_CONTRACT.md` (`prompt.run`, `reasoning.run`,
-  `domain.route`, `eval.run`, `runtime.health`, provisioning).
+- TODAS las capacidades publicas de `docs/CORE_CONTRACT.md`, sin enumerarlas
+  aqui (hogar unico, meta ADR 0008): la lista de aquel documento es la
+  autoritativa, y una capacidad nueva entra en el contrato publico por estar
+  alli, no por aparecer en esta linea.
+- El provisioning de modelos (ADR 0029), que es contrato publico y no vive en
+  `CORE_CONTRACT.md`.
 - El esquema de configuracion (`docs/decision_records/0014`, `0016`).
 - El esquema de telemetria: orden/nombres de columnas CSV y `schema_version`
   (ADR 0015).

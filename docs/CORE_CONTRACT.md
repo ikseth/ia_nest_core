@@ -20,8 +20,10 @@ El core debe exponer las mismas capacidades por:
 ## Contexto de identidad del request
 
 Las capacidades que participan en sesion, razonamiento o trazabilidad de
-usuario (`prompt.run`, `reasoning.run`, `task.run`, `domain.route`)
-transportan un contexto de identidad. El core no implementa memoria (ADR 0035):
+usuario (`prompt.run`, `prompt.stream`, `reasoning.run`, `reasoning.stream`,
+`task.run`, `task.stream`, `domain.route`) transportan un contexto de identidad.
+Las variantes de flujo lo transportan igual que sus hermanas bloqueantes: es la
+misma capacidad con otro transporte. El core no implementa memoria (ADR 0035):
 la identidad es la clave que `ia_nest_extended` usa para indexar la suya
 (ver "Frontera de memoria" en `ARCHITECTURE.md`). Las capacidades
 administrativas o de introspeccion (`runtime.health`, `model.list`,
@@ -67,7 +69,7 @@ Declara ademas `core_version` (ADR 0046): la version del propio core, que es la
 cifra con la que las capas de encima fijan su vinculo por SemVer (ADR 0032). Es
 consulta de introspeccion: no requiere identidad.
 
-### `capability.list` (linea v0.4: contrato fijado, implementacion pendiente)
+### `capability.list`
 
 Enumera las capacidades que el core expone y como se invocan (ADR 0046). Es
 introspeccion: no requiere identidad.

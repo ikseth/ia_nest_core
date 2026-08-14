@@ -62,16 +62,15 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
             raise ConfigValidationError("capabilities must be a list", "capabilities")
 
     for domain in domains:
+        if "routing_rules" in domain:
+            raise ConfigValidationError(
+                "routing_rules was retired: routing is semantic. Declare 'router' and "
+                "describe each domain in its 'description'.",
+                "routing_rules",
+            )
         _require_fields(domain, DOMAIN_FIELDS)
         if not isinstance(domain.get("fallback_models"), list):
             raise ConfigValidationError("fallback_models must be a list", "fallback_models")
-        if "routing_rules" in domain:
-            routing_rules = domain["routing_rules"]
-            if not isinstance(routing_rules, dict):
-                raise ConfigValidationError("routing_rules must be a mapping", "routing_rules")
-            for key in ("keywords", "tags"):
-                if key in routing_rules and not isinstance(routing_rules[key], list):
-                    raise ConfigValidationError(f"routing_rules.{key} must be a list", "routing_rules")
 
     for profile in profiles:
         _require_fields(profile, PROFILE_FIELDS)

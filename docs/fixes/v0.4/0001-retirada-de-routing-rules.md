@@ -1,6 +1,6 @@
 # 0001: retirada de routing_rules del esquema de configuracion
 
-Estado: propuesta
+Estado: implementada
 Tipo: retirada de una clave de configuracion ya sin uso (ejecuta ADR 0043)
 Impacto de version: minor (rompe contrato de config, serie pre-1.0)
 Version objetivo: v0.4.0 (tramo C de la linea)
@@ -87,4 +87,23 @@ siguiente MINOR, sin fecha.
 
 ## Resultado
 
-Pendiente.
+Implementada. `DomainConfig` pierde el campo, `loader.py` deja de leerlo y
+`validator.py` rechaza la clave con `ConfigValidationError`,
+`field="routing_rules"`, y un mensaje que nombra `router` y `description`. El
+rechazo se comprueba antes que los campos obligatorios del dominio, de modo que
+una config heredada recibe primero el motivo que la explica.
+
+Los dos tests que fijaban la tolerancia pasan a asertar el rechazo, con dos
+anadidos: mapa vacio tambien rechazado (la clave entera, no su contenido) y el
+mensaje mencionando la alternativa. Limpiados los siete fixtures y los tres
+tests que la construian a mano.
+
+Verificado de forma independiente: pytest 237 con extras y 233 mas 4 skips sin
+extras; las dos plantillas de `config/` validan; `grep` no encuentra
+`routing_rules` fuera del rechazo y sus tests. **Digest de conformidad intacto**
+(`6b7067ef...`), como se esperaba: la clave no influia en ningun resultado.
+
+Nota de proceso: el brief de la tarea cito como esperado el digest `6dcae1a5`,
+que es el historico de 42 casos de la linea del router; el vigente es
+`6b7067ef` con 81. El implementador lo detecto y lo dijo en vez de ajustar el
+numero, que es el comportamiento correcto.

@@ -74,7 +74,6 @@
           preferred_model: does_not_exist
           fallback_models: []
           profile: default
-          routing_rules: { keywords: [] }
           status: active
       profiles:
         - id: default
@@ -146,7 +145,6 @@
           preferred_model: fake_b
           fallback_models: []
           profile: tiny
-          routing_rules: { keywords: [] }
           status: active
       profiles:
         - id: tiny

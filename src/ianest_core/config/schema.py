@@ -23,7 +23,6 @@ class DomainConfig:
     fallback_models: list[str]
     profile: str
     status: str
-    routing_rules: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

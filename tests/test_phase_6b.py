@@ -81,7 +81,6 @@ def test_config_validate_detects_dangling_reference() -> None:
                 "preferred_model": "does_not_exist",
                 "fallback_models": [],
                 "profile": "default",
-                "routing_rules": {"keywords": []},
                 "status": "active",
             }
         ],

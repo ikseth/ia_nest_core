@@ -8,13 +8,13 @@ from ianest_core.config import load_config, load_config_data, validate_config_di
 from ianest_core.errors import ConfigValidationError
 
 
-def test_config_accepts_domain_without_routing_rules() -> None:
+def test_domain_config_does_not_expose_routing_rules() -> None:
     raw = load_config_data("eval/fixtures/router.yaml")
 
     validate_config_dict(raw)
     config = load_config("eval/fixtures/router.yaml")
 
-    assert all(domain.routing_rules == {} for domain in config.domains)
+    assert all(not hasattr(domain, "routing_rules") for domain in config.domains)
 
 
 def test_config_accepts_valid_router_and_default_domain() -> None:
@@ -74,9 +74,9 @@ def test_config_rejects_unknown_default_domain() -> None:
     assert exc.value.field == "default_domain"
 
 
-def test_existing_routing_rules_are_still_validated() -> None:
+def test_config_rejects_routing_rules_regardless_of_shape() -> None:
     raw = deepcopy(load_config_data("eval/fixtures/config.yaml"))
-    raw["domains"][0]["routing_rules"]["keywords"] = "error"
+    raw["domains"][0]["routing_rules"] = {"keywords": "error"}
 
     with pytest.raises(ConfigValidationError) as exc:
         validate_config_dict(raw)
@@ -84,12 +84,21 @@ def test_existing_routing_rules_are_still_validated() -> None:
     assert exc.value.field == "routing_rules"
 
 
-def test_existing_config_with_routing_rules_remains_valid() -> None:
-    raw = load_config_data("eval/fixtures/config.yaml")
+def test_config_rejects_empty_routing_rules() -> None:
+    raw = deepcopy(load_config_data("eval/fixtures/config.yaml"))
+    raw["domains"][0]["routing_rules"] = {}
 
-    validate_config_dict(raw)
-    config = load_config("eval/fixtures/config.yaml")
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_dict(raw)
 
-    assert config.router is None
-    assert config.default_domain is None
-    assert config.domains[0].routing_rules == {"keywords": ["error", "fallo", "bug"]}
+    assert exc.value.field == "routing_rules"
+
+
+def test_routing_rules_rejection_names_router_migration() -> None:
+    raw = deepcopy(load_config_data("eval/fixtures/config.yaml"))
+    raw["domains"][0]["routing_rules"] = {"tags": ["legacy"]}
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_config_dict(raw)
+
+    assert "router" in exc.value.message

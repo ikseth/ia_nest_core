@@ -31,7 +31,6 @@ domains:
     preferred_model: fake_a
     fallback_models: []
     profile: default
-    routing_rules: {keywords: []}
     status: active
 profiles:
   - id: default

@@ -91,7 +91,6 @@ def _load_domain(raw: dict[str, Any]) -> DomainConfig:
         preferred_model=str(raw.get("preferred_model", "")),
         fallback_models=list(raw.get("fallback_models", [])),
         profile=str(raw.get("profile", "")),
-        routing_rules=dict(raw.get("routing_rules", {})),
         status=str(raw.get("status", "")),
     )
 

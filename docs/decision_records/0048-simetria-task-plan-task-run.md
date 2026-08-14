@@ -47,7 +47,8 @@ unos dentro de otros.
 `task.plan` devuelve:
 
 - `plan`: las subtareas (`index`, `prompt`, `domain`, `depends_on`),
-- `requirements`: los requisitos extraidos (id y enunciado),
+- `requirements`: los requisitos extraidos (`id`, `statement` y `covered_by`;
+  ver la regla de abajo),
 - `effort`: el nivel resuelto con el que se derivo,
 - `params` y trazabilidad, informativos como en el resto de capacidades.
 

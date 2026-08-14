@@ -210,7 +210,9 @@ Casos de conformance deterministas para orquestacion (ScriptedFakeAdapter
 multi-modelo: plan, fan-out, combinacion, cada corte tipado) y smoke con
 umbrales.
 
-Criterio de salida: bateria escrita y congelada antes de implementar.
+Criterio de salida (cumplido): 16 casos congelados en
+`eval/battery/v0.4/plan.yaml.frozen`, tests requeridos declarados en
+`eval/README.md`, digest sin mover.
 
 ### Fase v0.2-3: implementacion minima y validacion (completada 2026-07-16)
 
@@ -418,7 +420,7 @@ contrato las incorpora.
 Criterio de salida (cumplido): contrato reconciliado por el usuario (ADR 0040 y
 ADR 0047) y registrado.
 
-### Fase v0.4-B2: bateria de evaluacion
+### Fase v0.4-B2: bateria de evaluacion (completada 2026-08-14)
 
 Casos de conformance deterministas: plan suministrado valido; plan invalido de
 forma (`PlanParseError`); plan con ciclo o indice invalido
@@ -433,15 +435,29 @@ suministrado con `effort` explicito menor corta `max_subtasks`; sin `effort`,
 sobre plan suministrado; plan sin `requirements` emite la degradacion
 `requirements_unavailable`; `plan_attempts=0` con `plan_source=supplied`.
 
-Criterio de salida: bateria escrita y congelada antes de implementar.
+Criterio de salida (cumplido): 16 casos congelados en
+`eval/battery/v0.4/plan.yaml.frozen`, tests requeridos declarados en
+`eval/README.md`, digest sin mover.
 
-### Fase v0.4-B3: implementacion y paridad
+### Fase v0.4-B3a: runtime del plan explicito
 
-`task.plan` y la entrada `plan` con paridad CLI/REST/MCP (`ianest task plan`,
-`POST /task/plan`, `plan` en el cuerpo de `POST /task/run` y en las herramientas
-MCP correspondientes), telemetria con `plan_source`. La paridad no se escribe a
-mano: `task.plan` se declara en el catalogo del tramo A y de ahi salen su
-subcomando y su ruta.
+La etapa PLAN como capacidad propia y la entrada de plan: `task.plan`, las
+entradas `plan`, `requirements` y `effort` de `task.run`, el corte
+`replan_unavailable`, `plan_source` en `plan_ready` y la inversion de la
+cobertura (`covers` sale de `plan[]`, los requisitos ganan `covered_by`), con la
+bateria integrada y el digest recalculado y DECLARADO: cambia la forma de un
+evento publico, y esta anunciado en ADR 0048.
+
+### Fase v0.4-B3b: paridad de interfaces
+
+`task.plan` entra en el catalogo de capacidades y de ahi salen su subcomando, su
+ruta REST y su herramienta MCP; la entrada de plan se declara como parametro. El
+plan viaja por FICHERO en la CLI (ADR 0040: un plan como argumento de linea de
+comandos es hostil). Tests de paridad declarados en `eval/README.md`.
+
+Es la primera capacidad que nace despues del catalogo, asi que sirve de prueba
+del invariante de ADR 0046: si anadirla obliga a editar la CLI o el MCP a mano,
+el catalogo no cumplia lo que prometia.
 
 Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
 `extended` ejerce la via de punta a punta con su RAG por subtarea (leccion de

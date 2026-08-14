@@ -161,6 +161,67 @@ por CLI-. El error venia del brief de la fase A2, que se contradecia entre su
 tabla y su enunciado; el catalogo lo heredo. Corregido en la bateria y en el
 catalogo antes de commitear.
 
+## Bateria v0.4: plan explicito
+
+`eval/battery/v0.4/plan.yaml.frozen` fija el criterio de aceptacion de
+`task.plan` y de la entrada opcional `plan` de `task.run` (core ADR 0040,
+0047 y 0048). Se conserva fuera del runner hasta la fase v0.4-B3.
+
+Casos congelados e invariante de cada uno:
+
+- `plan_explicit_task_plan_returns_executable_shape`: `task.plan` devuelve
+  `plan`, `requirements`, `effort` y parametros efectivos; resuelve el dominio,
+  invierte `covers` a `requirements[].covered_by` y no publica `covers`.
+- `plan_explicit_task_plan_honors_effort`: el esfuerzo explicito gobierna el
+  plan y se refleja en el resultado.
+- `plan_explicit_supplied_plan_executes_directly`: un plan valido entra en
+  fan-out y `plan_ready` declara `plan_source=supplied`.
+- `plan_explicit_supplied_plan_has_zero_plan_attempts`: un plan suministrado no
+  cuenta derivaciones: `plan_attempts=0`.
+- `plan_explicit_without_plan_preserves_current_output`: sin plan de entrada se
+  conserva el camino actual y `plan_source=planner`.
+- `plan_explicit_supplied_plan_invalid_shape`: una forma invalida produce
+  `PlanParseError`.
+- `plan_explicit_supplied_plan_cycle`: un ciclo produce
+  `PlanDependencyError`.
+- `plan_explicit_supplied_plan_exceeds_default_limit`: el plan que supera el
+  `max_subtasks` efectivo corta con ese motivo.
+- `plan_explicit_supplied_plan_replan_unavailable`: `replan` sobre plan
+  suministrado corta con `replan_unavailable` y conserva lo producido.
+- `plan_explicit_supplied_plan_rerun_available`: `rerun` reejecuta el mismo
+  plan suministrado.
+- `plan_explicit_complete_echo_checks_coverage`: el echo hermano de `plan`,
+  `requirements` y `effort` comprueba cobertura mediante `covered_by`, sin
+  degradacion.
+- `plan_explicit_without_requirements_declares_degradation`: omitir requisitos
+  declara `requirements_unavailable`, marca cobertura falsa y no corta.
+- `plan_explicit_without_effort_uses_default`: omitir esfuerzo aplica
+  `default_effort`; no existe herencia desde el plan.
+- `plan_explicit_explicit_effort_limits_supplied_plan`: el esfuerzo explicito
+  manda y puede hacer que el plan recibido corte por `max_subtasks`.
+- `plan_explicit_supplied_plan_budget_grant`: el plan recibido concede una vez
+  `base + per_subtask * n`.
+- `plan_explicit_planner_source_publishes_inverted_coverage`: la via derivada
+  tambien publica requisitos con `covered_by` y plan sin `covers`; la forma no
+  depende de la procedencia.
+
+El digest se recalcula y se DECLARA al integrar estos 16 casos en la fase
+v0.4-B3, no durante su congelacion (ADR 0017). Hasta entonces debe permanecer
+`a60aa35b31acff2e9e286b6fc3b8c15b4293ce3331728b0f26aabe0234eb14b8`.
+
+Tests pytest requeridos para v0.4-B3, por no ser expresables en la bateria
+declarativa vigente:
+
+- `task.plan` no llama a ningun modelo de ejecucion, ni a COMBINE ni EVALUATE.
+- `task.run` con plan suministrado no llama al planificador; se comprueba con
+  un adaptador que fallaria ante cualquier llamada.
+- Paridad de `task.plan` por CLI, REST y MCP: `ianest task plan`,
+  `POST /task/plan` y herramienta MCP.
+- Paridad de los campos hermanos `plan`, `requirements` y `effort` en
+  `POST /task/run` y en la herramienta MCP de `task.run`.
+- La CLI recibe el plan por FICHERO, no como argumento JSON de linea de
+  comandos, y transporta tambien `requirements` y `effort`.
+
 ## Bateria del router semantico (fases 3a y 3b-i)
 
 `eval/battery/router/domain_route.yaml` integra los 4 casos de

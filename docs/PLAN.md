@@ -363,7 +363,7 @@ del catalogo; bateria integrada (90 casos) con digest declarado.
 Criterio de salida (cumplido): conformance 90/90 con digest declarado; el render
 de `ianest task run` intacto; pytest en verde con y sin extras.
 
-### Fase v0.4-A3b: derivar la CLI y cerrar el gate
+### Fase v0.4-A3b1: catalogo completo y gates (completada 2026-08-14)
 
 Lo que queda para que el catalogo sea fuente unica de verdad y no solo de
 lectura: el parser de `argparse` se construye recorriendo el catalogo, y un test
@@ -381,10 +381,22 @@ Incluye la retirada de `tags` de `domain.route`
 propio gate destapo: dos interfaces lo aceptaban y lo tiraban, y la tercera ni lo
 mencionaba.
 
-Criterio de salida: ninguna accion de CLI escrita a mano; el gate de MCP falla
-si una firma se desvia del catalogo; superficie CLI observable sin cambios (los
-tests de ayuda son la red); digest sin mover (la CLI no participa en la
-conformidad).
+Criterio de salida (cumplido): el catalogo declara `metavar`, `description`,
+`epilog`, `flags` y todos los parametros de cada capacidad; los gates de CLI y
+MCP comparan en las dos direcciones -incluidos los textos, normalizando
+`%(default)s`- y pasan contra las interfaces escritas a mano; `tags` retirado;
+digest sin mover.
+
+### Fase v0.4-A3b2: generar el parser
+
+Sustituir la construccion a mano de `_build_parser` por una que recorra el
+catalogo. El render sigue siendo codigo, elegido por nombre de accion: lo que se
+genera es el parser, no la presentacion. Los gates de A3b1 son la red que prueba
+que la ayuda no se degrada.
+
+Criterio de salida: ninguna accion de CLI escrita a mano; superficie CLI
+observable sin cambios (los tests de ayuda y los gates son la red); digest sin
+mover (la CLI no participa en la conformidad).
 
 ### Fase v0.4-B1: contrato del plan explicito (completada 2026-08-14)
 

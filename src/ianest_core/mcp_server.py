@@ -62,11 +62,10 @@ def create_server(
         )
 
     @server.tool(name="domain.route", structured_output=True)
-    def domain_route(prompt: str, tags: list[str] | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:
+    def domain_route(prompt: str, identity: dict[str, str] | None = None) -> dict[str, Any]:
         return service.route_domain(
             config_path=config_path,
             prompt=prompt,
-            tags=tags or [],
             identity=identity or {},
         )
 

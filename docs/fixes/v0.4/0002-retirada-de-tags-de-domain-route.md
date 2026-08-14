@@ -1,6 +1,6 @@
 # 0002: retirada de tags de domain.route
 
-Estado: propuesta
+Estado: implementada
 Tipo: retirada de un parametro publico ya sin efecto (ejecuta ADR 0043)
 Impacto de version: minor (desaparece un parametro de REST y de la firma MCP)
 Version objetivo: v0.4.0 (tramo A)
@@ -73,4 +73,15 @@ minor y no patch.
 
 ## Resultado
 
-Pendiente.
+Implementada junto al gate que la destapo (fase v0.4-A3b, parte 1). `tags` sale
+de `rest.py`, `mcp_server.py`, `service.route_domain`, `DomainRuntime.route`,
+`DomainRouter.route` -incluido el `del tags`- y del ejecutor de evaluacion de
+`domain.route`. La herramienta MCP `domain.route` declara ya solo `prompt` e
+`identity`, y el gate bidireccional lo comprueba.
+
+Las unicas apariciones de `tags` que quedan en `src/` son del endpoint
+`/api/tags` del provisioner de Ollama, que es otra cosa.
+
+Verificacion independiente: 249 tests con extras, 242 y 7 skips sin extras,
+conformidad 90/90 y digest `a60aa35b` INTACTO, como se esperaba de un parametro
+que no hacia nada.

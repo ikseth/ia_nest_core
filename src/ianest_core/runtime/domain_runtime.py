@@ -56,11 +56,10 @@ class DomainRuntime:
         prompt: str,
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
-        tags: list[str] | None = None,
     ) -> DomainRouteResult:
         started = time.monotonic()
         request_id = request_id or str(uuid4())
-        route = self.router.route(prompt, tags=tags)
+        route = self.router.route(prompt)
         identity_data = dict(identity_override or {})
         if not identity_data.get("domain_tag"):
             identity_data["domain_tag"] = route.domain

@@ -107,7 +107,6 @@ def create_app(config_path: str | Path = "config/core.yaml"):
             service.route_domain(
                 config_path=config_path,
                 prompt=payload["prompt"],
-                tags=payload.get("tags", []),
                 identity=payload.get("identity", {}),
             )
         )

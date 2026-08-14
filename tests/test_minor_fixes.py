@@ -71,7 +71,7 @@ def test_domain_route_exposes_fallback_substitution(tmp_path) -> None:
         adapter_factory=lambda _model: router_adapter,
     )
 
-    result = runtime.route(prompt="tengo un error", tags=["support"])
+    result = runtime.route(prompt="tengo un error")
 
     assert result.domain == "support"
     assert result.model == "fake_b"

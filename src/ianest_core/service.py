@@ -146,14 +146,12 @@ def route_domain(
     *,
     config_path: str | Path,
     prompt: str,
-    tags: list[str] | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     result = DomainRuntime(config, availability=availability).route(
         prompt=prompt,
-        tags=tags or [],
         identity_override=identity or {},
     )
     return result.to_dict()

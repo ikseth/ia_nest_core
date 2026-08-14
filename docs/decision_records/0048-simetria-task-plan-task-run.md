@@ -59,6 +59,41 @@ La capa edita los `prompt` de `plan[]` -lo unico que es suyo- y copia los otros
 dos campos tal cual. No tiene que respetar nada que este dentro de una estructura
 que manipula, porque ya no hay nada dentro.
 
+### La regla que ordena que va donde: nada de perdida silenciosa en `plan[]`
+
+Al congelar la bateria aparecio el caso limite: la comprobacion de cobertura se
+apoya hoy en un campo `covers` por subtarea -que subtareas cubren que requisitos-
+y ese campo viaja YA dentro de cada elemento de `plan[]` en el checkpoint
+`plan_ready`, sin estar documentado en el contrato.
+
+`covers` es contabilidad del core dentro de la estructura que la capa edita: la
+misma enfermedad que esta decision cura, un nivel mas abajo. Se corrige
+invirtiendo la relacion. Cada requisito declara que subtareas lo cubren:
+
+    requirements: [ {"id": "r1", "statement": "...", "covered_by": [0, 2]} ]
+
+Y `plan[]` se queda con `index`, `prompt`, `domain` y `depends_on`.
+
+La regla general, que es lo que hay que recordar cuando se anada algo:
+
+> Dentro de `plan[]` no vive ningun campo cuya perdida sea SILENCIOSA. Todo lo
+> que hay ahi es estructuralmente necesario para ejecutar -si la capa lo tira, el
+> plan es invalido y falla ruidosamente con `PlanParseError` o
+> `PlanDependencyError`-. La contabilidad, cuya perdida solo degrada, vive en
+> `requirements`, que la capa copia entero sin modelarlo.
+
+Consecuencias:
+
+- El checkpoint `plan_ready` emite los requisitos con `covered_by` y el plan sin
+  `covers`, en las DOS vias (plan derivado y plan suministrado): una sola forma,
+  no una por procedencia.
+- El formato que el core pide a su planificador NO cambia: se le sigue pidiendo
+  `covers` por subtarea, y el core invierte al construir la salida publica. Es
+  una transformacion de tres lineas y evita re-afinar el prompt del
+  planificador.
+- Cambia la forma de un evento publico: el digest de conformidad se movera al
+  integrar la bateria en la fase B3, declarado por adelantado.
+
 ### Reglas de omision, todas visibles
 
 - Sin `plan`, `task.run` se comporta exactamente como sin esta entrada. Opt-in,

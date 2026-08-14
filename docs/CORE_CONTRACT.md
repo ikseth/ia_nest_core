@@ -183,8 +183,14 @@ lo que no modela.
 Debe devolver:
 
 - `plan`: por subtarea, `index`, `prompt`, `domain` ya resuelto con la
-  precedencia del ADR 0019, `domain_hint_ignored` cuando proceda y `depends_on`,
-- `requirements`: los requisitos extraidos (id y enunciado),
+  precedencia del ADR 0019, `domain_hint_ignored` cuando proceda y `depends_on`.
+  Nada mas: dentro de `plan[]` no vive ningun campo cuya perdida sea silenciosa
+  (ADR 0048), porque todo lo que hay ahi es necesario para ejecutar y su ausencia
+  falla ruidosamente,
+- `requirements`: los requisitos extraidos, cada uno con `id`, `statement` y
+  `covered_by` (los indices de subtarea que lo cubren). La contabilidad de
+  cobertura vive aqui, en el campo que quien enriquece copia entero sin
+  modelarlo, y no dentro de las subtareas que edita,
 - `effort`: el nivel resuelto con el que se derivo el plan,
 - `params` y trazabilidad, informativos: `params` no se devuelve a `task.run`,
   porque es un informe y no una entrada.
@@ -270,9 +276,10 @@ una iteracion nueva si conceden.
 aparece. `reasoning.run` conserva el suyo, de perfil, con el sentido del
 ADR 0008: son cosas distintas.
 
-PLAN declara en cada `plan_ready` los campos aditivos `requirements` (id y
-enunciado), `plan_attempts`, `requirements_covered` y
-`uncovered_requirements`. La emision cuenta derivaciones: ocurre una vez por
+PLAN declara en cada `plan_ready` los campos aditivos `requirements` (id,
+enunciado y `covered_by`), `plan_attempts`, `requirements_covered` y
+`uncovered_requirements`. La forma es la misma con plan derivado y con plan
+suministrado. La emision cuenta derivaciones: ocurre una vez por
 plan producido, incluida cada re-planificacion, y no se repite por `rerun`.
 
 Regla de renegociacion por etapa (ADR 0041): PLAN dispone de una sola

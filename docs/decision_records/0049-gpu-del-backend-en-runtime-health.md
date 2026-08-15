@@ -1,7 +1,9 @@
 # Decision 0049: la GPU del backend la declara el backend, no el core
 
 Fecha: 2026-08-15
-Estado: propuesta; pendiente de reconciliacion del usuario
+Estado: reconciliado por el usuario (2026-08-15). Punto abierto declarado:
+la forma concreta de la sonda se verifica contra el backend desplegado antes de
+fijar valores en el contrato (fase 1 de su linea en el PLAN).
 Depende de: ADR 0003 (protocolo compatible con OpenAI), ADR 0024 (deteccion de
 runtime/GPU), ADR 0029 (provisioning backend-especifico), ADR 0028 (estrategia de
 recursos de backend)

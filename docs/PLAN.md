@@ -546,7 +546,7 @@ que hoy es invisible: un modelo que no cabe en memoria de video cae a CPU en
 silencio. Version objetivo: PATCH; viaja con la linea v0.4 si llega antes del
 tag.
 
-### Fase 1: contrato (redactada 2026-08-15)
+### Fase 1: contrato (reconciliada 2026-08-15)
 
 ADR 0049 escrito; `CORE_CONTRACT.md` con los dos campos de GPU y su significado.
 

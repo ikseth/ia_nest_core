@@ -6,6 +6,18 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Contrato de la GPU del backend en `runtime.health` (ADR 0049): dos campos con
+  dos significados que no se mezclan. `gpu` sigue describiendo el runtime LOCAL
+  -en una maquina sin GPU, `available: false` es cierto y no es regresion- y
+  `backend.gpu` declara lo que el backend dice de su propio uso de GPU
+  (`in_use | cpu_only | unknown`, con `models_loaded`). `cpu_only` es el que
+  justifica el campo: un modelo que no cabe en memoria de video no falla, cae a
+  CPU en silencio y responde mucho mas lento. La sonda es especifica del
+  proveedor y opcional, por la costura del provisioning (ADR 0029), y
+  `runtime.health` nunca falla por ella. Implementacion en la linea de
+  observacion del backend del PLAN. Impacto: adicion compatible (patch).
+
+### Anadido
 - Contrato del catalogo unico de capacidades (ADR 0046, cierra
   `extended CR-0002`): un catalogo declarativo pasa a ser la fuente de la que se
   derivan la CLI y las rutas REST y contra la que se asertan las herramientas

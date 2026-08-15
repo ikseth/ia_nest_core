@@ -5,6 +5,7 @@ from typing import Literal
 
 
 ParamType = Literal["string", "integer", "boolean", "array", "object"]
+CliInputSource = Literal["json_file"]
 
 
 @dataclass(frozen=True)
@@ -16,12 +17,22 @@ class CapabilityParam:
     default: object | None
     summary: str
     metavar: str | None
+    cli: bool = True
 
 
 @dataclass(frozen=True)
 class RestProjection:
     path: str
     method: str
+
+
+@dataclass(frozen=True)
+class CliInput:
+    name: str
+    source: CliInputSource
+    targets: tuple[str, ...]
+    metavar: str
+    summary: str
 
 
 @dataclass(frozen=True)
@@ -34,6 +45,7 @@ class CliProjection:
     flag_help: tuple[tuple[str, str], ...] = ()
     aliases: tuple[str, ...] = ()
     alias_summaries: tuple[tuple[str, str], ...] = ()
+    inputs: tuple[CliInput, ...] = ()
     order: int = 0
 
 
@@ -70,8 +82,9 @@ def _param(
     choices: tuple[str, ...] | None = None,
     default: object | None = None,
     metavar: str | None = None,
+    cli: bool = True,
 ) -> CapabilityParam:
-    return CapabilityParam(name, type, required, choices, default, summary, metavar)
+    return CapabilityParam(name, type, required, choices, default, summary, metavar, cli)
 
 
 _PROMPT = _param(
@@ -98,6 +111,18 @@ _EFFORT = _param(
     "string",
     "nivel de esfuerzo; sin bandera usa orchestration.default_effort",
     choices=("low", "medium", "high"),
+)
+_PLAN = _param(
+    "plan",
+    "array",
+    "plan de subtareas suministrado; omite la etapa PLAN",
+    cli=False,
+)
+_REQUIREMENTS = _param(
+    "requirements",
+    "array",
+    "requisitos asociados al plan suministrado",
+    cli=False,
 )
 
 _JSON_RESULT = ("json", "emite resultado")
@@ -435,11 +460,31 @@ CAPABILITIES: tuple[Capability, ...] = (
         McpProjection("runtime.health"),
     ),
     Capability(
+        "task.plan",
+        "deriva un plan ejecutable sin ejecutar subtareas",
+        True,
+        False,
+        (_TASK_PROMPT, _EFFORT),
+        RestProjection("/task/plan", "POST"),
+        CliProjection(
+            "task",
+            "plan",
+            "Deriva el plan de una tarea sin ejecutar subtareas.",
+            epilog=(
+                "Con --json emite el objeto que task run acepta mediante "
+                "--plan-file."
+            ),
+            flags=("json",),
+            flag_help=(("json", "emite plan ejecutable completo"),),
+        ),
+        McpProjection("task.plan"),
+    ),
+    Capability(
         "task.run",
         "ejecuta una tarea y muestra sus checkpoints",
         True,
         False,
-        (_TASK_PROMPT, _MODE, _EFFORT),
+        (_TASK_PROMPT, _MODE, _PLAN, _REQUIREMENTS, _EFFORT),
         RestProjection("/task/run", "POST"),
         CliProjection(
             "task",
@@ -451,6 +496,15 @@ CAPABILITIES: tuple[Capability, ...] = (
             ),
             flags=("json", "quiet", "verbose"),
             flag_help=(_JSON_CHECKPOINTS, _QUIET, _VERBOSE),
+            inputs=(
+                CliInput(
+                    "plan-file",
+                    "json_file",
+                    ("plan", "requirements", "effort"),
+                    "RUTA",
+                    "JSON producido por task plan; rellena plan, requirements y effort",
+                ),
+            ),
         ),
         McpProjection("task.run"),
     ),
@@ -474,24 +528,44 @@ CAPABILITIES: tuple[Capability, ...] = (
     ),
 )
 
-assert tuple(capability.name for capability in CAPABILITIES) == tuple(
-    sorted(capability.name for capability in CAPABILITIES)
-)
-assert all(
-    capability.cli is None
-    or set(capability.cli.flags) <= {"json", "quiet", "verbose"}
-    for capability in CAPABILITIES
-)
-assert {group.name for group in CLI_GROUPS} == {
-    capability.cli.group for capability in CAPABILITIES if capability.cli is not None
-}
-assert all(
-    capability.cli is None
-    or set(dict(capability.cli.flag_help)) == set(capability.cli.flags)
-    for capability in CAPABILITIES
-)
-assert all(
-    capability.cli is None
-    or set(dict(capability.cli.alias_summaries)) == set(capability.cli.aliases)
-    for capability in CAPABILITIES
-)
+def _assert_catalog_invariants(capabilities: tuple[Capability, ...]) -> None:
+    assert tuple(capability.name for capability in capabilities) == tuple(
+        sorted(capability.name for capability in capabilities)
+    )
+    assert all(
+        capability.cli is None
+        or set(capability.cli.flags) <= {"json", "quiet", "verbose"}
+        for capability in capabilities
+    )
+    assert all(
+        parameter.cli
+        or capability.cli is not None
+        and any(parameter.name in input.targets for input in capability.cli.inputs)
+        for capability in capabilities
+        for parameter in capability.params
+    )
+    assert all(
+        capability.cli is None
+        or all(
+            target in {parameter.name for parameter in capability.params}
+            for input in capability.cli.inputs
+            for target in input.targets
+        )
+        for capability in capabilities
+    )
+    assert {group.name for group in CLI_GROUPS} == {
+        capability.cli.group for capability in capabilities if capability.cli is not None
+    }
+    assert all(
+        capability.cli is None
+        or set(dict(capability.cli.flag_help)) == set(capability.cli.flags)
+        for capability in capabilities
+    )
+    assert all(
+        capability.cli is None
+        or set(dict(capability.cli.alias_summaries)) == set(capability.cli.aliases)
+        for capability in capabilities
+    )
+
+
+_assert_catalog_invariants(CAPABILITIES)

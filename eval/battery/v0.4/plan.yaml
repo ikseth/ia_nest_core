@@ -1,0 +1,433 @@
+# Bateria congelada del plan explicito (linea v0.4-B2, core ADR 0040,
+# 0047 y 0048). La fase v0.4-B3 implementa la capacidad y su ejecutor de
+# evaluacion, y entonces integra estos casos quitando el sufijo .frozen.
+#
+# Fixture: eval/fixtures/orchestration_effort.yaml. Sus numeros redondos fijan
+# semantica, no calibracion: token_budget base 1000 y per_subtask 500; medium
+# admite 6 subtareas, low 3 y high 12.
+#
+# Scripting del planificador fake:
+# - `derivations` conserva la forma interna vigente. El planificador devuelve
+#   requirements con {id, text} y subtareas con `covers`.
+# - El core invierte esa relacion al publicar: requirements usa
+#   {id, statement, covered_by} y plan[] NO contiene `covers`.
+# - `responses` y `evaluate_decisions` conservan su sentido vigente.
+#
+# Semantica congelada:
+# - task.plan devuelve plan, requirements y effort como campos hermanos;
+#   params y trace son informativos.
+# - task.run recibe plan, requirements y effort como campos hermanos.
+# - La forma publica de plan y plan_ready es unica, venga el plan del
+#   planificador o suministrado por el consumidor.
+# - Los asserts de llamadas a modelos se declaran como pytest requeridos en
+#   eval/README.md: el DSL vigente no observa contadores de adaptador.
+
+- id: plan_explicit_task_plan_returns_executable_shape
+  track: conformance
+  description: "Core ADR 0048: task.plan devuelve la peticion ejecutable, con dominios resueltos y sin covers publico."
+  capability: task.plan
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "analizar" }
+            - { id: r2, text: "explicar" }
+          subtasks:
+            - { prompt: "analiza", domain: razonamiento, covers: [r1] }
+            - { prompt: "explica", domain: general, depends_on: [0], covers: [r2] }
+  expect:
+    plan:
+      - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+      - { index: 1, prompt: "explica", domain: general, depends_on: [0] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+      - { id: r2, statement: "explicar", covered_by: [1] }
+    effort: medium
+    params:
+      effort: medium
+      max_subtasks: 6
+    trace_fields: { capability: task.plan }
+
+- id: plan_explicit_task_plan_honors_effort
+  track: conformance
+  description: "Core ADR 0045: task.plan refleja effort explicito y sus limites efectivos."
+  capability: task.plan
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza una cosa"
+    effort: low
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "analizar" }]
+          subtasks:
+            - { prompt: "analiza", domain: razonamiento, covers: [r1] }
+  expect:
+    effort: low
+    params:
+      effort: low
+      max_subtasks: 3
+      max_iterations: 1
+      max_replans: 0
+      max_time_s: 30
+
+- id: plan_explicit_supplied_plan_executes_directly
+  track: conformance
+  description: "Core ADR 0040: un plan valido entra directo en fan-out y plan_ready declara supplied."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza una cosa"
+    plan:
+      - { index: 0, prompt: "analiza enriquecido", domain: razonamiento, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: "ANALISIS"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_source: supplied
+    checkpoint_counts: { plan_ready: 1, subtask_done: 1 }
+
+- id: plan_explicit_supplied_plan_has_zero_plan_attempts
+  track: conformance
+  description: "Core ADR 0047 D4: plan_attempts cuenta derivaciones y vale 0 para plan_source supplied."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "explica una cosa"
+    plan:
+      - { index: 0, prompt: "explica enriquecido", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "explicar", covered_by: [0] }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    plan_source: supplied
+    plan_attempts: 0
+
+- id: plan_explicit_without_plan_preserves_current_output
+  track: conformance
+  description: "Core ADR 0040: sin plan de entrada se usa planner y la salida final actual no cambia."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: [{ id: r1, text: "analizar y explicar" }]
+          subtasks:
+            - { prompt: "analiza", domain: razonamiento, covers: [r1] }
+            - { prompt: "explica", domain: general, covers: [r1] }
+      responses:
+        fake_reason: "ANALISIS"
+        fake_general: "EXPLICACION"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    plan_source: planner
+    plan_attempts: 1
+    evaluation_attempts: 1
+    requirements_covered: true
+    uncovered_requirements: []
+    degradations: []
+    checkpoint_counts: { plan_ready: 1, subtask_done: 2, combine_ready: 1 }
+    subtasks:
+      - { iteration: 1, index: 0, domain: razonamiento, model: fake_reason }
+      - { iteration: 1, index: 1, domain: general, model: fake_general }
+
+- id: plan_explicit_supplied_plan_invalid_shape
+  track: conformance
+  description: "Core ADR 0040: un plan suministrado con forma invalida falla con PlanParseError."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "tarea"
+    plan: { prompt: "no es una lista" }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  expect:
+    error_type: PlanParseError
+    error_field: plan
+
+- id: plan_explicit_supplied_plan_cycle
+  track: conformance
+  description: "Core ADR 0040: un ciclo en el plan suministrado falla con PlanDependencyError."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "tarea ciclica"
+    plan:
+      - { index: 0, prompt: "primera", domain: general, depends_on: [1] }
+      - { index: 1, prompt: "segunda", domain: general, depends_on: [0] }
+    requirements:
+      - { id: r1, statement: "resolver", covered_by: [0, 1] }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  expect:
+    error_type: PlanDependencyError
+    error_field: depends_on
+
+- id: plan_explicit_supplied_plan_exceeds_default_limit
+  track: conformance
+  description: "Core ADR 0040: un plan suministrado mayor que max_subtasks corta de forma tipada."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "siete partes"
+    plan:
+      - { index: 0, prompt: "s0", domain: general, depends_on: [] }
+      - { index: 1, prompt: "s1", domain: general, depends_on: [] }
+      - { index: 2, prompt: "s2", domain: general, depends_on: [] }
+      - { index: 3, prompt: "s3", domain: general, depends_on: [] }
+      - { index: 4, prompt: "s4", domain: general, depends_on: [] }
+      - { index: 5, prompt: "s5", domain: general, depends_on: [] }
+      - { index: 6, prompt: "s6", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "resolver las siete partes", covered_by: [0, 1, 2, 3, 4, 5, 6] }
+    identity: { user_id: u1, service: local_cli }
+  expect:
+    stop_reason: max_subtasks
+    plan_attempts: 0
+    effort: medium
+    checkpoint_counts: { plan_ready: 1, subtask_done: 0 }
+
+- id: plan_explicit_supplied_plan_replan_unavailable
+  track: conformance
+  description: "Core ADR 0040: EVALUATE pide replan sobre plan supplied y corta conservando lo producido."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza una cosa"
+    plan:
+      - { index: 0, prompt: "analiza enriquecido", domain: razonamiento, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: "ANALISIS"
+        fake_combiner: "COMBINADO_CONSERVADO"
+      evaluate_decisions: [replan]
+  expect:
+    stop_reason: replan_unavailable
+    response: "COMBINADO_CONSERVADO"
+    checkpoint_counts: { subtask_done: 1, combine_ready: 1 }
+
+- id: plan_explicit_supplied_plan_rerun_available
+  track: conformance
+  description: "Core ADR 0040: rerun reejecuta el mismo plan suministrado."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza otra vez"
+    plan:
+      - { index: 0, prompt: "analiza enriquecido", domain: razonamiento, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: "ANALISIS"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [rerun, done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    checkpoint_counts: { plan_ready: 1, subtask_done: 2, combine_ready: 2, iteration_end: 2 }
+    subtasks:
+      - { iteration: 1, index: 0, domain: razonamiento, model: fake_reason }
+      - { iteration: 2, index: 0, domain: razonamiento, model: fake_reason }
+
+- id: plan_explicit_complete_echo_checks_coverage
+  track: conformance
+  description: "Core ADR 0048: el echo de plan, requirements y effort comprueba covered_by sin degradacion."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    plan:
+      - { index: 0, prompt: "analiza enriquecido", domain: razonamiento, depends_on: [] }
+      - { index: 1, prompt: "explica enriquecido", domain: general, depends_on: [0] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+      - { id: r2, statement: "explicar", covered_by: [1] }
+    effort: high
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: "ANALISIS"
+        fake_general: "EXPLICACION"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    requirements_covered: true
+    uncovered_requirements: []
+    degradations: []
+    effort: high
+    plan_ready:
+      plan:
+        - { index: 0, prompt: "analiza enriquecido", domain: razonamiento, depends_on: [] }
+        - { index: 1, prompt: "explica enriquecido", domain: general, depends_on: [0] }
+      requirements:
+        - { id: r1, statement: "analizar", covered_by: [0] }
+        - { id: r2, statement: "explicar", covered_by: [1] }
+
+- id: plan_explicit_without_requirements_declares_degradation
+  track: conformance
+  description: "Core ADR 0048: omitir requirements degrada la cobertura, pero no corta la tarea."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "explica una cosa"
+    plan:
+      - { index: 0, prompt: "explica enriquecido", domain: general, depends_on: [] }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    requirements_covered: false
+    uncovered_requirements: []
+    degradations:
+      - { stage: plan, reason: requirements_unavailable, action: skip_coverage_check }
+
+- id: plan_explicit_without_effort_uses_default
+  track: conformance
+  description: "Core ADR 0048: sin effort no se hereda nada del plan; se usa default_effort."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "explica una cosa"
+    plan:
+      - { index: 0, prompt: "explica enriquecido", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "explicar", covered_by: [0] }
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    effort: medium
+    max_subtasks: 6
+
+- id: plan_explicit_explicit_effort_limits_supplied_plan
+  track: conformance
+  description: "Core ADR 0048: effort explicito manda y corta un plan que no cabe en sus limites."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "cuatro partes"
+    plan:
+      - { index: 0, prompt: "s0", domain: general, depends_on: [] }
+      - { index: 1, prompt: "s1", domain: general, depends_on: [] }
+      - { index: 2, prompt: "s2", domain: general, depends_on: [] }
+      - { index: 3, prompt: "s3", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "resolver las cuatro partes", covered_by: [0, 1, 2, 3] }
+    effort: low
+    identity: { user_id: u1, service: local_cli }
+  expect:
+    stop_reason: max_subtasks
+    effort: low
+    max_subtasks: 3
+    checkpoint_counts: { subtask_done: 0 }
+
+- id: plan_explicit_supplied_plan_budget_grant
+  track: conformance
+  description: "Core ADR 0047 D2: plan supplied concede base + per_subtask*n exactamente una vez."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "dos partes"
+    plan:
+      - { index: 0, prompt: "primera", domain: general, depends_on: [] }
+      - { index: 1, prompt: "segunda", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "resolver las dos partes", covered_by: [0, 1] }
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    token_budget_total: 2000
+    plan_attempts: 0
+    checkpoint_counts: { plan_ready: 1 }
+
+- id: plan_explicit_planner_source_publishes_inverted_coverage
+  track: conformance
+  description: "Core ADR 0048: plan derivado publica covered_by y ningun covers, igual que supplied."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements:
+            - { id: r1, text: "analizar" }
+            - { id: r2, text: "explicar" }
+          subtasks:
+            - { prompt: "analiza", domain: razonamiento, covers: [r1] }
+            - { prompt: "explica", domain: general, depends_on: [0], covers: [r1, r2] }
+      responses:
+        fake_reason: "ANALISIS"
+        fake_general: "EXPLICACION"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    plan_source: planner
+    plan_ready:
+      plan:
+        - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+        - { index: 1, prompt: "explica", domain: general, depends_on: [0] }
+      requirements:
+        - { id: r1, statement: "analizar", covered_by: [0, 1] }
+        - { id: r2, statement: "explicar", covered_by: [1] }

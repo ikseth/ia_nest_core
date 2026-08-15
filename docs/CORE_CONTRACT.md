@@ -85,8 +85,10 @@ Debe devolver `core_version` y, por capacidad:
 - sus parametros (nombre, tipo, obligatoriedad, valores admitidos, defecto,
   metavar),
 - su proyeccion en cada interfaz: ruta y metodo REST; grupo, accion, alias,
-  textos de ayuda y banderas de render de la CLI; nombre de herramienta MCP.
-  NULO en la interfaz donde no se expone.
+  textos de ayuda, banderas de render y entradas de la CLI -una entrada puede
+  rellenar varios parametros a la vez, como el fichero de plan de `task.run`
+  (ADR 0046, enmienda D1-b)-; nombre de herramienta MCP. NULO en la interfaz
+  donde no se expone.
 
 Las capacidades que no se exponen en alguna interfaz se declaran igualmente, con
 su hueco explicito. Los huecos vigentes y su motivo estan en ADR 0046:
@@ -175,14 +177,25 @@ Ejecuta SOLO la etapa PLAN de `task.run` y devuelve el plan sin ejecutarlo
 Acepta `effort` con el mismo vocabulario y la misma precedencia que `task.run`
 (ADR 0045).
 
+Su respuesta ES la peticion de `task.run` (ADR 0048): los datos del core y los
+de quien enriquece viajan como campos HERMANOS, no anidados unos dentro de
+otros, para que una capa que edite los prompts no pueda perder por serializacion
+lo que no modela.
+
 Debe devolver:
 
-- por subtarea: `index`, `prompt`, `domain` ya resuelto con la precedencia del
-  ADR 0019, `domain_hint_ignored` cuando proceda y `depends_on`,
-- los `requirements` extraidos (id y enunciado),
-- `params`, con el `effort` resuelto y los limites efectivos con los que se
-  derivo el plan,
-- trazabilidad.
+- `plan`: por subtarea, `index`, `prompt`, `domain` ya resuelto con la
+  precedencia del ADR 0019, `domain_hint_ignored` cuando proceda y `depends_on`.
+  Nada mas: dentro de `plan[]` no vive ningun campo cuya perdida sea silenciosa
+  (ADR 0048), porque todo lo que hay ahi es necesario para ejecutar y su ausencia
+  falla ruidosamente,
+- `requirements`: los requisitos extraidos, cada uno con `id`, `statement` y
+  `covered_by` (los indices de subtarea que lo cubren). La contabilidad de
+  cobertura vive aqui, en el campo que quien enriquece copia entero sin
+  modelarlo, y no dentro de las subtareas que edita,
+- `effort`: el nivel resuelto con el que se derivo el plan,
+- `params` y trazabilidad, informativos: `params` no se devuelve a `task.run`,
+  porque es un informe y no una entrada.
 
 No ejecuta subtareas, ni COMBINE, ni EVALUATE. La descomposicion se queda en el
 core; quien quiera enriquecer cada subtarea lo hace entre esta capacidad y
@@ -265,9 +278,10 @@ una iteracion nueva si conceden.
 aparece. `reasoning.run` conserva el suyo, de perfil, con el sentido del
 ADR 0008: son cosas distintas.
 
-PLAN declara en cada `plan_ready` los campos aditivos `requirements` (id y
-enunciado), `plan_attempts`, `requirements_covered` y
-`uncovered_requirements`. La emision cuenta derivaciones: ocurre una vez por
+PLAN declara en cada `plan_ready` los campos aditivos `requirements` (id,
+enunciado y `covered_by`), `plan_attempts`, `requirements_covered` y
+`uncovered_requirements`. La forma es la misma con plan derivado y con plan
+suministrado. La emision cuenta derivaciones: ocurre una vez por
 plan producido, incluida cada re-planificacion, y no se repite por `rerun`.
 
 Regla de renegociacion por etapa (ADR 0041): PLAN dispone de una sola
@@ -288,6 +302,11 @@ contrato fijado, implementacion pendiente). Alcance `mode=pipeline`. Sin `plan`,
 `task.run` se comporta exactamente como sin esta entrada: opt-in, cero
 regresion.
 
+`task.run` acepta los tres campos que devuelve `task.plan` -`plan`,
+`requirements` y `effort`- ademas del `prompt` original (ADR 0048). Quien
+enriquece edita los `prompt` de `plan[]`, que es lo unico suyo, y copia los otros
+dos tal cual.
+
 Con `plan` suministrado:
 
 - el core no llama al planificador: valida el plan con las reglas ya vigentes y
@@ -296,14 +315,19 @@ Con `plan` suministrado:
 - NO se re-planifica: si EVALUATE decide `replan`, la tarea corta con
   `replan_unavailable`. `rerun` sigue disponible;
 - `plan_ready` declara `plan_source`: `planner | supplied`;
-- el esfuerzo lo hereda del plan si la peticion no declara `effort`; si lo
-  declara, manda el explicito y el plan se valida contra sus limites;
+- el esfuerzo sigue su precedencia de siempre (ADR 0045): lo explicito, y si no,
+  `orchestration.default_effort`. No hay herencia desde el plan, porque el
+  esfuerzo no viaja dentro de el; el nivel usado se declara en `params.effort`;
 - concede presupuesto como cualquier plan (`base + per_subtask * n`, ADR 0044),
   una vez, al entrar en FAN-OUT;
-- si el plan trae `requirements`, se comprueba cobertura contra el y se declara,
-  sin renegociar; si no los trae, el core no los reinventa y declara la
-  degradacion `{stage: plan, reason: requirements_unavailable, action:
-  skip_coverage_check}` con `requirements_covered=false`;
+- si vienen `requirements`, se comprueba cobertura contra el plan y se declara,
+  sin renegociar -renegociar es replanificar, y esta prohibido-. Unos requisitos
+  MAL FORMADOS -sin `id`, `statement` o `covered_by`, o con indices que no son
+  enteros- son `PlanParseError`, no degradacion: ausencia y basura son cosas
+  distintas, y solo la primera es una omision legitima. Si no vienen, el
+  core no los reinventa y declara la degradacion `{stage: plan, reason:
+  requirements_unavailable, action: skip_coverage_check}` con
+  `requirements_covered=false`;
 - `plan_attempts` vale 0, porque cuenta derivaciones del planificador.
 
 Modos de ejecucion (ADR 0038, linea v0.3): el consumidor selecciona el

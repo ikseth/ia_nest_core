@@ -4,7 +4,7 @@
 
 - id: capability_catalog_exact_ordered_names
   track: conformance
-  description: "ADR 0046: el catalogo enumera exactamente las 15 capacidades en orden por name."
+  description: "ADR 0046: el catalogo enumera exactamente las 16 capacidades en orden por name."
   capability: capability.list
   input: {}
   expect:
@@ -22,6 +22,7 @@
       - reasoning.run
       - reasoning.stream
       - runtime.health
+      - task.plan
       - task.run
       - task.stream
 
@@ -123,7 +124,7 @@
 
 - id: capability_catalog_exact_identity_set
   track: conformance
-  description: "ADR 0046: identity es true exactamente en las siete capacidades que transportan identidad."
+  description: "ADR 0046: identity es true exactamente en las ocho capacidades que transportan identidad."
   capability: capability.list
   input: {}
   expect:
@@ -133,6 +134,7 @@
       - prompt.stream
       - reasoning.run
       - reasoning.stream
+      - task.plan
       - task.run
       - task.stream
 

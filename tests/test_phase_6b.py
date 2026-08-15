@@ -97,10 +97,10 @@ def test_eval_conformance_digest_is_stable() -> None:
     first = run_eval(track="conformance")
     second = run_eval(track="conformance")
 
-    assert first["totals"]["conformance"] == {"pass": 90, "fail": 0}
-    assert second["totals"]["conformance"] == {"pass": 90, "fail": 0}
+    assert first["totals"]["conformance"] == {"pass": 106, "fail": 0}
+    assert second["totals"]["conformance"] == {"pass": 106, "fail": 0}
     assert first["conformance_digest"] == second["conformance_digest"]
-    assert first["conformance_digest"] == "a60aa35b31acff2e9e286b6fc3b8c15b4293ce3331728b0f26aabe0234eb14b8"
+    assert first["conformance_digest"] == "889c068d4d3cf663cf94302f382d76a9f015d5ac6876598f6fe4d11f9c221b0b"
 
 
 def test_eval_v02_task_cases_still_pass() -> None:

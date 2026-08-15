@@ -64,6 +64,24 @@ class TaskResult:
         return result
 
 
+@dataclass(frozen=True)
+class TaskPlanResult:
+    plan: list[dict[str, Any]]
+    requirements: list[dict[str, Any]]
+    effort: str
+    params: dict[str, Any]
+    trace: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "plan": self.plan,
+            "requirements": self.requirements,
+            "effort": self.effort,
+            "params": self.params,
+            "trace": self.trace,
+        }
+
+
 @dataclass
 class _TokenUsage:
     tokens_in: int = 0
@@ -187,6 +205,8 @@ class TaskRuntime:
         request_id: str | None = None,
         mode: str = "pipeline",
         effort: str | None = None,
+        plan: list[dict[str, Any]] | None = None,
+        requirements: list[dict[str, Any]] | None = None,
     ) -> TaskResult:
         events = list(
             self.stream(
@@ -195,6 +215,8 @@ class TaskRuntime:
                 request_id=request_id,
                 mode=mode,
                 effort=effort,
+                plan=plan,
+                requirements=requirements,
             )
         )
         done = next(event for event in reversed(events) if event.type == "task_done")
@@ -208,6 +230,8 @@ class TaskRuntime:
         request_id: str | None = None,
         mode: str = "pipeline",
         effort: str | None = None,
+        plan: list[dict[str, Any]] | None = None,
+        requirements: list[dict[str, Any]] | None = None,
     ) -> Iterator[Event]:
         runtime = self._runtime_for_effort(effort)
         yield from runtime._stream_resolved(
@@ -215,6 +239,48 @@ class TaskRuntime:
             identity_override=identity_override,
             request_id=request_id,
             mode=mode,
+            plan=plan,
+            requirements=requirements,
+        )
+
+    def plan(
+        self,
+        *,
+        prompt: str,
+        identity_override: dict[str, str] | None = None,
+        request_id: str | None = None,
+        effort: str | None = None,
+    ) -> TaskPlanResult:
+        runtime = self._runtime_for_effort(effort)
+        started = time.monotonic()
+        parent_request_id = request_id or str(uuid4())
+        task_id = str(uuid4())
+        identity_data = dict(identity_override or {})
+        identity = Identity.from_defaults(runtime.config.identity_defaults, identity_data)
+        token_usage = _TokenUsage()
+        resolution = runtime._plan(
+            prompt,
+            identity_data,
+            parent_request_id,
+            task_id,
+            token_usage,
+            allow_renegotiation=True,
+        )
+        tokens_in, tokens_out = token_usage.snapshot()
+        return TaskPlanResult(
+            plan=runtime._public_pipeline_plan(resolution.final.plan),
+            requirements=resolution.final.requirements,
+            effort=runtime.resolved_effort,
+            params=runtime._params(),
+            trace={
+                "request_id": parent_request_id,
+                "task_id": task_id,
+                "capability": "task.plan",
+                **identity.to_dict(),
+                "latency_ms": int((time.monotonic() - started) * 1000),
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
+            },
         )
 
     def _stream_resolved(
@@ -224,6 +290,8 @@ class TaskRuntime:
         identity_override: dict[str, str] | None,
         request_id: str | None,
         mode: str,
+        plan: list[dict[str, Any]] | None,
+        requirements: list[dict[str, Any]] | None,
     ) -> Iterator[Event]:
         if mode not in {"pipeline", "coverage"}:
             raise CoreError("ConfigError", "task.run mode must be pipeline or coverage", "mode")
@@ -257,15 +325,19 @@ class TaskRuntime:
         evaluation_renegotiation_used = False
 
         yield self._checkpoint("task_received", checkpoints, identity, parent_request_id, task_id, {"prompt": prompt})
-        plan_resolution = self._plan(
-            prompt,
-            identity_data,
-            parent_request_id,
-            task_id,
-            token_usage,
-            allow_renegotiation=True,
-        )
-        plan_renegotiation_used = len(plan_resolution.attempts) == 2
+        plan_source = "supplied" if plan is not None else "planner"
+        if plan_source == "supplied":
+            plan_resolution = self._supplied_plan_resolution(plan, requirements)
+        else:
+            plan_resolution = self._plan(
+                prompt,
+                identity_data,
+                parent_request_id,
+                task_id,
+                token_usage,
+                allow_renegotiation=True,
+            )
+            plan_renegotiation_used = len(plan_resolution.attempts) == 2
         degradations.extend(plan_resolution.degradations)
         token_budget_granted = self._pipeline_token_grant(plan_resolution.final.plan)
         token_budget_total = token_budget_granted
@@ -278,7 +350,8 @@ class TaskRuntime:
                 parent_request_id,
                 task_id,
                 self._plan_ready_payload(
-                    "plan", attempt, attempt_number, token_budget_granted, token_budget_total
+                    "plan", attempt, 0 if plan_source == "supplied" else attempt_number,
+                    token_budget_granted, token_budget_total, plan_source=plan_source,
                 ),
             )
 
@@ -333,6 +406,9 @@ class TaskRuntime:
             if stop_reason:
                 break
             if decision == "replan":
+                if plan_source == "supplied":
+                    stop_reason = "replan_unavailable"
+                    break
                 if replans >= self.settings.max_replans:
                     stop_reason = "max_replans"
                     break
@@ -359,7 +435,7 @@ class TaskRuntime:
                         task_id,
                         self._plan_ready_payload(
                             "plan", attempt, attempt_number,
-                            token_budget_granted, token_budget_total,
+                            token_budget_granted, token_budget_total, plan_source="planner",
                         ),
                     )
                 continue
@@ -389,7 +465,7 @@ class TaskRuntime:
             "requirements_covered": plan_resolution.final.requirements_covered,
             "uncovered_requirements": plan_resolution.final.uncovered_requirements,
             "degradations": degradations,
-            "plan_attempts": 2 if plan_renegotiation_used else 1,
+            "plan_attempts": 0 if plan_source == "supplied" else 2 if plan_renegotiation_used else 1,
             "evaluation_attempts": 2 if evaluation_renegotiation_used else 1,
             "token_budget_total": token_budget_total,
         }
@@ -1106,12 +1182,72 @@ class TaskRuntime:
             validate=self._validate_pipeline_plan,
         )
 
+    def _supplied_plan_resolution(
+        self,
+        plan: list[dict[str, Any]],
+        requirements: list[dict[str, Any]] | None,
+    ) -> _PlanResolution:
+        if not isinstance(plan, list) or not plan:
+            raise CoreError("PlanParseError", "supplied plan must be a non-empty list", "plan")
+        resolved_plan = self._resolve_pipeline_domains(self._validate_pipeline_plan(plan))
+        if requirements is None:
+            attempt = _PlanAttempt(resolved_plan, [], False, [])
+            return _PlanResolution(
+                [attempt],
+                [{
+                    "stage": "plan",
+                    "reason": "requirements_unavailable",
+                    "action": "skip_coverage_check",
+                }],
+            )
+        supplied_requirements = _supplied_requirements_from(requirements)
+        uncovered = _uncovered_supplied_requirement_ids(supplied_requirements, resolved_plan)
+        attempt = _PlanAttempt(
+            resolved_plan,
+            supplied_requirements,
+            not uncovered,
+            uncovered,
+        )
+        return _PlanResolution([attempt], [])
+
     def _validate_pipeline_plan(self, plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not all(self._valid_subtask(item) for item in plan):
             raise CoreError("PlanParseError", "planner returned an invalid plan", "plan")
         copied_plan = [dict(item) for item in plan]
         self._validate_pipeline_dependencies(copied_plan)
         return copied_plan
+
+    def _resolve_pipeline_domains(self, plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        resolved_plan: list[dict[str, Any]] = []
+        for item in plan:
+            resolved = dict(item)
+            domain = self._configured_domain(resolved.get("domain"))
+            if domain is not None:
+                resolved["domain"] = domain
+                if isinstance(resolved.get("domain_hint"), str) and resolved["domain_hint"].strip():
+                    resolved["domain_hint_ignored"] = True
+            else:
+                route = self.prompt_runtime.router.route(
+                    self._routing_prompt(str(resolved["prompt"]), resolved.get("domain_hint"))
+                )
+                resolved["domain"] = route.domain
+            resolved_plan.append(resolved)
+        return resolved_plan
+
+    @staticmethod
+    def _public_pipeline_plan(plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        public_plan: list[dict[str, Any]] = []
+        for index, item in enumerate(plan):
+            record: dict[str, Any] = {
+                "index": index,
+                "prompt": item["prompt"],
+                "domain": item["domain"],
+                "depends_on": sorted(TaskRuntime._dependencies(item)),
+            }
+            if item.get("domain_hint_ignored"):
+                record["domain_hint_ignored"] = True
+            public_plan.append(record)
+        return public_plan
 
     def _resolve_plan(
         self,
@@ -1144,6 +1280,8 @@ class TaskRuntime:
                 parsed = _parse_plan(result.response)
                 raw_plan, raw_requirements = _plan_lists_from(parsed, plan_key)
                 plan = validate(raw_plan)
+                if plan_key == "subtasks":
+                    plan = self._resolve_pipeline_domains(plan)
             except CoreError as exc:
                 if exc.type != "PlanParseError":
                     raise
@@ -1168,7 +1306,11 @@ class TaskRuntime:
 
             # Contract order inside an attempt: usable shape, I2 budget, then I1 coverage.
             too_large = len(plan) > self.settings.max_subtasks
-            requirements = _requirements_from(raw_requirements)
+            requirements = (
+                _public_requirements_from(raw_requirements, plan)
+                if plan_key == "subtasks"
+                else _requirements_from(raw_requirements)
+            )
             requirements_missing = raw_requirements is None or not requirements
             uncovered = _uncovered_requirement_ids(requirements, plan)
             requirements_covered = not requirements_missing and not uncovered
@@ -1210,16 +1352,18 @@ class TaskRuntime:
             defects.append(f"these requirement ids were uncovered: {', '.join(uncovered)}")
         return f"{instruction}\nCorrect the prior plan in one response: {'; '.join(defects)}."
 
-    @staticmethod
     def _plan_ready_payload(
+        self,
         plan_key: str,
         attempt: _PlanAttempt,
         attempt_number: int,
         token_budget_granted: int,
         token_budget_total: int,
+        *,
+        plan_source: str | None = None,
     ) -> dict[str, Any]:
-        return {
-            plan_key: attempt.plan,
+        payload = {
+            plan_key: self._public_pipeline_plan(attempt.plan) if plan_key == "plan" else attempt.plan,
             "requirements": attempt.requirements,
             "plan_attempts": attempt_number,
             "requirements_covered": attempt.requirements_covered,
@@ -1227,6 +1371,9 @@ class TaskRuntime:
             "token_budget_granted": token_budget_granted,
             "token_budget_total": token_budget_total,
         }
+        if plan_source is not None:
+            payload["plan_source"] = plan_source
+        return payload
 
     def _validate_pipeline_dependencies(self, plan: list[dict[str, Any]]) -> None:
         dependencies = {index: self._dependencies(item) for index, item in enumerate(plan)}
@@ -1595,6 +1742,54 @@ def _requirements_from(value: Any) -> list[dict[str, str]]:
     return requirements
 
 
+def _public_requirements_from(
+    value: Any,
+    plan: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    requirements = _requirements_from(value)
+    covered_by: dict[str, list[int]] = {requirement["id"]: [] for requirement in requirements}
+    for index, item in enumerate(plan):
+        for requirement_id in _string_ids(item.get("covers")):
+            if requirement_id in covered_by:
+                covered_by[requirement_id].append(index)
+    return [
+        {
+            "id": requirement["id"],
+            "statement": requirement["text"],
+            "covered_by": covered_by[requirement["id"]],
+        }
+        for requirement in requirements
+    ]
+
+
+def _supplied_requirements_from(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise CoreError("PlanParseError", "supplied requirements must be a list", "requirements")
+    requirements: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            raise CoreError("PlanParseError", "supplied requirements are invalid", "requirements")
+        requirement_id = item.get("id")
+        statement = item.get("statement")
+        covered_by = item.get("covered_by")
+        if (
+            not isinstance(requirement_id, str)
+            or not requirement_id.strip()
+            or requirement_id in seen
+            or not isinstance(statement, str)
+            or not statement.strip()
+            or not isinstance(covered_by, list)
+            or any(isinstance(index, bool) or not isinstance(index, int) for index in covered_by)
+        ):
+            raise CoreError("PlanParseError", "supplied requirements are invalid", "requirements")
+        seen.add(requirement_id)
+        requirements.append(
+            {"id": requirement_id, "statement": statement, "covered_by": list(covered_by)}
+        )
+    return requirements
+
+
 def _string_ids(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -1602,11 +1797,23 @@ def _string_ids(value: Any) -> list[str]:
 
 
 def _uncovered_requirement_ids(
-    requirements: list[dict[str, str]],
+    requirements: list[dict[str, Any]],
     plan: list[dict[str, Any]],
 ) -> list[str]:
     covered = {item for unit in plan for item in _string_ids(unit.get("covers"))}
     return [requirement["id"] for requirement in requirements if requirement["id"] not in covered]
+
+
+def _uncovered_supplied_requirement_ids(
+    requirements: list[dict[str, Any]],
+    plan: list[dict[str, Any]],
+) -> list[str]:
+    valid_indexes = set(range(len(plan)))
+    return [
+        requirement["id"]
+        for requirement in requirements
+        if not set(requirement["covered_by"]) or not set(requirement["covered_by"]).issubset(valid_indexes)
+    ]
 
 
 def _coerce_unit_id(value: Any) -> str | None:

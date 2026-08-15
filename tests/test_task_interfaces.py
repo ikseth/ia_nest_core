@@ -113,6 +113,53 @@ def test_cli_task_stream_emits_event_view(monkeypatch, capsys) -> None:
     assert calls[0]["effort"] == "high"
 
 
+def test_cli_task_plan_json_round_trips_through_plan_file_with_explicit_effort_precedence(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    plan_result = {
+        "plan": [{"index": 0, "prompt": "original", "domain": "general", "depends_on": []}],
+        "requirements": [{"id": "r1", "statement": "resolver", "covered_by": [0]}],
+        "effort": "low",
+        "params": {"effort": "low"},
+        "trace": {"capability": "task.plan"},
+    }
+    monkeypatch.setattr(service, "plan_task", lambda **kwargs: plan_result)
+
+    assert main(["--config", "unused", "task", "plan", "--prompt", "tarea", "--json"]) == 0
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(capsys.readouterr().out, encoding="utf-8")
+
+    calls = []
+    monkeypatch.setattr(service, "stream_task", lambda **kwargs: calls.append(kwargs) or iter(EVENTS))
+    assert main([
+        "--config", "unused", "task", "run", "--prompt", "tarea",
+        "--plan-file", str(plan_file), "--effort", "high", "--quiet",
+    ]) == 0
+
+    assert calls == [{
+        "config_path": "unused",
+        "prompt": "tarea",
+        "mode": "pipeline",
+        "effort": "high",
+        "plan": plan_result["plan"],
+        "requirements": plan_result["requirements"],
+        "identity": {},
+    }]
+
+
+def test_cli_task_plan_renders_one_line_per_subtask(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(service, "plan_task", lambda **kwargs: {
+        "plan": [
+            {"index": 0, "prompt": "primera subtarea", "domain": "general", "depends_on": []},
+            {"index": 1, "prompt": "segunda subtarea", "domain": "analisis", "depends_on": [0]},
+        ]
+    })
+
+    assert main(["--config", "unused", "task", "plan", "--prompt", "tarea"]) == 0
+
+    assert capsys.readouterr().out == "0\tgeneral\tprimera subtarea\n1\tanalisis\tsegunda subtarea\n"
+
+
 def test_cli_task_run_separates_coverage_answer_and_progress(monkeypatch, capsys) -> None:
     events = [
         {"type": "task_received", "data": {"prompt": "tarea"}},
@@ -433,7 +480,13 @@ def test_rest_task_run_is_json_and_task_stream_is_sse(monkeypatch) -> None:
 
     async def call_task():
         response = await endpoints["/task/run"](
-            Request({"prompt": "tarea", "mode": "coverage", "effort": "high"})
+            Request({
+                "prompt": "tarea",
+                "mode": "coverage",
+                "effort": "high",
+                "plan": [{"index": 0, "prompt": "subtarea", "domain": "general", "depends_on": []}],
+                "requirements": [{"id": "r1", "statement": "resolver", "covered_by": [0]}],
+            })
         )
         stream = await endpoints["/task/stream"](Request({"prompt": "tarea"}))
         return response, stream
@@ -453,6 +506,8 @@ def test_rest_task_run_is_json_and_task_stream_is_sse(monkeypatch) -> None:
     assert task_done_data == final
     assert run_calls[0]["mode"] == "coverage"
     assert run_calls[0]["effort"] == "high"
+    assert run_calls[0]["plan"] == [{"index": 0, "prompt": "subtarea", "domain": "general", "depends_on": []}]
+    assert run_calls[0]["requirements"] == [{"id": "r1", "statement": "resolver", "covered_by": [0]}]
     assert stream_calls[0]["mode"] == "pipeline"
     assert stream_calls[0]["effort"] is None
 
@@ -468,7 +523,13 @@ def test_mcp_exposes_task_run(monkeypatch) -> None:
 
     async def call_task():
         return await server.call_tool(
-            "task.run", {"prompt": "tarea", "mode": "coverage", "effort": "high"}
+            "task.run", {
+                "prompt": "tarea",
+                "mode": "coverage",
+                "effort": "high",
+                "plan": [{"index": 0, "prompt": "subtarea", "domain": "general", "depends_on": []}],
+                "requirements": [{"id": "r1", "statement": "resolver", "covered_by": [0]}],
+            }
         )
 
     _, structured = anyio.run(call_task)
@@ -479,6 +540,8 @@ def test_mcp_exposes_task_run(monkeypatch) -> None:
     assert structured["degradations"] == []
     assert calls[0]["mode"] == "coverage"
     assert calls[0]["effort"] == "high"
+    assert calls[0]["plan"] == [{"index": 0, "prompt": "subtarea", "domain": "general", "depends_on": []}]
+    assert calls[0]["requirements"] == [{"id": "r1", "statement": "resolver", "covered_by": [0]}]
 
     async def call_task_default():
         return await server.call_tool("task.run", {"prompt": "tarea"})
@@ -486,3 +549,38 @@ def test_mcp_exposes_task_run(monkeypatch) -> None:
     anyio.run(call_task_default)
     assert calls[1]["mode"] == "pipeline"
     assert calls[1]["effort"] is None
+
+
+@pytest.mark.skipif(importlib.util.find_spec("starlette") is None, reason="REST extra not installed")
+@pytest.mark.skipif(importlib.util.find_spec("mcp") is None, reason="MCP extra not installed")
+def test_task_plan_has_parity_across_cli_rest_and_mcp(monkeypatch, capsys) -> None:
+    import anyio
+    from ianest_core.mcp_server import create_server
+    from ianest_core.rest import create_app
+
+    class Request:
+        async def json(self):
+            return {"prompt": "tarea", "effort": "high", "identity": {"user_id": "u1"}}
+
+    expected = {
+        "plan": [{"index": 0, "prompt": "subtarea", "domain": "general", "depends_on": []}],
+        "requirements": [{"id": "r1", "statement": "resolver", "covered_by": [0]}],
+        "effort": "high",
+        "params": {"effort": "high"},
+        "trace": {"capability": "task.plan"},
+    }
+    monkeypatch.setattr(service, "plan_task", lambda **kwargs: expected)
+
+    assert main(["--config", "unused", "task", "plan", "--prompt", "tarea", "--effort", "high", "--json"]) == 0
+    cli_result = json.loads(capsys.readouterr().out)
+    endpoints = {route.path: route.endpoint for route in create_app("unused").routes}
+
+    async def call_interfaces():
+        rest_result = await endpoints["/task/plan"](Request())
+        _, mcp_result = await create_server("unused").call_tool(
+            "task.plan", {"prompt": "tarea", "effort": "high", "identity": {"user_id": "u1"}}
+        )
+        return json.loads(rest_result.body), mcp_result
+
+    rest_result, mcp_result = anyio.run(call_interfaces)
+    assert cli_result == rest_result == mcp_result == expected

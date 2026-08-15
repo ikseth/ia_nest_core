@@ -28,6 +28,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   planificador. Alcance `mode=pipeline`. Implementacion en las fases v0.4-B2/B3
   del PLAN. Impacto: adicion compatible (patch por politica; se publica dentro
   de v0.4.0).
+- Forma del ida y vuelta entre `task.plan` y `task.run` (ADR 0048, enmienda de
+  ADR 0047): la respuesta de `task.plan` ES la peticion de `task.run`. `plan`,
+  `requirements` y `effort` viajan como campos hermanos, no anidados, para que
+  una capa que edite los prompts no pierda por serializacion lo que no modela;
+  desaparece la herencia de esfuerzo desde el plan, que pasa a seguir su
+  precedencia de siempre. Impacto: adicion compatible (patch por politica; se
+  publica dentro de v0.4.0).
 
 ### Cambiado
 - `task.run` pasa a devolver JSON en `POST /task/run` y su flujo SSE se muda a

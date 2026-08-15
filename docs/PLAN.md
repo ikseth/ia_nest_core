@@ -210,7 +210,9 @@ Casos de conformance deterministas para orquestacion (ScriptedFakeAdapter
 multi-modelo: plan, fan-out, combinacion, cada corte tipado) y smoke con
 umbrales.
 
-Criterio de salida: bateria escrita y congelada antes de implementar.
+Criterio de salida (cumplido): 16 casos congelados en
+`eval/battery/v0.4/plan.yaml.frozen`, tests requeridos declarados en
+`eval/README.md`, digest sin mover.
 
 ### Fase v0.2-3: implementacion minima y validacion (completada 2026-07-16)
 
@@ -418,7 +420,7 @@ contrato las incorpora.
 Criterio de salida (cumplido): contrato reconciliado por el usuario (ADR 0040 y
 ADR 0047) y registrado.
 
-### Fase v0.4-B2: bateria de evaluacion
+### Fase v0.4-B2: bateria de evaluacion (completada 2026-08-14)
 
 Casos de conformance deterministas: plan suministrado valido; plan invalido de
 forma (`PlanParseError`); plan con ciclo o indice invalido
@@ -426,25 +428,50 @@ forma (`PlanParseError`); plan con ciclo o indice invalido
 plan suministrado -> corte `replan_unavailable`; `plan_source` correcto en las
 dos vias; y no regresion (sin `plan`, salida identica a la actual).
 
-Casos anadidos por ADR 0047: plan suministrado sin `effort` hereda el del plan;
-plan suministrado con `effort` explicito menor corta `max_subtasks`; presupuesto
-concedido sobre plan suministrado; plan sin requisitos emite la degradacion
+Casos anadidos por ADR 0047 y ADR 0048: peticion con `plan`, `requirements` y
+`effort` como campos hermanos, echo de lo que devolvio `task.plan`; plan
+suministrado con `effort` explicito menor corta `max_subtasks`; sin `effort`,
+`default_effort` con su cifra visible en `params.effort`; presupuesto concedido
+sobre plan suministrado; plan sin `requirements` emite la degradacion
 `requirements_unavailable`; `plan_attempts=0` con `plan_source=supplied`.
 
-Criterio de salida: bateria escrita y congelada antes de implementar.
+Criterio de salida (cumplido): 16 casos congelados en
+`eval/battery/v0.4/plan.yaml.frozen`, tests requeridos declarados en
+`eval/README.md`, digest sin mover.
 
-### Fase v0.4-B3: implementacion y paridad
+### Fase v0.4-B3a: runtime del plan explicito (completada 2026-08-14)
 
-`task.plan` y la entrada `plan` con paridad CLI/REST/MCP (`ianest task plan`,
-`POST /task/plan`, `plan` en el cuerpo de `POST /task/run` y en las herramientas
-MCP correspondientes), telemetria con `plan_source`. La paridad no se escribe a
-mano: `task.plan` se declara en el catalogo del tramo A y de ahi salen su
-subcomando y su ruta.
+La etapa PLAN como capacidad propia y la entrada de plan: `task.plan`, las
+entradas `plan`, `requirements` y `effort` de `task.run`, el corte
+`replan_unavailable`, `plan_source` en `plan_ready` y la inversion de la
+cobertura (`covers` sale de `plan[]`, los requisitos ganan `covered_by`), con la
+bateria integrada y el digest recalculado y DECLARADO: cambia la forma de un
+evento publico, y esta anunciado en ADR 0048.
+
+### Fase v0.4-B3b: paridad de interfaces (completada 2026-08-14)
+
+`task.plan` entra en el catalogo de capacidades y de ahi salen su subcomando, su
+ruta REST y su herramienta MCP; la entrada de plan se declara como parametro. El
+plan viaja por FICHERO en la CLI (ADR 0040: un plan como argumento de linea de
+comandos es hostil). Tests de paridad declarados en `eval/README.md`.
+
+Es la primera capacidad que nace despues del catalogo, asi que sirvio de prueba
+del invariante de ADR 0046. Medido: 9 ficheros, de los que 5 son de la enmienda
+D1-b del modelo -que solo se paga una vez- y 7 de la capacidad, con 3 en comun.
+De esos 7, ninguno es una tabla de rutas ni una lista de subcomandos: son el
+declarativo del catalogo, el handler REST, la herramienta MCP, el render de la
+CLI, la funcion de servicio y sus tests. Es lo que D2 dice que sigue siendo
+codigo. La promesa del catalogo no era que una capacidad saliera gratis, sino que
+su CATALOGO no estuviera duplicado y la deriva fuese imposible; eso se cumplio,
+y el gate lo comprobo sin que nadie lo tocara.
 
 Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
 `extended` ejerce la via de punta a punta con su RAG por subtarea (leccion de
 ADR 0035: la capacidad se cierra cuando tiene consumidor real, no cuando
-compila).
+compila). En ese ejercicio, gate explicito: `degradations` vacio y
+`params.effort` igual al que planifico. Si aparece
+`requirements_unavailable`, la capa esta perdiendo campos y se ve ahi, no meses
+despues.
 
 ### Fase v0.4-C: retirada de routing_rules
 

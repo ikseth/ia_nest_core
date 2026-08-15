@@ -1,7 +1,7 @@
 # Decision 0050: el ente provisiona su backend desde el INSTALADOR, no desde el contrato
 
 Fecha: 2026-08-15
-Estado: propuesta; pendiente de reconciliacion del usuario
+Estado: reconciliado por el usuario (2026-08-15), sin puntos abiertos
 Responde a: `ia_nest_meta/docs/handoff/independencia_del_entorno_del_ente.md`
 Depende de: ADR 0003 (protocolo compatible con OpenAI), ADR 0028 (estrategia de
 recursos de backend), ADR 0029 (provisioning de modelos), ADR 0024 (instalacion)

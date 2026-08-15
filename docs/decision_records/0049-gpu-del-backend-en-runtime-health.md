@@ -52,7 +52,7 @@ Los tres estados de `status` son necesarios y ninguno es relleno:
 - `cpu_only`: hay modelos cargados y NO ocupan memoria de video. Este es el
   valor que justifica la decision entera.
 - `unknown`: no hay modelos cargados, el backend no responde, o su proveedor no
-  se reconoce. `models_loaded` acompaña para que se entienda por que.
+  se reconoce. `models_loaded` acompana para que se entienda por que.
 
 **`runtime.health` nunca falla por esta sonda.** Es informe, no diagnostico: si
 el backend no contesta, el campo vale `unknown` y el resto del informe sale

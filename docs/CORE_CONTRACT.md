@@ -65,6 +65,22 @@ Debe comprobar:
 - disponibilidad basica de modelos,
 - deteccion de GPU cuando aplique.
 
+Dos campos de GPU, con dos significados que no se mezclan (ADR 0049):
+
+- `gpu` describe el runtime LOCAL, la maquina donde corre el core. En un
+  despliegue donde el backend vive en otro sitio, `available: false` es CIERTO y
+  no es una regresion: esa maquina no tiene GPU.
+- `backend.gpu` describe lo que el BACKEND declara sobre su propio uso de GPU:
+  `status` con `in_use | cpu_only | unknown`, `models_loaded` y quien lo reporta.
+  `cpu_only` es el valor que justifica el campo: un modelo que no cabe en memoria
+  de video no falla, cae a CPU en silencio y responde un orden de magnitud mas
+  lento.
+
+La sonda del backend es especifica del proveedor y OPCIONAL, por la misma costura
+y con el mismo patron de degradacion que el provisioning (ADR 0029): proveedor
+que no se reconoce o backend que no contesta dan `unknown`. `runtime.health`
+nunca falla por ella.
+
 Declara ademas `core_version` (ADR 0046): la version del propio core, que es la
 cifra con la que las capas de encima fijan su vinculo por SemVer (ADR 0032). Es
 consulta de introspeccion: no requiere identidad.

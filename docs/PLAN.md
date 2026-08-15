@@ -537,6 +537,41 @@ ejes de maquina y la medicion del coste permanecen fuera del nivel. Bateria
 integrada: 20/20; conformance total 81/81 con digest declarado en
 `eval/README.md`; pytest verde con y sin extras.
 
+## Linea de observacion del backend (abierta 2026-08-15)
+
+Objetivo: que `runtime.health` diga quien tiene la GPU y si la esta usando, en
+vez de deducirlo del hardware local (ADR 0049). Nace de la topologia hacia la que
+va el entorno del ente -core y backend en maquinas distintas- y del fallo caro
+que hoy es invisible: un modelo que no cabe en memoria de video cae a CPU en
+silencio. Version objetivo: PATCH; viaja con la linea v0.4 si llega antes del
+tag.
+
+### Fase 1: contrato (redactada 2026-08-15)
+
+ADR 0049 escrito; `CORE_CONTRACT.md` con los dos campos de GPU y su significado.
+
+Criterio de salida: decision reconciliada por el usuario y registrada, y la forma
+concreta de la sonda VERIFICADA contra la version del backend desplegada. La
+decision de fondo no depende de esa forma; los valores del contrato si.
+
+### Fase 2: bateria
+
+Casos de conformidad con sonda guionizada para los tres estados (`in_use`,
+`cpu_only`, `unknown`) y test de degradacion con proveedor no reconocido o
+backend que no responde. `runtime.health` no falla en ninguno.
+
+Criterio de salida: bateria congelada antes de tocar el runtime.
+
+### Fase 3: implementacion
+
+La sonda entra por la costura del provisioning (ADR 0029), fuera del camino de
+inferencia, y `runtime.health` publica `backend.gpu` con paridad CLI/REST/MCP
+-que sale del catalogo, no a mano-.
+
+Criterio de salida: conformance en verde con digest declarado; en laboratorio,
+`gpu.available: false` y `backend.gpu.status: in_use` a la vez, que es la prueba
+de que los dos campos dicen cosas distintas y las dos ciertas.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

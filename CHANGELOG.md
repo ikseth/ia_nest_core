@@ -12,7 +12,6 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   diagramas. La regla dependia de que alguien mirase, y se colaron dos enes con
   virgulilla en dos dias. Sin impacto de version: es test.
 
-### Anadido
 - Contrato de la GPU del backend en `runtime.health` (ADR 0049): dos campos con
   dos significados que no se mezclan. `gpu` sigue describiendo el runtime LOCAL
   -en una maquina sin GPU, `available: false` es cierto y no es regresion- y
@@ -24,7 +23,6 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   `runtime.health` nunca falla por ella. Implementacion en la linea de
   observacion del backend del PLAN. Impacto: adicion compatible (patch).
 
-### Anadido
 - Contrato del catalogo unico de capacidades (ADR 0046, cierra
   `extended CR-0002`): un catalogo declarativo pasa a ser la fuente de la que se
   derivan la CLI y las rutas REST y contra la que se asertan las herramientas

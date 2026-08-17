@@ -6,6 +6,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Anadido
+- Gate automatico de la convencion ASCII (`tests/test_convenciones.py`): falla
+  con fichero, linea y caracter si aparece un no-ASCII en docs, codigo, config o
+  scripts, con el bloque de dibujo de cajas declarado como excepcion para los
+  diagramas. La regla dependia de que alguien mirase, y se colaron dos enes con
+  virgulilla en dos dias. Sin impacto de version: es test.
+
+### Anadido
 - Contrato de la GPU del backend en `runtime.health` (ADR 0049): dos campos con
   dos significados que no se mezclan. `gpu` sigue describiendo el runtime LOCAL
   -en una maquina sin GPU, `available: false` es cierto y no es regresion- y

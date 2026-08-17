@@ -36,7 +36,7 @@ El problema no es la capa. Es que el core metio datos SUYOS dentro de una
 estructura que otro edita, y con eso hizo depender su correccion de la fidelidad
 ajena. Pedir por documentacion que "el plan se trate como opaco" seria poner una
 regla de comportamiento donde falta una forma que no admita el error: la clase de
-costura que ADR 0035 enseño a no construir.
+costura que ADR 0035 enseno a no construir.
 
 ## Decision
 

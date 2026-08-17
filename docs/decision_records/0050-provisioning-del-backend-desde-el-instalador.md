@@ -1,7 +1,9 @@
 # Decision 0050: el ente provisiona su backend desde el INSTALADOR, no desde el contrato
 
 Fecha: 2026-08-15
-Estado: reconciliado por el usuario (2026-08-15), sin puntos abiertos
+Estado: reconciliado por el usuario (2026-08-15), sin puntos abiertos.
+Enmendado 2026-08-17: la orden de migracion sale del ADR. Era operativa de un
+entorno concreto -no doctrina- y no es versionable; vive en el contexto local.
 Responde a: `ia_nest_meta/docs/handoff/independencia_del_entorno_del_ente.md`
 Depende de: ADR 0003 (protocolo compatible con OpenAI), ADR 0028 (estrategia de
 recursos de backend), ADR 0029 (provisioning de modelos), ADR 0024 (instalacion)
@@ -71,16 +73,20 @@ agnosticismo, aunque provisionarlo desde una capacidad si lo haria.
 - No se decide aqui el backend de la capa de enriquecimiento (su almacen ya lo
   provisiona ella).
 
-## Orden de migracion
+## Lo que esta decision NO fija: la secuencia de un entorno concreto
 
-El aviso lo fija y no se negocia, porque el riesgo es quedarse sin modelos a
-mitad:
+La SECUENCIA con la que un entorno se desacopla -que se archiva, en que orden se
+para cada servicio, cuando se borra lo anterior, si se migra sin corte o se
+reconstruye desde cero- **no es doctrina**. Es operativa de una maquina: depende
+de sus datos, de su hardware y de si ese entorno esta en produccion o no. Y no es
+material versionable, porque nombra rutas, direcciones y servicios de una
+instalacion concreta (convencion transversal 5).
 
-1. Desacoplar: backend propio del ente, con los modelos que hoy se usan.
-2. Reapuntar la configuracion del core y la de la capa de enriquecimiento.
-3. Verificar: salud del runtime, una inferencia real y una recuperacion de
-   memoria de extremo a extremo.
-4. Solo entonces, archivar la instalacion previa.
+Vive, por tanto, en el contexto local del entorno, no aqui.
+
+Lo que esta decision si fija es la exigencia de fondo, que es independiente del
+camino: **ningun entorno del ente queda atado a una instalacion anterior y
+ajena.** Como se llega a eso en cada maquina lo decide su operador.
 
 ## Alternativas descartadas
 

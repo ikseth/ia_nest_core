@@ -15,12 +15,22 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 - Contrato de la GPU del backend en `runtime.health` (ADR 0049): dos campos con
   dos significados que no se mezclan. `gpu` sigue describiendo el runtime LOCAL
   -en una maquina sin GPU, `available: false` es cierto y no es regresion- y
-  `backend.gpu` declara lo que el backend dice de su propio uso de GPU
-  (`in_use | cpu_only | unknown`, con `models_loaded`). `cpu_only` es el que
-  justifica el campo: un modelo que no cabe en memoria de video no falla, cae a
-  CPU en silencio y responde mucho mas lento. La sonda es especifica del
-  proveedor y opcional, por la costura del provisioning (ADR 0029), y
-  `runtime.health` nunca falla por ella. Implementacion en la linea de
+  `backend.gpu` declara lo que el backend dice de su propio uso de GPU. Es una
+  LISTA, con una entrada por endpoint distinto de los modelos configurados,
+  identificada por los `id` de modelo que sirve y no por su URL, porque
+  `runtime.health` no expone endpoints y no tiene autenticacion. Cada entrada
+  lleva `status` (`in_use | partial | cpu_only | unknown`), `models_loaded`,
+  `reported_by` y, cuando el estado es `unknown`, un `reason` que distingue sus
+  tres causas (`no_models_loaded`, `backend_unreachable`,
+  `provider_unsupported`). `partial` y `cpu_only` son los que justifican el
+  campo, y `partial` es el mas frecuente: un modelo que no cabe en memoria de
+  video no falla ni cae del todo al procesador, reparte capas y responde mucho
+  mas lento sin avisar. Con varios modelos cargados en un endpoint, la entrada
+  publica el peor de sus estados. La sonda es especifica del proveedor y
+  opcional, por la costura del provisioning (ADR 0029), y `runtime.health` nunca
+  falla por ella; `runtime.detect` publica el mismo campo. Es un indicador base:
+  la observabilidad fina es de la capa de monitorizacion (ADR 0037). Forma
+  verificada contra ollama 0.12.2 antes de fijarla. Implementacion en la linea de
   observacion del backend del PLAN. Impacto: adicion compatible (patch).
 
 - Contrato del catalogo unico de capacidades (ADR 0046, cierra

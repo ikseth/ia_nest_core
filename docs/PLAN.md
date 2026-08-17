@@ -599,6 +599,23 @@ Criterio de salida: conformance en verde con digest declarado; en laboratorio,
 `gpu.available: false` y `backend.gpu.status: in_use` a la vez, que es la prueba
 de que los dos campos dicen cosas distintas y las dos ciertas.
 
+## Linea del instalador del ente (abierta 2026-08-15)
+
+Objetivo: que una maquina limpia quede convertida en entidad con un fichero de
+configuracion, y que la postura sobre el backend este registrada en vez de
+implicita en un script. Nace del aviso de `ia_nest_extended` sobre la
+independencia del entorno del ente y del entorno de laboratorio nuevo.
+
+- **Postura** (ADR 0050): el ente provisiona su backend desde el INSTALADOR;
+  el contrato sigue agnostico, porque instalar no es una capacidad.
+- **Instalador declarativo**
+  ([ficha v0.4/0003](fixes/v0.4/0003-instalador-declarativo.md)): fichero de
+  configuracion con argumentos que sobreescriben, modelos derivados de la config
+  del core en vez de duplicados, nombre de instancia, interfaz de escucha,
+  servicios habilitables y verificacion bloqueante.
+
+Version objetivo: ninguna sobre el contrato; lo del instalador va como patch.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

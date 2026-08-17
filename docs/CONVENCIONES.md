@@ -1,5 +1,19 @@
 # Convenciones
 
+## Comprobacion automatica de la convencion ASCII
+
+`tests/test_convenciones.py` recorre los ficheros de texto del repo -docs,
+codigo, config, scripts- y falla si aparece cualquier caracter fuera de ASCII,
+con el fichero, la linea y el caracter.
+
+Excepcion declarada: el bloque Unicode de dibujo de cajas (U+2500..U+257F), que
+usan los diagramas de `ARCHITECTURE.md`. La convencion persigue acentos y
+tildes, no las cajas.
+
+Por que existe: la regla dependia de que alguien mirase, y en dos dias se
+colaron dos enes con virgulilla en documentos recien escritos. Una convencion
+que solo vive en la cabeza de quien revisa se incumple en cuanto hay prisa.
+
 ## Codigo
 
 - Filosofia UNIX: funciones y scripts pequenos.

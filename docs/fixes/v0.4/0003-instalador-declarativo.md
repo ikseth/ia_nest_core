@@ -1,6 +1,6 @@
 # 0003: instalador declarativo, con fichero de configuracion y personalizacion
 
-Estado: propuesta (revision 2 - 2026-08-18)
+Estado: implementada (revision 2 - 2026-08-18; puntos abiertos cerrados 2026-08-18)
 Tipo: mejora del instalador (no toca contrato publico)
 Impacto de version: patch
 Version objetivo: v0.4.x
@@ -101,9 +101,16 @@ sola lista, la que el core va a usar de verdad.
 
 Si el proveedor declarado no soporta provisioning, `ianest model pull` **falla**
 (`provisioner_for` devuelve `None` y `service.pull_models` lanza
-`ProvisioningError`), y el instalador falla con el. Es la decision del usuario:
-un descuido tiene que doler. La escapatoria para quien apunte a un backend ya
-servido queda como punto ABIERTO al final de esta ficha.
+`ProvisioningError`), y el instalador falla con el. Un descuido tiene que doler.
+
+Para quien apunte a un backend ya servido, la escapatoria es **declarada**:
+
+    MODELS=pull   descarga los modelos de la config del core. Es el DEFECTO.
+    MODELS=skip   no descarga nada; el operador afirma que el backend ya los tiene.
+
+Asi el descuido sigue fallando -que es lo que se queria- y la decision consciente
+tiene salida. Con `MODELS=skip`, la verificacion no se relaja: si `VERIFY=strict`
+y el modelo no esta, el smoke falla igual y la instalacion tambien.
 
 ### 3. `CORE_CONFIG`: instalar una configuracion afinada
 
@@ -126,7 +133,12 @@ Nombra la instalacion, con dos efectos y ninguno magico:
   para que dos entidades convivan en una maquina sin pisarse;
 - el resumen final del instalador lo muestra.
 
-Por defecto, `core`. **Consecuencia declarada**: los units de hoy se llaman
+Por defecto, `core`. Criterio del usuario para los despliegues del ente:
+**`instance_name` = nombre de la maquina**. Una entidad, un nombre; asi no hay
+que recordar dos cosas ni cruzarlas mentalmente al leer un log. El valor concreto
+de cada despliegue es contexto de maquina y vive en `local/`.
+
+**Consecuencia declarada**: los units de hoy se llaman
 `ianest-rest.service` y `ianest-mcp.service`, asi que con el defecto `core` pasan
 a llamarse distinto para todo el mundo. La revision 1 prometia a la vez que "sin
 `--config`, el comportamiento es el de hoy"; esas dos cosas no pueden ser ciertas
@@ -234,15 +246,18 @@ units y el requisito de `python313-pip`.
 - `docs/DESPLIEGUE.md`, `docs/manual/instalacion.md`
 - `CHANGELOG.md`
 
-## Puntos ABIERTOS, pendientes del usuario
+## Puntos abiertos, ya cerrados (2026-08-18)
 
-1. **Escapatoria del pull.** Con la decision de fallar, quien apunte a un backend
-   ya servido con un proveedor sin provisioning no puede instalar. Se propuso
-   `MODELS=pull|skip` -defecto `pull`, para que el descuido siga fallando y la
-   decision consciente tenga salida- y no consta acordado.
-2. **`INSTANCE_NAME` de nuestro despliegue.** El defecto es `core`. Para el
-   laboratorio quedo sin fijar; conviene que no coincida con el nombre de la
-   maquina anfitriona para no confundir dos cosas distintas.
+1. **Escapatoria del pull**: entra como `MODELS=pull|skip`, con `pull` por
+   defecto. Recogido arriba, en el punto 2 del cambio.
+2. **`INSTANCE_NAME`**: criterio `instance_name` = nombre de la maquina.
+   Recogido arriba, en el punto 4.
+
+## Lo que falta por implementar de esta ficha
+
+Todo lo demas esta entregado y verificado en laboratorio. Pendiente solo:
+
+- `MODELS=pull|skip`, acordado despues de la implementacion.
 
 ## No cubre
 

@@ -468,10 +468,21 @@ y el gate lo comprobo sin que nadie lo tocara.
 Criterio de salida: conformance reproducible en verde; smoke en laboratorio;
 `extended` ejerce la via de punta a punta con su RAG por subtarea (leccion de
 ADR 0035: la capacidad se cierra cuando tiene consumidor real, no cuando
-compila). En ese ejercicio, gate explicito: `degradations` vacio y
-`params.effort` igual al que planifico. Si aparece
+compila). En ese ejercicio, gate explicito, y los tres a la vez:
+
+    degradations          vacio
+    requirements_covered  true
+    params.effort         igual al que planifico
+
+`degradations` vacio dice que no hubo repliegue ni perdida declarada. Si aparece
 `requirements_unavailable`, la capa esta perdiendo campos y se ve ahi, no meses
 despues.
+
+Pero esa linea sola no basta, y esto se verifico en laboratorio en vez de
+deducirlo: un requisito que ninguna subtarea cubre da `requirements_covered:
+false` con `degradations` VACIO, porque no es una degradacion -nada se replego ni
+se perdio- sino una cobertura incompleta, que es otra cosa. Sin la segunda linea,
+el gate lo dejaria pasar.
 
 ### Fase v0.4-C: retirada de routing_rules
 

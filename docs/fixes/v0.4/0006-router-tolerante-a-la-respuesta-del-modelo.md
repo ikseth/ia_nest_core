@@ -1,6 +1,6 @@
 # 0006: el router semantico tira clasificaciones correctas por un campo decorativo
 
-Estado: propuesta
+Estado: implementada (diagnostico CORREGIDO 2026-08-18)
 Tipo: robustez del runtime (no toca contrato publico)
 Impacto de version: patch
 Version objetivo: v0.4.x
@@ -28,24 +28,48 @@ Lo que se descarto, con evidencia y no por intuicion:
   LINEA del flujo SSE, y `\n` no aparece dentro de un caracter multibyte.
 - **No es que clasifique mal.** Cuando responde, acierta con `confidence` 0.95.
 
-Lo que apunta a la causa: en una de las respuestas buenas, la palabra
-"operacion" llego al campo `reason` con su acento convertido en dos caracteres
-basura. Es el MODELO emitiendo caracteres multibyte malformados, cosa que un
-modelo cuantizado hace de vez en cuando. Si esa corrupcion cae dentro de
-la cadena JSON, el objeto deja de ser JSON valido, `_parse_router_response`
-devuelve `None` y se lanza `RoutingError`.
+## Correccion del diagnostico (2026-08-18)
 
-**Y ahi esta el desperdicio.** El parser exige tres campos -`domain`,
-`confidence` numerica en [0,1] y `reason` string- pero el core solo necesita
-`domain` para enrutar. `reason` es texto libre en prosa: es el campo mas largo,
-el que lleva los acentos y, por tanto, el que concentra la probabilidad de
-corromperse. Se esta tirando una clasificacion correcta y con confianza alta
-porque venia acompanada de una frase mal codificada.
+**La primera version de esta ficha se equivocaba de causa, y conviene que conste.**
 
-Se explica tambien por que fallan unos dominios y no otros: `codigo` y `linux`
-producen razones cortas y con menos acentos que `humanidades` y `matematicas`.
-No es que esos dominios esten peor descritos; es que sus explicaciones son mas
-largas.
+Decia que el modelo colaba caracteres multibyte malformados dentro de `reason` y
+que eso rompia el JSON. La prueba en la que se apoyaba era una sola: una respuesta
+buena en la que la palabra "operacion" llego con su acento convertido en dos
+caracteres basura. Era un artefacto real, pero **inocuo**, y se construyo una
+teoria encima.
+
+Al medir de verdad, doce clasificaciones con el motivo de cada fallo:
+
+    parsean: 7 de 12
+    x5  confidence no numerica: 'high'
+
+**Los cinco fallos son el mismo, y ninguno es de codificacion.** El modelo
+responde:
+
+    { "domain": "matematicas", "confidence": "high", "reason": "..." }
+
+`confidence` llega como PALABRA. El parser exige `int` o `float`, devuelve `None`
+y se descarta el objeto entero, con su `domain` correcto dentro.
+
+Eso explica lo que la teoria anterior no explicaba: por que fallan unos dominios
+y no otros -el modelo tiende a lo cualitativo en unos temas y a la cifra en
+otros-, y por que un reintento no ayudaba: el modelo repite su forma, no juega a
+los dados.
+
+### Y la causa esta en lo que PEDIMOS, no en lo tolerantes que somos
+
+La instruccion decia "Return only JSON with domain, confidence, reason" sin
+declarar que `confidence` fuera un numero. Anadiendo una frase:
+
+    confidence must be a NUMBER between 0 and 1, never a word.
+
+    instruccion actual     ->   6 de 12 parsean
+    instruccion explicita  ->  12 de 12
+
+Medido con el mismo modelo, los mismos prompts y la misma tanda. La leccion, que
+vale mas que el arreglo: **antes de hacer un parser mas tolerante, comprobar si
+la peticion era ambigua.** Tolerar una respuesta que nunca deberia haber llegado
+asi es tratar el sintoma.
 
 ## Por que la conformidad no lo veia
 
@@ -56,9 +80,15 @@ solo se rompen contra un modelo real.
 
 ## Cambio
 
-Dos medidas independientes, y cada una ataca una cosa distinta.
+Tres medidas. La primera es la que arregla el problema medido; las otras dos son
+red de seguridad y siguen valiendo por si mismas.
 
-### 1. `reason` deja de ser obligatorio
+### 1. Pedir el numero explicitamente
+
+La instruccion de clasificacion declara que `confidence` es un numero entre 0 y 1
+y nunca una palabra. Es la medida que lleva la tanda de 6/12 a 12/12.
+
+### 2. `reason` deja de ser obligatorio
 
 El parser acepta la respuesta con `domain` y `confidence`, y trata `reason` como
 opcional. Cuando falte o no sea utilizable, el core publica una razon propia que
@@ -73,7 +103,7 @@ corromperse es despreciable comparada con la de una frase.
 `confidence`, `reason` y `alternatives`, con los mismos tipos. Lo que cambia es
 de donde sale `reason` cuando el modelo no lo da.
 
-### 2. Un reintento antes de degradar
+### 3. Un reintento antes de degradar
 
 Si la clasificacion falla, se reintenta UNA vez antes de caer al dominio por
 defecto. La corrupcion es intermitente, asi que un reintento convierte un fallo
@@ -104,8 +134,9 @@ Un solo reintento, no una politica de reintentos: el router esta en el camino de
 - Caso de conformidad: el primer intento falla y el segundo acierta -> se enruta,
   con una sola repeticion y no mas.
 - El digest de conformidad se mueve por los casos nuevos y se DECLARA.
-- En laboratorio, la tanda de 4 prompts x 3 intentos mejora de forma medible
-  respecto al 1/3 registrado. Se anota el numero, no "parece mejor".
+- En laboratorio, la tanda de 4 prompts x 3 intentos mejora de forma medible.
+  **Medido: 8/12 antes, 12/12 despues**, con los cuatro dominios correctos en los
+  tres intentos.
 
 ## Archivos previstos
 
@@ -123,4 +154,6 @@ Un solo reintento, no una politica de reintentos: el router esta en el camino de
 
 ## Resultado
 
-Pendiente.
+Implementada. La instruccion pide el numero, `reason` es opcional con razon
+propia del core, y hay un reintento antes de degradar. Laboratorio: **12 de 12**,
+frente a 8 de 12 antes. Conformidad 125/125 con digest declarado.

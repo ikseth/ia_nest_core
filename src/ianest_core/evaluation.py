@@ -80,11 +80,57 @@ def _execute_case(case: dict[str, Any], *, config_path: str | Path | None) -> di
         return _execute_task_plan(case, config_path=config_path)
     if capability == "capability.list":
         return _execute_capability_list(case)
+    if capability == "runtime.health":
+        return _execute_runtime_health(case, config_path=config_path)
     if capability == "model.list":
         return _execute_model_list(case, config_path=config_path)
     if capability == "config.validate":
         return _execute_config_validate(case)
     raise CoreError("EvalError", f"unsupported capability {capability}", "capability")
+
+
+def _execute_runtime_health(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
+    from ianest_core import service
+
+    result = service.health(
+        config_path=case.get("fixture") or config_path,
+        availability=_case_availability(case),
+        provisioner_factory=_case_provisioner_factory(case),
+    )
+    expected = case.get("expect", {})
+    actual = {
+        "backend_gpu": result["backend"]["gpu"],
+        "backend_gpu_models_order": [entry["models"] for entry in result["backend"]["gpu"]],
+        "status": result.get("status"),
+        "core_version_present": bool(result.get("core_version")),
+        "gpu_present": "gpu" in result,
+    }
+    return _case_result(case, _assertions(actual, expected))
+
+
+class _ScriptedBackendProbe:
+    def __init__(self, script: dict[str, Any]) -> None:
+        self.script = script
+
+    def probe_gpu(self) -> list[dict[str, object]]:
+        if self.script.get("unreachable"):
+            raise OSError("scripted backend is unreachable")
+        loaded = self.script.get("loaded")
+        if not isinstance(loaded, list):
+            raise ValueError("scripted backend probe has no loaded response")
+        return loaded
+
+
+def _case_provisioner_factory(case: dict[str, Any]):
+    scripts = case.get("world", {}).get("backend_probe", {})
+
+    def factory(model):
+        if model.provider != "ollama":
+            return None
+        script = scripts.get(model.endpoint)
+        return _ScriptedBackendProbe(script) if isinstance(script, dict) else None
+
+    return factory
 
 
 def _execute_capability_list(case: dict[str, Any]) -> dict[str, Any]:

@@ -1,7 +1,7 @@
-# Bateria congelada de la GPU del backend en runtime.health (ADR 0049).
+# Bateria de la GPU del backend en runtime.health (ADR 0049).
 #
-# La fase 3 implementa la sonda y la rama de runtime.health del ejecutor de
-# evaluacion, y entonces integra estos casos quitando el sufijo .frozen.
+# Integrada en la fase 3 junto con la sonda y la rama de runtime.health del
+# ejecutor de evaluacion.
 #
 # Regla de diseno de esta bateria: los casos guionizan lo que el BACKEND
 # devuelve -por modelo cargado, cuanto ocupa y cuanto de eso esta en memoria de

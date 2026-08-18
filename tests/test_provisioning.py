@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 
 import pytest
 
@@ -8,7 +9,7 @@ from ianest_core import service
 from ianest_core.cli import main
 from ianest_core.config.schema import ModelConfig
 from ianest_core.errors import CoreError
-from ianest_core.provisioning import OllamaProvisioner, provisioner_for
+from ianest_core.provisioning import BACKEND_PROBE_TIMEOUT_S, OllamaProvisioner, provisioner_for
 
 
 class FakeProvisioner:
@@ -86,6 +87,28 @@ def test_provisioner_for_selects_ollama() -> None:
     assert isinstance(provisioner, OllamaProvisioner)
     assert provisioner.base == "http://example.test:11434"
     assert provisioner_for(other_model) is None
+
+
+def test_ollama_gpu_probe_uses_ps_with_short_explicit_timeout(monkeypatch) -> None:
+    calls = []
+
+    class Response(BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            self.close()
+
+    def fake_urlopen(url, *, timeout):
+        calls.append((url, timeout))
+        return Response(b'{"models":[{"name":"m","size":100,"size_vram":40}]}')
+
+    monkeypatch.setattr("ianest_core.provisioning.urlopen", fake_urlopen)
+
+    result = OllamaProvisioner("http://example.test:11434/v1").probe_gpu()
+
+    assert result == [{"name": "m", "size": 100, "size_vram": 40}]
+    assert calls == [("http://example.test:11434/api/ps", BACKEND_PROBE_TIMEOUT_S)]
 
 
 def _write_config(tmp_path) -> str:

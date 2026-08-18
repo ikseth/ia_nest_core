@@ -8,12 +8,17 @@ from urllib.request import Request, urlopen
 from ianest_core.config.schema import ModelConfig
 from ianest_core.errors import CoreError
 
+BACKEND_PROBE_TIMEOUT_S = 2.0
+
 
 class Provisioner(Protocol):
     def list_local(self) -> set[str]:
         ...
 
     def pull(self, model_name: str) -> None:
+        ...
+
+    def probe_gpu(self) -> list[dict[str, object]]:
         ...
 
 
@@ -53,11 +58,21 @@ class OllamaProvisioner:
             raise CoreError("ProvisioningError", f"Ollama pull failed: {exc}", "model") from exc
         raise CoreError("ProvisioningError", f"Ollama pull did not complete for '{model_name}'", "model")
 
-    def _request_json(self, url: str) -> dict[str, object]:
+    def probe_gpu(self) -> list[dict[str, object]]:
+        payload = self._request_json(
+            f"{self.base}/api/ps",
+            timeout=BACKEND_PROBE_TIMEOUT_S,
+        )
+        models = payload.get("models", [])
+        if not isinstance(models, list) or not all(isinstance(model, dict) for model in models):
+            raise CoreError("ProvisioningError", "invalid response from Ollama ps API", "endpoint")
+        return models
+
+    def _request_json(self, url: str, *, timeout: float = 30) -> dict[str, object]:
         try:
-            with urlopen(url, timeout=30) as response:
+            with urlopen(url, timeout=timeout) as response:
                 payload = json.load(response)
-        except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        except (HTTPError, URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise CoreError("ProvisioningError", f"Ollama request failed: {exc}", "endpoint") from exc
         if not isinstance(payload, dict):
             raise CoreError("ProvisioningError", "invalid response from Ollama API", "endpoint")

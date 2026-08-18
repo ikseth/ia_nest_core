@@ -382,8 +382,8 @@ esfuerzo):
 
 ## Bateria de la GPU del backend (ADR 0049, linea de observacion del backend)
 
-`eval/battery/v0.4/backend_gpu.yaml.frozen`: 11 casos de conformidad, escritos y
-CONGELADOS en la fase 2 y a integrar en la fase 3 quitando el sufijo.
+`eval/battery/v0.4/backend_gpu.yaml`: 11 casos de conformidad, escritos y
+CONGELADOS en la fase 2 e integrados en la fase 3.
 
 Fixtures propias: `eval/fixtures/backend_gpu.yaml` (dos modelos ollama sobre UN
 endpoint) y `eval/fixtures/backend_gpu_dos_endpoints.yaml` (dos endpoints
@@ -433,6 +433,9 @@ declarativa:
 - `runtime.detect` publica el mismo `backend.gpu` que `runtime.health`, por
   compartir implementacion.
 
-El digest de conformidad NO se mueve en la fase 2: el sufijo `.frozen` mantiene
-los casos fuera de la ejecucion. Se recalculara y se DECLARARA al integrarlos en
-la fase 3, porque anaden clave al payload publico de `runtime.health`.
+Digest de conformidad declarado tras integrar los 11 casos de la GPU del
+backend (117 casos de conformidad totales). Los 106 casos anteriores conservan
+exactamente el digest declarado `889c068d...`; solo se anaden los 11 casos que
+asertan la aparicion de `backend.gpu` en el payload publico de
+`runtime.health`:
+`b4fb435089372d4df0b722dc90f1b781984ff90e375d7c0e907142e054676594`.

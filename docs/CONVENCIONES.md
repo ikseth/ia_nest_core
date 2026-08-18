@@ -46,6 +46,32 @@ Todo script no trivial debe incluir cabecera:
 - Separar alcance, arquitectura, plan y estado.
 - No mezclar ideas futuras con trabajo aprobado.
 
+## Laboratorio
+
+- **Al cerrar una puerta de laboratorio, si hubo que tocar configuracion para
+  que pasara, se decide EXPLICITAMENTE que clase de cambio fue**:
+
+      contexto de la maquina   -> se queda en `local/` para siempre
+      (endpoint, direcciones,     No es conocimiento sobre el producto.
+       nombres de instancia)
+
+      defecto mejor            -> cambia la plantilla versionada en la MISMA
+      (que modelo para que        pasada, con el motivo escrito EN la plantilla
+       papel, que limite)         y no solo en el commit.
+
+  Motivo, con caso real: el laboratorio de v0.3 descubrio que el planificador
+  debia ser `qwen_tech` y lo dejo en un `core.yaml` de `local/`. La plantilla
+  versionada siguio trayendo un modelo de razonamiento como planificador, que no
+  cabe en el techo de tokens por defecto, y en v0.4 la orquestacion multi-modelo
+  no llegaba a ocurrir NUNCA. El conocimiento existia y no llego a donde se usa.
+
+- Un ajuste que se repite entre lineas de version no es un ajuste: es un defecto
+  equivocado.
+
+- El motivo de un defecto no obvio se escribe donde vive el defecto. Quien lea la
+  plantilla tiene que entender por que ese valor, o el proximo lo deshace de
+  buena fe.
+
 ## IA
 
 - Usar steelman en analisis importantes.

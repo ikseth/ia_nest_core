@@ -270,6 +270,12 @@ historico de hint desconocido pasa a la bateria del router como hint asesor, y
 los dos casos keyword salen de `conformance.yaml`:
 `6dcae1a56c4cb5519a86e766597f245d0e73b55fe3b86983298de5901b4e9708`.
 
+Digest de conformidad declarado tras la ficha v0.4/0006 (125 casos de
+conformidad totales):
+`8c88061ac30c24309cb2896eb22d4be32847b6d2246e7439d3e8fb919c5ccc83`.
+Anade cuatro casos del router: `reason` ausente, `reason` no string, `domain`
+ausente y reintento unico tras fallo. Los 121 casos existentes no cambian.
+
 Tests pytest requeridos para los aspectos no expresables end-to-end por la
 bateria declarativa:
 

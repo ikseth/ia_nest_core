@@ -112,6 +112,12 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   Impacto: **minor**.
 
 ### Corregido
+- El router semantico conserva una clasificacion valida cuando el modelo omite
+  `reason` o lo devuelve sin texto utilizable: publica la razon propia `router
+  did not provide a reason`, sin cambiar la forma publica de `domain.route`.
+  Cuando falla la clasificacion, hace un unico reintento antes de degradar al
+  dominio por defecto. Impacto: patch
+  ([ficha v0.4/0006](docs/fixes/v0.4/0006-router-tolerante-a-la-respuesta-del-modelo.md)).
 - Ayuda de la CLI alineada con ADR 0043: los epilogos de `prompt run/stream` y
   `reasoning run/stream` afirmaban que sin `--model` ni `--domain` "se usa el
   router". No es asi desde la fase 3b-i: se resuelve el dominio por defecto SIN

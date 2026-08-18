@@ -60,11 +60,15 @@ class DomainRouter:
         confidence = 0.0
         reason = "router response could not be parsed"
         alternatives: list[dict[str, Any]] = []
-        try:
-            decision = self._classify(prompt)
-        except CoreError as exc:
-            reason = f"router failed: {exc.type}"
-        else:
+        decision: dict[str, Any] | None = None
+        for _ in range(2):
+            try:
+                decision = self._classify(prompt)
+            except CoreError as exc:
+                reason = f"router failed: {exc.type}"
+            else:
+                break
+        if decision is not None:
             alternatives = decision.get("alternatives", [])
             domain_id = decision["domain"]
             matched = next(
@@ -116,7 +120,8 @@ class DomainRouter:
         ]
         return (
             "Classify the text into exactly one configured domain by meaning. "
-            "Return only JSON with domain, confidence, reason, and optional alternatives.\n"
+            "Return only JSON with domain, confidence, reason, and optional alternatives. "
+            "confidence must be a NUMBER between 0 and 1, never a word.\n"
             f"Domain catalog: {json.dumps(catalog, ensure_ascii=False)}\n"
             f"Text to classify: {prompt}"
         )
@@ -168,14 +173,17 @@ def _parse_router_response(text: str) -> dict[str, Any] | None:
     if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
         return None
     confidence = float(confidence)
-    if not 0.0 <= confidence <= 1.0 or not isinstance(parsed.get("reason"), str):
+    if not 0.0 <= confidence <= 1.0:
         return None
+    reason = parsed.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        reason = "router did not provide a reason"
     alternatives = parsed.get("alternatives", [])
     if not isinstance(alternatives, list):
         alternatives = []
     return {
         "domain": parsed["domain"],
         "confidence": confidence,
-        "reason": parsed["reason"],
+        "reason": reason,
         "alternatives": [dict(item) for item in alternatives if isinstance(item, dict)],
     }

@@ -216,7 +216,7 @@ def _assertion(name: str, actual: Any, expected: Any) -> dict[str, Any]:
 def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | None) -> dict[str, Any]:
     config = _case_config(case, config_path=config_path)
     script = case.get("world", {}).get("script", {})
-    router_adapter = ScriptedFakeAdapter(
+    router_adapter = _CountingScriptedFakeAdapter(
         "router",
         [str(response) for response in script.get("router_responses", [])],
     )
@@ -235,6 +235,8 @@ def _execute_domain_route(case: dict[str, Any], *, config_path: str | Path | Non
             "domain": route.domain,
             "model": route.model,
             "confidence": route.confidence,
+            "reason": route.reason,
+            "router_calls": router_adapter.calls,
         },
         case.get("expect", {}),
     )
@@ -616,6 +618,16 @@ class _InvokedScriptedFakeAdapter(ScriptedFakeAdapter):
 
     def stream(self, req):
         self.invoked = True
+        yield from super().stream(req)
+
+
+class _CountingScriptedFakeAdapter(ScriptedFakeAdapter):
+    def __init__(self, model: str, responses: list[str]) -> None:
+        super().__init__(model, responses)
+        self.calls = 0
+
+    def stream(self, req):
+        self.calls += 1
         yield from super().stream(req)
 
 

@@ -3,6 +3,75 @@
 # dominios (id + description) y devuelve JSON con domain, confidence, reason y
 # alternatives opcional. world.script.router_responses alimenta el fake.
 
+- id: router_domain_route_missing_reason_is_published_by_core
+  track: conformance
+  description: "Ficha v0.4/0006: sin reason, conserva la clasificacion y el core publica su propia razon."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "escribe una funcion pequena"
+  world:
+    script:
+      router_responses:
+        - '{"domain": "codigo", "confidence": 0.93}'
+  expect:
+    domain: codigo
+    model: fake_code
+    confidence: 0.93
+    reason: "router did not provide a reason"
+
+- id: router_domain_route_non_string_reason_is_published_by_core
+  track: conformance
+  description: "Ficha v0.4/0006: reason que no es string no descarta una clasificacion valida."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "explica una demostracion"
+  world:
+    script:
+      router_responses:
+        - '{"domain": "razonamiento", "confidence": 0.79, "reason": ["no usable"]}'
+  expect:
+    domain: razonamiento
+    model: fake_reason
+    confidence: 0.79
+    reason: "router did not provide a reason"
+
+- id: router_domain_route_missing_domain_falls_back_to_default
+  track: conformance
+  description: "Ficha v0.4/0006: sin domain no hay clasificacion y se degrada al default."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "respuesta incompleta"
+  world:
+    script:
+      router_responses:
+        - '{"confidence": 0.8, "reason": "sin dominio"}'
+  expect:
+    domain: general
+    model: fake_general
+    confidence: 0.0
+    router_calls: 2
+
+- id: router_domain_route_retries_once_after_failure
+  track: conformance
+  description: "Ficha v0.4/0006: un fallo de clasificacion repite una vez y acepta la segunda respuesta valida."
+  capability: domain.route
+  fixture: eval/fixtures/router.yaml
+  input:
+    prompt: "administra un servicio systemd"
+  world:
+    script:
+      router_responses:
+        - 'respuesta no JSON'
+        - '{"domain": "linux", "confidence": 0.88, "reason": "administracion"}'
+  expect:
+    domain: linux
+    model: fake_tech
+    confidence: 0.88
+    router_calls: 2
+
 - id: router_domain_route_semantic_pick
   track: conformance
   description: "ADR 0043: domain.route devuelve el dominio, confianza y motivo del clasificador."

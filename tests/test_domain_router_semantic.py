@@ -65,3 +65,57 @@ def test_router_without_config_raises_clear_error() -> None:
 
     assert str(exc.value) == "routing requires config.router"
     assert exc.value.field == "router"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        '{"domain": "codigo", "confidence": 0.91}',
+        '{"domain": "codigo", "confidence": 0.91, "reason": null}',
+        '{"domain": "codigo", "confidence": 0.91, "reason": ""}',
+    ],
+)
+def test_semantic_router_supplies_missing_or_unusable_reason(response: str) -> None:
+    config = load_config(Path("eval/fixtures/router.yaml"))
+    router = DomainRouter(
+        ModelRegistry(config, availability=StaticAvailabilityProvider()),
+        config,
+        adapter_factory=lambda _model: ScriptedFakeAdapter("fake_router", [response]),
+    )
+
+    result = router.route("clasifica este texto")
+
+    assert result.domain == "codigo"
+    assert result.reason == "router did not provide a reason"
+
+
+def test_semantic_router_retries_once_after_invalid_response() -> None:
+    config = load_config(Path("eval/fixtures/router.yaml"))
+    adapter = CountingScriptedAdapter(
+        "fake_router",
+        [
+            "respuesta no JSON",
+            '{"domain": "codigo", "confidence": 0.91, "reason": "codigo"}',
+            '{"domain": "general", "confidence": 0.1, "reason": "must not be used"}',
+        ],
+    )
+    router = DomainRouter(
+        ModelRegistry(config, availability=StaticAvailabilityProvider()),
+        config,
+        adapter_factory=lambda _model: adapter,
+    )
+
+    result = router.route("clasifica este texto")
+
+    assert result.domain == "codigo"
+    assert adapter.calls == 2
+
+
+class CountingScriptedAdapter(ScriptedFakeAdapter):
+    def __init__(self, model: str, responses: list[str]) -> None:
+        super().__init__(model, responses)
+        self.calls = 0
+
+    def stream(self, req):
+        self.calls += 1
+        yield from super().stream(req)

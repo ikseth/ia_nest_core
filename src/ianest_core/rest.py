@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,9 @@ from ianest_core.dotenv import load_dotenv
 from ianest_core.errors import CoreError
 
 
-def create_app(config_path: str | Path = "config/core.yaml"):
+def create_app(config_path: str | Path | None = None):
+    if config_path is None:
+        config_path = os.environ.get("IANEST_CONFIG", "config/core.yaml")
     load_dotenv()
     try:
         from starlette.applications import Starlette

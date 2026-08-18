@@ -5,6 +5,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+### Cambiado
+- Instalador declarativo ([ficha v0.4/0003](docs/fixes/v0.4/0003-instalador-declarativo.md)):
+  `deploy/setup.sh` acepta un fichero plano con precedencia argumento > fichero
+  > defecto y `--print-config` sin efectos, usa la configuracion del core como
+  unica fuente de modelos, separa configuracion y estado en `/opt/ia_nest`, y
+  puede crear/habilitar services por instancia. REST acepta `IANEST_CONFIG` para
+  leer configuracion fuera del clon; el compose fija su nombre de proyecto y
+  `install.sh` acepta Python >= 3.13. No toca contrato publico. Impacto: patch.
+
 ### Anadido
 - Gate automatico de la convencion ASCII (`tests/test_convenciones.py`): falla
   con fichero, linea y caracter si aparece un no-ASCII en docs, codigo, config o

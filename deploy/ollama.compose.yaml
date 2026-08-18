@@ -2,6 +2,7 @@
 # NO forma parte del core (el core es agnostico al backend, ADR 0028).
 # Requiere en el host: driver NVIDIA + NVIDIA Container Toolkit.
 #   docker compose -f deploy/ollama.compose.yaml up -d
+name: ia_nest_ollama
 services:
   ollama:
     image: ollama/ollama:0.12.2

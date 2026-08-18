@@ -3,7 +3,7 @@
 Dos caminos, segun tengas ya un backend (Ollama) o no:
 
 - **A) Desde cero** (maquina Linux nueva, sin Ollama) -> `deploy/setup.sh`.
-- **B) Ya tengo Ollama** -> instala el core y conectalo con `ianest init`.
+- **B) Ya tengo Ollama** -> declara su endpoint y no lo provisiona.
 
 ## A) Desde cero (sin Ollama)
 
@@ -16,11 +16,13 @@ Con eso, un solo comando levanta backend + modelos + core + config + verificacio
 
     git clone https://github.com/ikseth/ia_nest_core.git
     cd ia_nest_core
-    bash deploy/setup.sh
+    sudo bash deploy/setup.sh
 
-`deploy/setup.sh` hace: Ollama+GPU (compose) -> pull de modelos -> `install.sh`
--> `ianest init` -> verificacion final. Opciones: `--endpoint`, `--models`,
-`--template minimal|lab`, `--skip-backend`.
+`deploy/setup.sh` hace: Ollama+GPU (compose) -> `install.sh` -> configuracion
+efectiva -> `ianest model pull` -> verificacion final. Los modelos salen solo de
+`core.yaml`; no hay una segunda lista en el instalador. Ve
+[DESPLIEGUE.md](../DESPLIEGUE.md) para el fichero plano de configuracion,
+`--print-config`, servicios e instalacion con backend existente.
 
 ## B) Ya tengo Ollama
 
@@ -30,10 +32,9 @@ descargado. Recomendado que use GPU ([backend-gpu.md](backend-gpu.md)).
 
     git clone https://github.com/ikseth/ia_nest_core.git
     cd ia_nest_core
-    bash install.sh --interfaces
-    source .venv/bin/activate
-    ianest init --endpoint http://TU-OLLAMA:11434/v1 --template lab
-    ianest --config config/core.yaml runtime detect       # verifica backend + GPU
+    cp deploy/ejemplo.setup.conf local/core.setup.conf
+    # Ajustar ENDPOINT=http://TU-OLLAMA:11434/v1 y PROVISION_BACKEND=false.
+    bash deploy/setup.sh --config local/core.setup.conf
 
 ## Comprobar
 
@@ -43,7 +44,10 @@ descargado. Recomendado que use GPU ([backend-gpu.md](backend-gpu.md)).
 ## Detalle
 
 - `install.sh`: `--interfaces` (extras MCP/REST), `--service` (systemd),
-  `--venv RUTA`, `--rest-port`, `--mcp-port`.
-- Configuracion: `ianest init` o a mano ([configuracion.md](configuracion.md)).
+  `--venv RUTA`, `--instance-name`, `--rest-host`, `--rest-port`, `--mcp-host`
+  y `--mcp-port`.
+- Configuracion declarativa: `deploy/ejemplo.setup.conf` y
+  [DESPLIEGUE.md](../DESPLIEGUE.md). `ianest init` sigue disponible para una
+  configuracion local dentro del clon.
 - Backend con GPU y su despliegue: [backend-gpu.md](backend-gpu.md).
 - Interfaces REST/MCP y servicios: [interfaces.md](interfaces.md).

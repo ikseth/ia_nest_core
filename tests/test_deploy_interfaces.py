@@ -94,8 +94,8 @@ def test_install_service_generates_systemd_units(tmp_path) -> None:
         text=True,
     )
 
-    rest_unit = (unit_dir / "ianest-rest.service").read_text(encoding="utf-8")
-    mcp_unit = (unit_dir / "ianest-mcp.service").read_text(encoding="utf-8")
+    rest_unit = (unit_dir / "ianest-core-rest.service").read_text(encoding="utf-8")
+    mcp_unit = (unit_dir / "ianest-core-mcp.service").read_text(encoding="utf-8")
 
     assert f"WorkingDirectory={repo}" in rest_unit
     assert f"EnvironmentFile={repo}/.env" in rest_unit
@@ -103,7 +103,7 @@ def test_install_service_generates_systemd_units(tmp_path) -> None:
     assert f"WorkingDirectory={repo}" in mcp_unit
     assert f"EnvironmentFile={repo}/.env" in mcp_unit
     assert (
-        f"ExecStart={venv}/bin/python -m ianest_core.mcp_server --transport sse "
+        f"ExecStart={venv}/bin/python -m ianest_core.mcp_server --config {repo}/config/core.yaml --transport sse "
         "--host 127.0.0.1 --port 18090"
     ) in mcp_unit
 

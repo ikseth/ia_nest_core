@@ -119,6 +119,7 @@ def test_cli_task_plan_json_round_trips_through_plan_file_with_explicit_effort_p
     plan_result = {
         "plan": [{"index": 0, "prompt": "original", "domain": "general", "depends_on": []}],
         "requirements": [{"id": "r1", "statement": "resolver", "covered_by": [0]}],
+        "degradations": [],
         "effort": "low",
         "params": {"effort": "low"},
         "trace": {"capability": "task.plan"},
@@ -565,6 +566,9 @@ def test_task_plan_has_parity_across_cli_rest_and_mcp(monkeypatch, capsys) -> No
     expected = {
         "plan": [{"index": 0, "prompt": "subtarea", "domain": "general", "depends_on": []}],
         "requirements": [{"id": "r1", "statement": "resolver", "covered_by": [0]}],
+        "degradations": [
+            {"stage": "plan", "reason": "requirements_unavailable", "action": "skip_coverage_check"}
+        ],
         "effort": "high",
         "params": {"effort": "high"},
         "trace": {"capability": "task.plan"},

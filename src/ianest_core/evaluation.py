@@ -480,6 +480,7 @@ def _execute_task_plan(case: dict[str, Any], *, config_path: str | Path | None) 
     actual: dict[str, Any] = {
         "plan": result.plan,
         "requirements": result.requirements,
+        "degradations": result.degradations,
         "effort": result.effort,
         "params": _partial_value(result.params, expected.get("params", {})),
     }

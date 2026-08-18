@@ -233,6 +233,9 @@ Debe devolver:
   `covered_by` (los indices de subtarea que lo cubren). La contabilidad de
   cobertura vive aqui, en el campo que quien enriquece copia entero sin
   modelarlo, y no dentro de las subtareas que edita,
+- `degradations`: la misma lista de degradaciones declaradas que usa
+  `task.run`, publicada siempre. Una lista vacia significa "sin
+  degradaciones", no "no se sabe",
 - `effort`: el nivel resuelto con el que se derivo el plan,
 - `params` y trazabilidad, informativos: `params` no se devuelve a `task.run`,
   porque es un informe y no una entrada.
@@ -240,6 +243,11 @@ Debe devolver:
 No ejecuta subtareas, ni COMBINE, ni EVALUATE. La descomposicion se queda en el
 core; quien quiera enriquecer cada subtarea lo hace entre esta capacidad y
 `task.run` (ADR 0031, via 2).
+
+Si el planificador no declara requisitos, PLAN conserva su renegociacion. Solo
+tras agotar los intentos publica `requirements_covered=false` y la degradacion
+`{stage: plan, reason: requirements_unavailable, action:
+skip_coverage_check}`. La misma ausencia tiene la misma forma en `task.run`.
 
 ### `task.run`
 
@@ -367,7 +375,8 @@ Con `plan` suministrado:
   distintas, y solo la primera es una omision legitima. Si no vienen, el
   core no los reinventa y declara la degradacion `{stage: plan, reason:
   requirements_unavailable, action: skip_coverage_check}` con
-  `requirements_covered=false`;
+  `requirements_covered=false`. Una lista vacia de requisitos es la misma
+  ausencia y se declara igual;
 - `plan_attempts` vale 0, porque cuenta derivaciones del planificador.
 
 Modos de ejecucion (ADR 0038, linea v0.3): el consumidor selecciona el

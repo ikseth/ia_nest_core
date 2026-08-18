@@ -46,6 +46,7 @@
     requirements:
       - { id: r1, statement: "analizar", covered_by: [0] }
       - { id: r2, statement: "explicar", covered_by: [1] }
+    degradations: []
     effort: medium
     params:
       effort: medium
@@ -431,3 +432,97 @@
       requirements:
         - { id: r1, statement: "analizar", covered_by: [0, 1] }
         - { id: r2, statement: "explicar", covered_by: [1] }
+
+- id: plan_requirements_map_is_normalized_without_renegotiation
+  track: conformance
+  description: "Core ficha v0.4/0008: el mapa id a texto conserva requisitos y cobertura en un solo intento."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - requirements: { r1: "analizar", r2: "explicar" }
+          subtasks:
+            - { prompt: "analiza", domain: razonamiento, covers: [r1] }
+            - { prompt: "explica", domain: general, covers: [r2] }
+      responses:
+        fake_reason: "ANALISIS"
+        fake_general: "EXPLICACION"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    requirements_covered: true
+    plan_attempts: 1
+    degradations: []
+    plan_ready:
+      requirements:
+        - { id: r1, statement: "analizar", covered_by: [0] }
+        - { id: r2, statement: "explicar", covered_by: [1] }
+
+- id: plan_missing_requirements_declared_after_attempts
+  track: conformance
+  description: "Core ficha v0.4/0008: PLAN declara requisitos ausentes solo tras agotar su renegociacion."
+  capability: task.plan
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "explica una cosa"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - subtasks: [{ prompt: "explica", domain: general }]
+        - subtasks: [{ prompt: "explica", domain: general }]
+  expect:
+    requirements: []
+    degradations:
+      - { stage: plan, reason: requirements_unavailable, action: skip_coverage_check }
+
+- id: plan_supplied_empty_requirements_declares_degradation
+  track: conformance
+  description: "Core ficha v0.4/0008: requirements vacio no acredita cobertura en un plan suministrado."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "explica una cosa"
+    plan:
+      - { index: 0, prompt: "explica enriquecido", domain: general, depends_on: [] }
+    requirements: []
+    effort: medium
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_general: "PARTE"
+        fake_combiner: "COMBINADO_FINAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    requirements_covered: false
+    uncovered_requirements: []
+    degradations:
+      - { stage: plan, reason: requirements_unavailable, action: skip_coverage_check }
+
+- id: task_plan_unparseable_shape_publishes_degradations
+  track: conformance
+  description: "Core ficha v0.4/0007: task.plan publica el repliegue y la cobertura no comprobable."
+  capability: task.plan
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "tres partes independientes"
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      derivations:
+        - { raw: '{"prompt": "forma ilegible"}' }
+        - { raw: '{"prompt": "forma ilegible"}' }
+  expect:
+    plan:
+      - { index: 0, prompt: "tres partes independientes", domain: general, depends_on: [] }
+    requirements: []
+    degradations:
+      - { stage: plan, reason: unparseable_shape, action: single_subtask }
+      - { stage: plan, reason: requirements_unavailable, action: skip_coverage_check }

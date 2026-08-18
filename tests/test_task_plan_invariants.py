@@ -202,7 +202,8 @@ def test_irrecoverable_plan_degrades_to_full_original_prompt(tmp_path) -> None:
     assert result.stop_reason == "task_done"
     assert result.subtasks[0]["prompt"] == prompt
     assert result.degradations == [
-        {"stage": "plan", "reason": "unparseable_shape", "action": "single_subtask"}
+        {"stage": "plan", "reason": "unparseable_shape", "action": "single_subtask"},
+        {"stage": "plan", "reason": "requirements_unavailable", "action": "skip_coverage_check"},
     ]
 
 
@@ -235,6 +236,9 @@ def test_missing_requirements_renegotiates_then_continues_marked(tmp_path) -> No
     assert result.stop_reason == "task_done"
     assert result.plan_attempts == 2
     assert result.requirements_covered is False
+    assert result.degradations == [
+        {"stage": "plan", "reason": "requirements_unavailable", "action": "skip_coverage_check"}
+    ]
 
 
 @pytest.mark.parametrize("mode", ["pipeline", "coverage"])

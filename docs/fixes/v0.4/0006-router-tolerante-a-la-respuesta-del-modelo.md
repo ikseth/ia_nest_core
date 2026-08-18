@@ -28,9 +28,10 @@ Lo que se descarto, con evidencia y no por intuicion:
   LINEA del flujo SSE, y `\n` no aparece dentro de un caracter multibyte.
 - **No es que clasifique mal.** Cuando responde, acierta con `confidence` 0.95.
 
-Lo que apunta a la causa: en una de las respuestas buenas se colo `operaciĆ³n` en
-el campo `reason`. Es el MODELO emitiendo caracteres multibyte malformados, cosa
-que un modelo cuantizado hace de vez en cuando. Si esa corrupcion cae dentro de
+Lo que apunta a la causa: en una de las respuestas buenas, la palabra
+"operacion" llego al campo `reason` con su acento convertido en dos caracteres
+basura. Es el MODELO emitiendo caracteres multibyte malformados, cosa que un
+modelo cuantizado hace de vez en cuando. Si esa corrupcion cae dentro de
 la cadena JSON, el objeto deja de ser JSON valido, `_parse_router_response`
 devuelve `None` y se lanza `RoutingError`.
 

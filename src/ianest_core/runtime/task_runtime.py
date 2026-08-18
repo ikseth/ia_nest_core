@@ -68,6 +68,7 @@ class TaskResult:
 class TaskPlanResult:
     plan: list[dict[str, Any]]
     requirements: list[dict[str, Any]]
+    degradations: list[dict[str, str]]
     effort: str
     params: dict[str, Any]
     trace: dict[str, Any]
@@ -76,6 +77,7 @@ class TaskPlanResult:
         return {
             "plan": self.plan,
             "requirements": self.requirements,
+            "degradations": self.degradations,
             "effort": self.effort,
             "params": self.params,
             "trace": self.trace,
@@ -270,6 +272,7 @@ class TaskRuntime:
         return TaskPlanResult(
             plan=runtime._public_pipeline_plan(resolution.final.plan),
             requirements=resolution.final.requirements,
+            degradations=resolution.degradations,
             effort=runtime.resolved_effort,
             params=runtime._params(),
             trace={
@@ -1190,15 +1193,11 @@ class TaskRuntime:
         if not isinstance(plan, list) or not plan:
             raise CoreError("PlanParseError", "supplied plan must be a non-empty list", "plan")
         resolved_plan = self._resolve_pipeline_domains(self._validate_pipeline_plan(plan))
-        if requirements is None:
+        if requirements is None or requirements == []:
             attempt = _PlanAttempt(resolved_plan, [], False, [])
             return _PlanResolution(
                 [attempt],
-                [{
-                    "stage": "plan",
-                    "reason": "requirements_unavailable",
-                    "action": "skip_coverage_check",
-                }],
+                [_requirements_unavailable_degradation()],
             )
         supplied_requirements = _supplied_requirements_from(requirements)
         uncovered = _uncovered_supplied_requirement_ids(supplied_requirements, resolved_plan)
@@ -1327,6 +1326,12 @@ class TaskRuntime:
                 )
                 continue
             break
+        if (
+            plan_key == "subtasks"
+            and not attempts[-1].requirements
+            and not any(item["reason"] == "requirements_unavailable" for item in degradations)
+        ):
+            degradations.append(_requirements_unavailable_degradation())
         return _PlanResolution(attempts, degradations)
 
     def _plan_renegotiation_instruction(
@@ -1742,10 +1747,20 @@ def _requirements_from(value: Any) -> list[dict[str, str]]:
     return requirements
 
 
+def _requirements_unavailable_degradation() -> dict[str, str]:
+    return {
+        "stage": "plan",
+        "reason": "requirements_unavailable",
+        "action": "skip_coverage_check",
+    }
+
+
 def _public_requirements_from(
     value: Any,
     plan: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    if isinstance(value, dict):
+        value = [{"id": requirement_id, "text": text} for requirement_id, text in value.items()]
     requirements = _requirements_from(value)
     covered_by: dict[str, list[int]] = {requirement["id"]: [] for requirement in requirements}
     for index, item in enumerate(plan):

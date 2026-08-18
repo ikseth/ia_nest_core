@@ -567,6 +567,7 @@
       - { prompt: "hay una leyenda sobre un numero que aparece en muchas peliculas", domain: general, model: fake_general }
     degradations:
       - { stage: plan, reason: unparseable_shape, action: single_subtask }
+      - { stage: plan, reason: requirements_unavailable, action: skip_coverage_check }
 
 - id: invariantes_i4_evaluador_ilegible_corregido_en_segunda
   track: conformance

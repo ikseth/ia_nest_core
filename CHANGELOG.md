@@ -6,6 +6,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 ## [No publicado]
 
 ### Cambiado
+- `task.plan` publica siempre `degradations`, incluida la lista vacia cuando no
+  hay ninguna ([ficha v0.4/0007](docs/fixes/v0.4/0007-task-plan-no-publica-sus-degradaciones.md)),
+  y el planificador acepta `requirements` tanto como lista como mapa de id a
+  texto ([ficha v0.4/0008](docs/fixes/v0.4/0008-requisitos-del-planificador-perdidos-y-no-declarados.md)).
+  La ausencia de requisitos se declara igual en planes derivados y
+  suministrados, llegue como campo ausente o lista vacia. En este ultimo caso,
+  `requirements_covered` cambia de `true` a `false`: corrige una afirmacion
+  falsa, no una ruptura. Impacto: patch.
+
 - Instalador declarativo ([ficha v0.4/0003](docs/fixes/v0.4/0003-instalador-declarativo.md)):
   `deploy/setup.sh` acepta un fichero plano con precedencia argumento > fichero
   > defecto y `--print-config` sin efectos, usa la configuracion del core como

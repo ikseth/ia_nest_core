@@ -171,7 +171,8 @@ Casos congelados e invariante de cada uno:
 
 - `plan_explicit_task_plan_returns_executable_shape`: `task.plan` devuelve
   `plan`, `requirements`, `effort` y parametros efectivos; resuelve el dominio,
-  invierte `covers` a `requirements[].covered_by` y no publica `covers`.
+  invierte `covers` a `requirements[].covered_by`, no publica `covers` y
+  publica `degradations: []` en el camino sano.
 - `plan_explicit_task_plan_honors_effort`: el esfuerzo explicito gobierna el
   plan y se refleja en el resultado.
 - `plan_explicit_supplied_plan_executes_directly`: un plan valido entra en
@@ -204,10 +205,27 @@ Casos congelados e invariante de cada uno:
 - `plan_explicit_planner_source_publishes_inverted_coverage`: la via derivada
   tambien publica requisitos con `covered_by` y plan sin `covers`; la forma no
   depende de la procedencia.
+- `plan_requirements_map_is_normalized_without_renegotiation`: un mapa de id a
+  texto se normaliza, conserva `covered_by` y no consume la renegociacion.
+- `plan_missing_requirements_declared_after_attempts`: el planificador que no
+  declara requisitos agota sus dos intentos antes de publicar
+  `requirements_unavailable`.
+- `plan_supplied_empty_requirements_declares_degradation`: una lista vacia de
+  requisitos suministrados no acredita cobertura; publica cobertura falsa y la
+  misma degradacion que la via derivada.
+- `task_plan_unparseable_shape_publishes_degradations`: `task.plan` hace
+  visibles tanto el repliegue a una subtarea como la cobertura omitida.
 
-Digest de conformidad declarado tras integrar los 16 casos del plan explicito
-(106 casos de conformidad totales):
-`889c068d4d3cf663cf94302f382d76a9f015d5ac6876598f6fe4d11f9c221b0b`.
+Digest de conformidad declarado tras integrar los 20 casos del plan explicito
+(121 casos de conformidad totales):
+`fa9b79ffffb0034e366a93de14c5192b5e1946f4ef200f1c8356de078b90fc42`.
+
+El digest cambia por los cuatro casos nuevos, porque el caso sano de
+`task.plan` pasa a fijar la lista vacia explicita, y porque
+`invariantes_i4_plan_irrecuperable_degrada_a_una_subtarea` declara ahora tambien
+`requirements_unavailable`: el repliegue conserva el prompt, pero no dispone de
+requisitos con los que comprobar cobertura. Ningun otro caso existente cambia
+por esta pasada.
 
 Ese digest incorpora tambien la entrada de `task.plan` en los dos casos del
 catalogo que asertan la lista EXACTA de capacidades y el conjunto EXACTO de las
@@ -439,3 +457,11 @@ exactamente el digest declarado `889c068d...`; solo se anaden los 11 casos que
 asertan la aparicion de `backend.gpu` en el payload publico de
 `runtime.health`:
 `b4fb435089372d4df0b722dc90f1b781984ff90e375d7c0e907142e054676594`.
+
+## Correcciones de requisitos y degradaciones del plan
+
+Las fichas `core ficha v0.4/0007` y `core ficha v0.4/0008` anaden cuatro casos
+al bloque de plan explicito y actualizan dos casos existentes por los cambios
+de contrato declarados arriba. La bateria completa queda en 121 casos de
+conformidad, todos en verde, con digest:
+`fa9b79ffffb0034e366a93de14c5192b5e1946f4ef200f1c8356de078b90fc42`.

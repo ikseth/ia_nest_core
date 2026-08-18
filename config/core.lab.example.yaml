@@ -87,7 +87,14 @@ router: { model: mistral_nemo, profile: default }
 default_domain: general
 
 orchestration:
-  planner: { model: deepseek_reason, profile: default }
+  # El planificador NO debe ser un modelo de razonamiento. deepseek-r1 emite su
+  # cadena de pensamiento antes de la respuesta, y con `max_tokens: 512` el
+  # pensamiento agota el presupuesto: el JSON del plan nunca se cierra, el core
+  # repliega a una subtarea unica y la orquestacion multi-modelo no llega a
+  # ocurrir. Verificado en laboratorio (2026-08-18): con deepseek_reason, 1
+  # subtarea siempre; con qwen_tech, 3 subtareas correctas y el mismo prompt.
+  # deepseek_reason sigue sirviendo al dominio `razonamiento`, que es su sitio.
+  planner: { model: qwen_tech, profile: default }
   combiner: { model: mistral_nemo, profile: default }
   max_subtasks: 6
   max_iterations: 2

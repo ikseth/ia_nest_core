@@ -40,10 +40,12 @@ Todo script no trivial debe incluir cabecera:
 ## Documentacion
 
 - Documentos cortos.
-- Una decision por ADR.
-- Las correcciones y mejoras pequenas usan una ficha breve en `docs/fixes/`;
-  las decisiones estructurales usan ADR.
 - Separar alcance, arquitectura, plan y estado.
+- Un arreglo que cabe en un test se registra con una linea de CHANGELOG y el
+  test. El test dice que se esperaba y falla si alguien lo deshace; un documento
+  no hace ninguna de las dos cosas.
+- Ficha en `docs/fixes/` solo si cambia el contrato publico, una regla de trabajo
+  o una forma que otras capas consumen. ADR solo si cambia la forma del ente.
 - No mezclar ideas futuras con trabajo aprobado.
 
 ## Laboratorio

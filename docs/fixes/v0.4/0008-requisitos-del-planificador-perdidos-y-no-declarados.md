@@ -66,6 +66,46 @@ deducible cruzando tres campos -`requirements` vacio y `uncovered_requirements`
 vacio-, pero deducir no es declarar, y el criterio de este repo es que un hecho
 que importa se dice.
 
+## Y al final de la cadena, una afirmacion falsa
+
+Medido despues, cerrando el smoke de punta a punta. Con el plan de `task.plan`
+-que trae `requirements: []` por lo de arriba- reenviado a `task.run` como plan
+suministrado, que es exactamente lo que ADR 0048 dice que hara la capa de
+encima, el resultado es:
+
+    requirements_covered: True
+    uncovered_requirements: []
+    degradations: []
+
+**Cero requisitos, y el core afirma que la cobertura esta verificada.**
+
+La causa es una guarda que distingue mal dos ausencias:
+
+    if requirements is None:        -> declara requirements_unavailable, covered=False
+    ...                                (correcto)
+    # lista VACIA no es None, cae aqui:
+    uncovered = []                  -> not uncovered == True
+                                    -> requirements_covered = True   (falso)
+
+Las tres situaciones y lo que produce cada una hoy:
+
+    requisitos = None    ->  covered False, degradacion declarada     correcto
+    requisitos = []      ->  covered TRUE,  sin degradacion           FALSO
+    requisitos = [...]   ->  covered segun cobertura real             correcto
+
+Esto ya no es perdida silenciosa, que es lo que describe el resto de esta ficha.
+Es una **afirmacion positiva de algo que no ocurrio**, y es peor: un consumidor
+que lea `requirements_covered: true` tiene todo el derecho a fiarse.
+
+**Y tiene una consecuencia que conviene mirar de frente**: el criterio de salida
+de la fase v0.4-B3 pide "`degradations` vacio". Esta ejecucion lo cumple. O sea
+que el gate, tal como esta escrito hoy, **se puede pasar con este fallo dentro**.
+Un gate que una afirmacion falsa satisface no esta midiendo lo que cree medir.
+
+Se corrige con lo mismo que la medida 2 de mas abajo, ampliada: la ausencia de
+requisitos se trata igual venga como `None` o como lista vacia, y en los dos
+casos se declara y `requirements_covered` es `false`.
+
 ## Relacion con las otras fichas, sin generalizar de mas
 
 - Con [ficha v0.4/0006](0006-router-tolerante-a-la-respuesta-del-modelo.md)
@@ -93,8 +133,9 @@ como entero.
 
 ### 2. Declarar cuando no hay requisitos, venga el plan de donde venga
 
-Si tras agotar los intentos no hay requisitos, la via del planificador emite la
-MISMA degradacion que la via del plan suministrado:
+Si no hay requisitos, se declara. Da igual de donde venga el plan y da igual si
+la ausencia llega como `None` o como lista vacia: son la misma ausencia y se
+tratan igual, con `requirements_covered: false` y la MISMA degradacion:
 
     {stage: plan, reason: requirements_unavailable, action: skip_coverage_check}
 
@@ -117,8 +158,13 @@ degradacion no es un corte.
 - Caso de conformidad: planificador que nunca declara requisitos -> tras agotar
   intentos, `degradations` contiene `requirements_unavailable`, con la misma
   forma que en la via del plan suministrado.
-- Caso de conformidad: la via del plan suministrado sigue comportandose
-  exactamente igual que hoy.
+- Caso de conformidad: plan suministrado con `requirements` como LISTA VACIA ->
+  `requirements_covered: false` y degradacion declarada. Hoy da `true` sin
+  degradacion, que es el fallo mas grave de esta ficha.
+- Caso de conformidad: plan suministrado con `requirements` ausente (`None`)
+  sigue comportandose exactamente igual que hoy.
+- El criterio de salida de la fase v0.4-B3 se revisa: "`degradations` vacio" no
+  basta si una afirmacion falsa tambien lo satisface.
 - El digest de conformidad se mueve por los casos nuevos y se DECLARA.
 - En laboratorio, el mismo prompt de tres partes produce 3 requisitos con su
   `covered_by`, y la etapa PLAN baja de dos llamadas al planificador a una. Se

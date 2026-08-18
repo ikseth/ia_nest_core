@@ -193,13 +193,33 @@ install_core() {
   bash "$REPO_DIR/install.sh" "${args[@]}"
 }
 
+wait_for_port() {
+  # systemd da por arrancado un servicio Type=simple en cuanto hace fork, no
+  # cuando el proceso escucha. Comprobar en ese instante es una carrera que se
+  # pierde siempre: hay que esperar al puerto, que es el hecho que importa.
+  local host="$1" port="$2" nombre="$3" intento
+  for ((intento = 1; intento <= 30; intento++)); do
+    if timeout 2 bash -c "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  error "$nombre no escucha en $host:$port tras 30 segundos"
+}
+
 enable_services() {
   [[ "${VALUES[SERVICE_ENABLE]}" == true ]] || return
   local rest="ianest-${VALUES[INSTANCE_NAME]}-rest.service"
   local mcp="ianest-${VALUES[INSTANCE_NAME]}-mcp.service"
   systemctl enable --now "$rest" "$mcp"
-  systemctl is-active --quiet "$rest" && systemctl is-active --quiet "$mcp" || error "los servicios no quedaron activos"
-  curl -fsS "http://${VALUES[REST_HOST]}:${VALUES[REST_PORT]}/runtime/health" >/dev/null || error "REST no responde en el puerto configurado"
+  wait_for_port "${VALUES[REST_HOST]}" "${VALUES[REST_PORT]}" "REST"
+  wait_for_port "${VALUES[MCP_HOST]}" "${VALUES[MCP_PORT]}" "MCP"
+  # Despues del puerto, el estado: un servicio en bucle de reinicio pasa por
+  # `active` a ratos, asi que preguntar solo por `is-active` no basta.
+  systemctl is-active --quiet "$rest" || error "$rest no quedo activo"
+  systemctl is-active --quiet "$mcp" || error "$mcp no quedo activo"
+  curl -fsS "http://${VALUES[REST_HOST]}:${VALUES[REST_PORT]}/runtime/health" >/dev/null \
+    || error "REST escucha pero no responde en /runtime/health"
 }
 
 report_backend_gpu() {

@@ -1,56 +1,53 @@
 # IA_NEST Core
 
-Nucleo IA local basado en dominios, orquestacion de modelos, configuracion
-declarativa e interfaz MCP.
+El motor del ente: recibe una peticion, decide que modelo la atiende y la
+ejecuta. Todo local, con modelos que corren en tu maquina o en tu red.
 
-Este repositorio nace como extraccion conceptual de IA_NEST, no como migracion
-directa del codigo existente.
+## Que hace, en una pantalla
 
-Para instalar y usar el core, ver el manual de usuario en
-[docs/manual/](docs/manual/).
+    prompt.run       responde a una pregunta con el modelo adecuado
+    reasoning.run    razona por pasos, con limites de tiempo y de gasto
+    task.plan        descompone una tarea en subtareas
+    task.run         las ejecuta, reparte entre modelos y combina el resultado
+    domain.route     decide a que dominio pertenece un texto, por sentido
+    runtime.health   dice como esta todo, incluido si el backend usa la GPU
+    capability.list  enumera lo que el core sabe hacer y como se invoca
 
-## Orden de lectura
+Son 16 capacidades y las tres interfaces -linea de comandos, REST y MCP- ofrecen
+exactamente las mismas. No hay funciones escondidas en una que falten en otra.
 
-1. `IA_NEST_CORE_CONTEXT.md`
-2. `docs/VISION_FUNCIONAL.md`
-3. `docs/LINEA_DE_ACTUACION.md`
-4. `docs/ALCANCE_CORE.md`
-5. `docs/CORE_CONTRACT.md`
-6. `docs/CONVENCIONES.md`
-7. `docs/ARCHITECTURE.md`
-8. `docs/PLAN.md`
+## Lo que NO hace, a proposito
 
-## Alcance de este repo
+Memoria, RAG, web, agentes, interfaz grafica y conciencia **no viven aqui**.
+Cada una es su propio repositorio y habla con este por contrato. El core no las
+conoce, y esa ignorancia es deliberada: es lo que impide que crezca sin freno.
 
-Este repo contiene solo el core basico:
+## Como empezar
 
-- modelos,
-- dominios,
-- orquestacion,
-- runtime local,
-- interfaz MCP del core,
-- configuracion,
-- instalacion y deteccion de runtime/GPU.
+**Si vas a instalarlo o usarlo**, el manual: [docs/manual/](docs/manual/). La
+instalacion desde cero, incluido su backend de modelos, esta en
+[docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
 
-RAG, web, consciencia, GUI e integraciones viven en repos separados.
+**Si vas a cambiar algo**, dos documentos y en este orden:
 
-## Instalacion local
+1. [docs/CORE_CONTRACT.md](docs/CORE_CONTRACT.md) - que promete el core. Es la
+   fuente de verdad de lo que hace y de la forma de sus respuestas.
+2. [docs/PLAN.md](docs/PLAN.md) - en que fase esta cada linea de trabajo y cual
+   es su criterio de salida.
 
-Requisitos:
+Con esos dos se puede trabajar. El resto es profundidad, no requisito.
 
-- Python 3.13
-- bash
-- pip/venv
+**Si te preguntas por que algo es como es**, mira
+[docs/decision_records/](docs/decision_records/): una decision por documento, con
+sus alternativas descartadas. No hace falta leerlos en orden ni todos; se
+consultan cuando una decision concreta sorprende.
 
-Instalacion basica:
+## Estado
 
-```bash
-./install.sh
-source .venv/bin/activate
-pytest
-```
+Linea v0.4 completa en codigo, sin publicar todavia. La version del paquete
+sigue en la anterior a proposito hasta que se corte el tag.
 
-Instalacion con interfaces MCP/REST:
+## Instalacion rapida
 
 ```bash
 ./install.sh --interfaces
@@ -58,31 +55,17 @@ source .venv/bin/activate
 pytest
 ```
 
-El script es idempotente: reutiliza `.venv` si ya existe. Para otra ruta:
+El script reutiliza `.venv` si ya existe. La configuracion real y los secretos no
+se versionan: `cp .env.example .env` y rellenar con valores locales.
 
-```bash
-./install.sh --venv /tmp/ianest_core_venv
-```
+## Como se trabaja aqui
 
-## Configuracion local
+Reglas del repo en [docs/CONVENCIONES.md](docs/CONVENCIONES.md), y las que aplican
+a todo el ente en el repositorio de gobernanza `ia_nest_meta`. Dos que conviene
+saber antes de escribir nada:
 
-La configuracion real y secretos no se versionan. Para preparar variables de
-entorno:
-
-```bash
-cp .env.example .env
-```
-
-Rellena `.env` con valores locales. El endpoint OpenAI-compatible debe venir
-por variable de entorno o configuracion local no versionada.
-
-## Deteccion de runtime/GPU
-
-La deteccion es local y no consulta hosts remotos:
-
-```bash
-ianest --config eval/fixtures/config.yaml runtime detect --json
-```
-
-Si `nvidia-smi` existe, reporta nombre y memoria de GPU. Si no existe o falla,
-devuelve `available: false` sin romper la ejecucion.
+- Los documentos van **sin acentos ni tildes**. Es deliberado y hay un test que
+  lo comprueba.
+- Cada cambio de comportamiento se acompana de un caso en la bateria de
+  evaluacion, y esa bateria se congela ANTES de implementar. Es lo que impide que
+  el criterio se ajuste para que pase la implementacion.

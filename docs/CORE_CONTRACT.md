@@ -70,16 +70,40 @@ Dos campos de GPU, con dos significados que no se mezclan (ADR 0049):
 - `gpu` describe el runtime LOCAL, la maquina donde corre el core. En un
   despliegue donde el backend vive en otro sitio, `available: false` es CIERTO y
   no es una regresion: esa maquina no tiene GPU.
-- `backend.gpu` describe lo que el BACKEND declara sobre su propio uso de GPU:
-  `status` con `in_use | cpu_only | unknown`, `models_loaded` y quien lo reporta.
-  `cpu_only` es el valor que justifica el campo: un modelo que no cabe en memoria
-  de video no falla, cae a CPU en silencio y responde un orden de magnitud mas
-  lento.
+- `backend.gpu` describe lo que el BACKEND declara sobre su propio uso de GPU. Es
+  una LISTA, con una entrada por endpoint distinto de los modelos configurados.
+  Cada entrada declara:
+
+      models         los `id` de modelo configurados que sirve ese endpoint.
+                     La entrada se identifica asi, NO por su URL: `runtime.health`
+                     no expone endpoints y no tiene autenticacion.
+      reported_by    quien lo reporta, o nulo.
+      status         in_use | partial | cpu_only | unknown
+      models_loaded  cuantos modelos tiene cargados ese endpoint.
+      reason         causa, solo cuando `status` es `unknown`:
+                     no_models_loaded | backend_unreachable | provider_unsupported
+
+  Significado de `status`, por modelo cargado: `in_use` esta entero en memoria de
+  video; `partial` esta a medias y parte de sus capas se ejecutan en el
+  procesador; `cpu_only` no ocupa memoria de video. `partial` y `cpu_only` son los
+  valores que justifican el campo -un modelo que no cabe no falla, se reparte o
+  cae al procesador, y responde varias veces mas lento sin avisar- y `partial` es
+  el mas frecuente de los dos.
+
+  Cuando un endpoint tiene varios modelos cargados, la entrada publica el PEOR de
+  sus estados (`cpu_only` < `partial` < `in_use`): en un informe de salud, un
+  modelo sano no puede tapar a uno enfermo.
+
+  El campo es un INDICADOR BASE de operacion. La observabilidad fina -series,
+  umbrales, historico- es de la capa de monitorizacion del ente (ADR 0037).
+
+`runtime.detect` publica el mismo campo, porque comparte implementacion con
+`runtime.health`.
 
 La sonda del backend es especifica del proveedor y OPCIONAL, por la misma costura
 y con el mismo patron de degradacion que el provisioning (ADR 0029): proveedor
-que no se reconoce o backend que no contesta dan `unknown`. `runtime.health`
-nunca falla por ella.
+que no se reconoce o backend que no contesta dan `unknown` con su `reason`.
+`runtime.health` nunca falla por ella.
 
 Declara ademas `core_version` (ADR 0046): la version del propio core, que es la
 cifra con la que las capas de encima fijan su vinculo por SemVer (ADR 0032). Es

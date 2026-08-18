@@ -258,11 +258,28 @@ def run_eval(
     return run_eval_core(battery_dir=battery_dir, track=track, config_path=config_path)
 
 
-def health(*, config_path: str | Path, availability: AvailabilityProvider | None = None) -> dict[str, Any]:
-    return detect_runtime(config_path=config_path, availability=availability)
+def health(
+    *,
+    config_path: str | Path,
+    availability: AvailabilityProvider | None = None,
+    provisioner_factory: Callable[[ModelConfig], Provisioner | None] | None = None,
+    gpu_status_factory: Callable[[], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return detect_runtime(
+        config_path=config_path,
+        availability=availability,
+        provisioner_factory=provisioner_factory,
+        gpu_status_factory=gpu_status_factory,
+    )
 
 
-def detect_runtime(*, config_path: str | Path, availability: AvailabilityProvider | None = None) -> dict[str, Any]:
+def detect_runtime(
+    *,
+    config_path: str | Path,
+    availability: AvailabilityProvider | None = None,
+    provisioner_factory: Callable[[ModelConfig], Provisioner | None] | None = None,
+    gpu_status_factory: Callable[[], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     config = load_config(config_path)
     registry = ModelRegistry(config, availability=availability)
     models = registry.model_records()
@@ -275,10 +292,81 @@ def detect_runtime(*, config_path: str | Path, availability: AvailabilityProvide
             "models": models,
             "available_models": sum(1 for model in models if model["available"]),
             "scope": "configured_models",
+            "gpu": _backend_gpu_status(getattr(config, "models", []), provisioner_factory),
         },
-        "gpu": _gpu_status(),
+        "gpu": (gpu_status_factory or _gpu_status)(),
         "mcp": {"protocol_version": _mcp_protocol_version()},
     }
+
+
+def _backend_gpu_status(
+    models: list[ModelConfig],
+    provisioner_factory: Callable[[ModelConfig], Provisioner | None] | None,
+) -> list[dict[str, Any]]:
+    factory = provisioner_factory or provisioner_for
+    groups: dict[str, list[ModelConfig]] = {}
+    for model in models:
+        groups.setdefault(model.endpoint, []).append(model)
+
+    entries = []
+    for endpoint_models in groups.values():
+        endpoint_models = sorted(endpoint_models, key=lambda model: model.id)
+        entry = {
+            "models": [model.id for model in endpoint_models],
+            "reported_by": None,
+            "status": "unknown",
+            "models_loaded": 0,
+            "reason": "provider_unsupported",
+        }
+        try:
+            provisioner = factory(endpoint_models[0])
+        except Exception:
+            entry["reason"] = "backend_unreachable"
+            entries.append(entry)
+            continue
+        if provisioner is None:
+            entries.append(entry)
+            continue
+        try:
+            loaded = provisioner.probe_gpu()
+            statuses = [_loaded_model_gpu_status(model) for model in loaded]
+        except Exception:
+            entry["reason"] = "backend_unreachable"
+            entries.append(entry)
+            continue
+        entry["reported_by"] = endpoint_models[0].provider
+        entry["models_loaded"] = len(loaded)
+        if not loaded:
+            entry["reason"] = "no_models_loaded"
+        else:
+            severity = {"cpu_only": 0, "partial": 1, "in_use": 2}
+            entry["status"] = min(statuses, key=severity.__getitem__)
+            entry["reason"] = None
+        entries.append(entry)
+
+    return sorted(entries, key=lambda entry: entry["models"])
+
+
+def _loaded_model_gpu_status(model: dict[str, object]) -> str:
+    name = model.get("name")
+    size = model.get("size")
+    size_vram = model.get("size_vram")
+    if (
+        not isinstance(name, str)
+        or not name
+        or not isinstance(size, int)
+        or isinstance(size, bool)
+        or size <= 0
+        or not isinstance(size_vram, int)
+        or isinstance(size_vram, bool)
+        or not 0 <= size_vram <= size
+    ):
+        raise ValueError("invalid backend GPU response")
+    if size_vram == size:
+        return "in_use"
+    if size_vram == 0:
+        return "cpu_only"
+    return "partial"
 
 
 def sse_encode(event: dict[str, Any]) -> str:

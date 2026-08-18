@@ -573,21 +573,55 @@ que hoy es invisible: un modelo que no cabe en memoria de video cae a CPU en
 silencio. Version objetivo: PATCH; viaja con la linea v0.4 si llega antes del
 tag.
 
-### Fase 1: contrato (reconciliada 2026-08-15)
+Esta linea va ANTES que la del instalador. El motivo es que el instalador
+verifica, y sin este campo su verificacion tendria que llevar sonda propia -que
+luego habria que retirar-. Con el orden asi, `deploy/setup.sh` nace leyendo
+`backend.gpu` de `runtime.health` y la comprobacion en bash de `size_vram` que
+prototipo desaparece en vez de arreglarse. El despliegue del laboratorio no
+estrena nada que haya que parchear despues.
 
-ADR 0049 escrito; `CORE_CONTRACT.md` con los dos campos de GPU y su significado.
+### Fase 1: contrato (completada 2026-08-17)
 
-Criterio de salida: decision reconciliada por el usuario y registrada, y la forma
-concreta de la sonda VERIFICADA contra la version del backend desplegada. La
-decision de fondo no depende de esa forma; los valores del contrato si.
+ADR 0049 escrito y reconciliado (2026-08-15), enmendado y reconciliado
+(2026-08-17); `CORE_CONTRACT.md` con los dos campos de GPU y su significado.
 
-### Fase 2: bateria
+El punto abierto queda CERRADO: la forma de la sonda se verifico contra
+ollama 0.12.2 -la version que fija `deploy/ollama.compose.yaml`- en el host de
+laboratorio, con los cuatro estados observados y ninguno deducido.
 
-Casos de conformidad con sonda guionizada para los tres estados (`in_use`,
-`cpu_only`, `unknown`) y test de degradacion con proveedor no reconocido o
-backend que no responde. `runtime.health` no falla en ninguno.
+Esa verificacion cambio el contrato en dos puntos, y por eso se hizo antes de
+congelar nada: aparecio el estado `partial` (un modelo que no cabe se reparte
+entre memoria de video y procesador, no cae del todo, y la regla anterior lo
+reportaba como `in_use`) y se fijo la regla de agregacion cuando un endpoint
+tiene varios modelos cargados. Ademas `backend.gpu` es una lista identificada por
+`id` de modelo, `unknown` lleva `reason`, y el campo se declara indicador base
+frente a la capa de monitorizacion (ADR 0037).
 
-Criterio de salida: bateria congelada antes de tocar el runtime.
+Criterio de salida (cumplido): decision reconciliada y registrada, y forma de la
+sonda verificada contra la version desplegada.
+
+### Fase 2: bateria (completada 2026-08-17)
+
+Casos de conformidad con sonda guionizada para los cuatro estados (`in_use`,
+`partial`, `cpu_only`, `unknown`), para las tres causas de `unknown`
+(`no_models_loaded`, `backend_unreachable`, `provider_unsupported`), para la
+regla de agregacion con varios modelos cargados en un endpoint, y para una
+configuracion con dos endpoints distintos (dos entradas, orden determinista).
+`runtime.health` no falla en ninguno.
+
+Los casos guionizan lo que devuelve el BACKEND -`size` y `size_vram` por modelo
+cargado- y esperan el `status` DERIVADO, con cifras tomadas de la verificacion
+real contra ollama 0.12.2. Guionizar el `status` no probaria nada: la regla ES
+la comparacion.
+
+Criterio de salida (cumplido): 11 casos congelados en
+`eval/battery/v0.4/backend_gpu.yaml.frozen` con sus dos fixtures propias, tests
+requeridos declarados en `eval/README.md`, digest sin mover.
+
+Nota para la fase 3: hoy no existe ninguna rama de `runtime.health` en el
+ejecutor de evaluacion, asi que la fase 3 implementa la sonda Y esa rama, con la
+inyeccion de `world.backend_probe`. Es el mismo reparto que hubo entre las fases
+v0.4-A2 y A3 con el catalogo.
 
 ### Fase 3: implementacion
 
@@ -599,7 +633,16 @@ Criterio de salida: conformance en verde con digest declarado; en laboratorio,
 `gpu.available: false` y `backend.gpu.status: in_use` a la vez, que es la prueba
 de que los dos campos dicen cosas distintas y las dos ciertas.
 
+Nota sobre ese gate: es sensible al reloj. `in_use` exige un modelo CARGADO en ese
+instante, y el backend lo descarga al vencer su `keep_alive`. El orden es
+inferencia real y acto seguido `runtime.health`; al reves da `unknown` con
+`reason: no_models_loaded`, que seria correcto y parecia un fallo.
+
 ## Linea del instalador del ente (abierta 2026-08-15)
+
+Va DESPUES de la linea de observacion del backend, por el motivo explicado alli:
+asi el instalador nace verificando con `backend.gpu` y no con una sonda propia
+que habria que retirar.
 
 Objetivo: que una maquina limpia quede convertida en entidad con un fichero de
 configuracion, y que la postura sobre el backend este registrada en vez de

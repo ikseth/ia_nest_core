@@ -379,3 +379,60 @@ Digest de conformidad declarado tras integrar ADR 0044 y ADR 0045 (81 casos
 totales: los 61 anteriores, sin regresiones, mas los 20 casos de presupuesto y
 esfuerzo):
 `6b7067efb290b135562a656e0406f26a4a06d5e4cb9be13fb5aaf05c44be678a`.
+
+## Bateria de la GPU del backend (ADR 0049, linea de observacion del backend)
+
+`eval/battery/v0.4/backend_gpu.yaml.frozen`: 11 casos de conformidad, escritos y
+CONGELADOS en la fase 2 y a integrar en la fase 3 quitando el sufijo.
+
+Fixtures propias: `eval/fixtures/backend_gpu.yaml` (dos modelos ollama sobre UN
+endpoint) y `eval/fixtures/backend_gpu_dos_endpoints.yaml` (dos endpoints
+distintos). Ninguno de esos endpoints existe: la sonda va guionizada desde el
+caso y no toca red. El tercer proveedor lo aporta `eval/fixtures/config.yaml`,
+cuyo `provider: fake` no tiene sonda y sirve para el caso de degradacion.
+
+**Regla de diseno**: los casos guionizan lo que devuelve el BACKEND -por modelo
+cargado, `size` y `size_vram`- y esperan el `status` DERIVADO. Un caso que
+guionizase el `status` no probaria nada, porque la regla ES la comparacion. Las
+cifras salen de la verificacion real contra ollama 0.12.2, no son inventadas.
+
+Cubre los cuatro estados (`in_use`, `partial`, `cpu_only`, `unknown`), las tres
+causas de `unknown` (`no_models_loaded`, `backend_unreachable`,
+`provider_unsupported`), la regla de agregacion cuando un endpoint tiene varios
+modelos cargados, la separacion en dos entradas con dos endpoints, el orden
+determinista y la invariante de que `runtime.health` nunca falla por la sonda.
+
+Dos casos son guardas de diseno y conviene no borrarlos aunque parezcan
+redundantes:
+
+- `backend_gpu_partial`: es el estado que la comprobacion `size_vram == 0` del
+  prototipo NO veia, y el mas probable con una sola tarjeta y varios dominios.
+  Sin esta guarda, alguien vuelve a la comparacion binaria y el fallo caro
+  -mayoria de capas en el procesador reportada como `in_use`- vuelve a ser
+  invisible.
+- `backend_gpu_orden_determinista`: la fixture declara `ollama_dos` ANTES que
+  `ollama_uno` a proposito. Si la implementacion devolviera las entradas en
+  orden de declaracion en vez de ordenadas, el digest bailaria entre ejecuciones
+  y este caso lo destapa.
+
+Tests pytest requeridos para la fase 3, por no ser expresables en la bateria
+declarativa:
+
+- Ninguna entrada de `backend.gpu` contiene la URL del endpoint, ni como valor
+  ni como clave. Es la propiedad que justifica identificar por `id` de modelo:
+  `runtime.health` no tiene autenticacion y no debe publicar la topologia
+  interna.
+- `gpu` (runtime LOCAL) y `backend.gpu` son independientes: con la deteccion
+  local sustituida por una que declara `available: false`, una entrada de
+  `backend.gpu` puede valer `in_use` a la vez. Es la prueba de que los dos
+  campos dicen cosas distintas y las dos ciertas, y es el gate de laboratorio de
+  la fase 3 expresado en conformidad.
+- La sonda NO se ejecuta en el camino de inferencia: `prompt.run` y `task.run`
+  no la invocan ni una vez, verificado con una sonda que fallaria si la llamasen.
+- Paridad CLI/REST/MCP del campo, derivada del catalogo y no escrita a mano.
+- `runtime.detect` publica el mismo `backend.gpu` que `runtime.health`, por
+  compartir implementacion.
+
+El digest de conformidad NO se mueve en la fase 2: el sufijo `.frozen` mantiene
+los casos fuera de la ejecucion. Se recalculara y se DECLARARA al integrarlos en
+la fase 3, porque anaden clave al payload publico de `runtime.health`.

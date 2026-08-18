@@ -600,7 +600,7 @@ frente a la capa de monitorizacion (ADR 0037).
 Criterio de salida (cumplido): decision reconciliada y registrada, y forma de la
 sonda verificada contra la version desplegada.
 
-### Fase 2: bateria
+### Fase 2: bateria (completada 2026-08-17)
 
 Casos de conformidad con sonda guionizada para los cuatro estados (`in_use`,
 `partial`, `cpu_only`, `unknown`), para las tres causas de `unknown`
@@ -609,7 +609,19 @@ regla de agregacion con varios modelos cargados en un endpoint, y para una
 configuracion con dos endpoints distintos (dos entradas, orden determinista).
 `runtime.health` no falla en ninguno.
 
-Criterio de salida: bateria congelada antes de tocar el runtime.
+Los casos guionizan lo que devuelve el BACKEND -`size` y `size_vram` por modelo
+cargado- y esperan el `status` DERIVADO, con cifras tomadas de la verificacion
+real contra ollama 0.12.2. Guionizar el `status` no probaria nada: la regla ES
+la comparacion.
+
+Criterio de salida (cumplido): 11 casos congelados en
+`eval/battery/v0.4/backend_gpu.yaml.frozen` con sus dos fixtures propias, tests
+requeridos declarados en `eval/README.md`, digest sin mover.
+
+Nota para la fase 3: hoy no existe ninguna rama de `runtime.health` en el
+ejecutor de evaluacion, asi que la fase 3 implementa la sonda Y esa rama, con la
+inyeccion de `world.backend_probe`. Es el mismo reparto que hubo entre las fases
+v0.4-A2 y A3 con el catalogo.
 
 ### Fase 3: implementacion
 

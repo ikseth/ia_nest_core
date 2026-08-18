@@ -1,0 +1,260 @@
+# Bateria congelada de la GPU del backend en runtime.health (ADR 0049).
+#
+# La fase 3 implementa la sonda y la rama de runtime.health del ejecutor de
+# evaluacion, y entonces integra estos casos quitando el sufijo .frozen.
+#
+# Regla de diseno de esta bateria: los casos guionizan lo que el BACKEND
+# devuelve -por modelo cargado, cuanto ocupa y cuanto de eso esta en memoria de
+# video- y esperan el `status` DERIVADO. Un caso que guionizase el `status`
+# directamente no probaria nada: la regla es justo la comparacion.
+#
+# `world.backend_probe` se indexa por endpoint resuelto y admite dos formas:
+#   loaded: [ {name, size, size_vram}, ... ]   respuesta del backend
+#   unreachable: true                          el backend no contesta
+#
+# Fixtures: eval/fixtures/backend_gpu.yaml (dos modelos, UN endpoint),
+# eval/fixtures/backend_gpu_dos_endpoints.yaml (dos endpoints distintos) y
+# eval/fixtures/config.yaml (proveedor `fake`, no reconocido por la sonda).
+
+- id: backend_gpu_in_use
+  track: conformance
+  description: "ADR 0049: modelo cargado que ocupa TODA su memoria de video -> in_use."
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded:
+          - {name: fake-a, size: 5778720768, size_vram: 5778720768}
+  expect:
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: ollama
+        status: in_use
+        models_loaded: 1
+        reason: null
+
+- id: backend_gpu_partial
+  track: conformance
+  description: >-
+    ADR 0049: modelo cargado A MEDIAS -> partial. Es el caso que la regla
+    size_vram == 0 no veia, y el mas probable con una sola tarjeta.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded:
+          - {name: fake-a, size: 5788157952, size_vram: 2446985216}
+  expect:
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: ollama
+        status: partial
+        models_loaded: 1
+        reason: null
+
+- id: backend_gpu_cpu_only
+  track: conformance
+  description: "ADR 0049: modelo cargado que NO ocupa memoria de video -> cpu_only."
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded:
+          - {name: fake-a, size: 4989140992, size_vram: 0}
+  expect:
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: ollama
+        status: cpu_only
+        models_loaded: 1
+        reason: null
+
+- id: backend_gpu_unknown_sin_modelos_cargados
+  track: conformance
+  description: >-
+    ADR 0049: el backend contesta y no tiene nada cargado -> unknown con
+    reason no_models_loaded. NO se carga un modelo para averiguarlo.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded: []
+  expect:
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: ollama
+        status: unknown
+        models_loaded: 0
+        reason: no_models_loaded
+
+- id: backend_gpu_unknown_backend_no_responde
+  track: conformance
+  description: >-
+    ADR 0049: el backend no contesta -> unknown con reason backend_unreachable
+    y reported_by nulo, porque nadie lo reporto.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        unreachable: true
+  expect:
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: null
+        status: unknown
+        models_loaded: 0
+        reason: backend_unreachable
+
+- id: backend_gpu_unknown_proveedor_no_reconocido
+  track: conformance
+  description: >-
+    ADR 0049: proveedor sin sonda -> unknown con reason provider_unsupported,
+    degradando solo, mismo patron que el provisioning (ADR 0029). El fixture
+    declara proveedor `fake` en dos endpoints distintos: dos entradas.
+  capability: runtime.health
+  fixture: eval/fixtures/config.yaml
+  input: {}
+  world: {}
+  expect:
+    backend_gpu:
+      - models: [fake_a]
+        reported_by: null
+        status: unknown
+        models_loaded: 0
+        reason: provider_unsupported
+      - models: [fake_b]
+        reported_by: null
+        status: unknown
+        models_loaded: 0
+        reason: provider_unsupported
+
+- id: backend_gpu_agregacion_el_peor_gana_partial
+  track: conformance
+  description: >-
+    ADR 0049: dos modelos cargados en el MISMO endpoint, uno entero en memoria
+    de video y otro a medias -> la entrada publica el peor, partial. Un modelo
+    sano no puede tapar a uno enfermo.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded:
+          - {name: fake-a, size: 5778720768, size_vram: 5778720768}
+          - {name: fake-b, size: 5788157952, size_vram: 2446985216}
+  expect:
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: ollama
+        status: partial
+        models_loaded: 2
+        reason: null
+
+- id: backend_gpu_agregacion_el_peor_gana_cpu_only
+  track: conformance
+  description: >-
+    ADR 0049: con tres cargados -entero, a medias y ninguno-, gana cpu_only,
+    que es el peor de la escala cpu_only < partial < in_use.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded:
+          - {name: fake-a, size: 5778720768, size_vram: 5778720768}
+          - {name: fake-b, size: 5788157952, size_vram: 2446985216}
+          - {name: fake-c, size: 4989140992, size_vram: 0}
+  expect:
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: ollama
+        status: cpu_only
+        models_loaded: 3
+        reason: null
+
+- id: backend_gpu_dos_endpoints_dos_entradas
+  track: conformance
+  description: >-
+    ADR 0049: dos endpoints distintos dan DOS entradas independientes, cada una
+    con su estado. Es la razon por la que el campo es lista y no objeto: con un
+    objeto, el backend en CPU quedaria tapado por el que esta en GPU.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu_dos_endpoints.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded:
+          - {name: fake-uno, size: 5778720768, size_vram: 5778720768}
+      "http://backend-dos:11434/v1":
+        loaded:
+          - {name: fake-dos, size: 4989140992, size_vram: 0}
+  expect:
+    backend_gpu:
+      - models: [ollama_dos]
+        reported_by: ollama
+        status: cpu_only
+        models_loaded: 1
+        reason: null
+      - models: [ollama_uno]
+        reported_by: ollama
+        status: in_use
+        models_loaded: 1
+        reason: null
+
+- id: backend_gpu_orden_determinista
+  track: conformance
+  description: >-
+    ADR 0049: el orden de la lista es determinista por los `id` de modelo de
+    cada entrada, NO el de declaracion. El fixture declara `ollama_dos` primero
+    a proposito: si la salida siguiera el orden de declaracion, este caso
+    fallaria.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu_dos_endpoints.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        loaded: []
+      "http://backend-dos:11434/v1":
+        loaded: []
+  expect:
+    backend_gpu_models_order:
+      - [ollama_dos]
+      - [ollama_uno]
+
+- id: backend_gpu_no_hace_fallar_runtime_health
+  track: conformance
+  description: >-
+    ADR 0049: la sonda es informe, no diagnostico. Con el backend caido, el
+    resto de runtime.health sale igual: status ok, core_version presente y el
+    campo `gpu` del runtime LOCAL intacto.
+  capability: runtime.health
+  fixture: eval/fixtures/backend_gpu.yaml
+  input: {}
+  world:
+    backend_probe:
+      "http://backend-uno:11434/v1":
+        unreachable: true
+  expect:
+    status: ok
+    core_version_present: true
+    gpu_present: true
+    backend_gpu:
+      - models: [ollama_a, ollama_b]
+        reported_by: null
+        status: unknown
+        models_loaded: 0
+        reason: backend_unreachable

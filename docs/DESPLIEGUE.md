@@ -84,9 +84,14 @@ consumen las capas de encima, que hablan por red.
 Por eso, tras actualizar el codigo de una maquina con servicios:
 
 ```
+git pull                                    # SIN sudo, ver el aviso de abajo
+sudo <clon>/.venv/bin/pip install -e . --no-deps
 sudo systemctl restart ianest-<instancia>-rest.service ianest-<instancia>-mcp.service
 python3 deploy/smoke_rest.py http://<host>:<puerto> --expect-version <version>
 ```
+
+El `pip install` va con `sudo` porque el venv es de root a proposito: un servicio
+no debe poder modificar su propio codigo. El `git`, NUNCA.
 
 El smoke se EJECUTA y devuelve codigo de salida; no es una tabla que se redacta.
 Comprueba la superficie -capacidades presentes, `/task/run` en JSON y
@@ -98,6 +103,27 @@ codigo anterior.
 
 Reinstalar tambien hace falta para que `core_version` cambie: sale de los
 metadatos del paquete instalado, no del arbol.
+
+### Nunca lances `git` con `sudo` dentro del clon
+
+Ni `install.sh` ni `deploy/setup.sh` invocan `git`: el clon lo mantiene el
+operador. Si en algun momento se lanza `sudo git pull` -o cualquier otro `git`
+como root-, todo lo que git escriba en esa pasada queda de root, y el clon entra
+en un punto muerto del que no sale ningun usuario:
+
+- el usuario normal no puede escribir `.git/FETCH_HEAD` porque es de root;
+- `root` se niega con "posesion dudosa" porque el DIRECTORIO es del usuario, que
+  es una proteccion de git contra ejecutar hooks ajenos y hace bien.
+
+Se sale devolviendo el clon a su dueno, sin tocar el venv:
+
+```
+cd <clon>
+sudo find . -path ./.venv -prune -o -user root -exec chown <usuario>:<grupo> {} +
+```
+
+Conviene mirar tambien el arbol de trabajo, no solo `.git`: un fichero versionado
+que quedara de root hace fallar el siguiente `checkout` que lo toque.
 
 ## Registro de ejecuciones
 

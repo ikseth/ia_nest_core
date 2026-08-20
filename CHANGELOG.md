@@ -9,11 +9,11 @@ Catalogo unico de capacidades y plan explicito de `task.run` (linea v0.4 del
 PLAN, tramos A, B y C), mas la GPU del backend en `runtime.health`. La version es
 MINOR por una sola ruptura: `task.run` deja de ser SSE por REST y su flujo se
 muda a `task.stream`. Validado: conformidad 125/125 con digest declarado
-(`8c88061a...`), 280 tests en verde, y smoke por CLI en laboratorio sobre la
-topologia hacia la que va el ente, con core y backend en maquinas distintas.
-`ia_nest_extended` ejercio la via `task.plan` -> enriquecer -> `task.run(plan)`
-de punta a punta por REST, con corpus y modelos reales, antes del corte: eso es
-lo que cierra la fase v0.4-B3.
+(`8c88061a...`), 280 tests en verde, y smoke POR REST en laboratorio contra el
+servicio reiniciado, sobre la topologia hacia la que va el ente: core en una VM
+sin GPU y backend en el anfitrion que si la tiene. `ia_nest_extended` ejercio la
+via `task.plan` -> enriquecer -> `task.run(plan)` de punta a punta por REST, con
+corpus y modelos reales, antes del corte: eso es lo que cierra la fase v0.4-B3.
 
 ### Anadido
 - Smoke por REST ejecutable (`deploy/smoke_rest.py`): comprueba contra la RED la

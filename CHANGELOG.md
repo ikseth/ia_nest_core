@@ -3,27 +3,30 @@
 Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 (ADR 0030). Sin acentos por convencion del repo.
 
-## [No publicado]
+## [v0.4.0] - 2026-08-20
 
-### Cambiado
-- `task.plan` publica siempre `degradations`, incluida la lista vacia cuando no
-  hay ninguna ([ficha v0.4/0007](docs/fixes/v0.4/0007-task-plan-no-publica-sus-degradaciones.md)),
-  y el planificador acepta `requirements` tanto como lista como mapa de id a
-  texto ([ficha v0.4/0008](docs/fixes/v0.4/0008-requisitos-del-planificador-perdidos-y-no-declarados.md)).
-  La ausencia de requisitos se declara igual en planes derivados y
-  suministrados, llegue como campo ausente o lista vacia. En este ultimo caso,
-  `requirements_covered` cambia de `true` a `false`: corrige una afirmacion
-  falsa, no una ruptura. Impacto: patch.
-
-- Instalador declarativo ([ficha v0.4/0003](docs/fixes/v0.4/0003-instalador-declarativo.md)):
-  `deploy/setup.sh` acepta un fichero plano con precedencia argumento > fichero
-  > defecto y `--print-config` sin efectos, usa la configuracion del core como
-  unica fuente de modelos, separa configuracion y estado en `/opt/ia_nest`, y
-  puede crear/habilitar services por instancia. REST acepta `IANEST_CONFIG` para
-  leer configuracion fuera del clon; el compose fija su nombre de proyecto y
-  `install.sh` acepta Python >= 3.13. No toca contrato publico. Impacto: patch.
+Catalogo unico de capacidades y plan explicito de `task.run` (linea v0.4 del
+PLAN, tramos A, B y C), mas la GPU del backend en `runtime.health`. La version es
+MINOR por una sola ruptura: `task.run` deja de ser SSE por REST y su flujo se
+muda a `task.stream`. Validado: conformidad 125/125 con digest declarado
+(`8c88061a...`), 280 tests en verde, y smoke por CLI en laboratorio sobre la
+topologia hacia la que va el ente, con core y backend en maquinas distintas.
+`ia_nest_extended` ejercio la via `task.plan` -> enriquecer -> `task.run(plan)`
+de punta a punta por REST, con corpus y modelos reales, antes del corte: eso es
+lo que cierra la fase v0.4-B3.
 
 ### Anadido
+- Smoke por REST ejecutable (`deploy/smoke_rest.py`): comprueba contra la RED la
+  superficie que consumen las capas de encima -capacidades presentes,
+  `/task/run` en JSON y `/task/stream` en SSE, `backend.gpu` como lista y sin
+  filtrar topologia, el `tags` retirado tolerado- e imprime las lineas del gate
+  de tarea. `--expect-version` atrapa el fallo que lo motiva: actualizar el arbol
+  no reinicia un servicio ya arrancado, asi que la CLI queda al dia y la REST
+  sigue con el codigo anterior. Responde al hallazgo 3 de
+  `ia_nest_meta/docs/handoff/avisos_al_core_desde_extended_2026-08-18.md`: un
+  smoke que se ejecuta en vez de una tabla que se redacta. Sin impacto de
+  version: es verificacion.
+
 - Gate automatico de la convencion ASCII (`tests/test_convenciones.py`): falla
   con fichero, linea y caracter si aparece un no-ASCII en docs, codigo, config o
   scripts, con el bloque de dibujo de cajas declarado como excepcion para los
@@ -110,6 +113,23 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   Implementacion en la fase v0.4-C del PLAN
   ([ficha v0.4/0001](docs/fixes/v0.4/0001-retirada-de-routing-rules.md)).
   Impacto: **minor**.
+
+- `task.plan` publica siempre `degradations`, incluida la lista vacia cuando no
+  hay ninguna ([ficha v0.4/0007](docs/fixes/v0.4/0007-task-plan-no-publica-sus-degradaciones.md)),
+  y el planificador acepta `requirements` tanto como lista como mapa de id a
+  texto ([ficha v0.4/0008](docs/fixes/v0.4/0008-requisitos-del-planificador-perdidos-y-no-declarados.md)).
+  La ausencia de requisitos se declara igual en planes derivados y
+  suministrados, llegue como campo ausente o lista vacia. En este ultimo caso,
+  `requirements_covered` cambia de `true` a `false`: corrige una afirmacion
+  falsa, no una ruptura. Impacto: patch.
+
+- Instalador declarativo ([ficha v0.4/0003](docs/fixes/v0.4/0003-instalador-declarativo.md)):
+  `deploy/setup.sh` acepta un fichero plano con precedencia argumento > fichero
+  > defecto y `--print-config` sin efectos, usa la configuracion del core como
+  unica fuente de modelos, separa configuracion y estado en `/opt/ia_nest`, y
+  puede crear/habilitar services por instancia. REST acepta `IANEST_CONFIG` para
+  leer configuracion fuera del clon; el compose fija su nombre de proyecto y
+  `install.sh` acepta Python >= 3.13. No toca contrato publico. Impacto: patch.
 
 ### Corregido
 - El router semantico conserva una clasificacion valida cuando el modelo omite
@@ -351,6 +371,8 @@ laboratorio sobre hardware real (RTX 3060 + Ollama).
 - Manual de usuario modular (`docs/manual/`), fronteras hacia capas externas
   (`docs/FRONTERAS.md`) y 30 ADRs.
 
-[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.2.0...HEAD
+[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/ikseth/ia_nest_core/compare/v0.3.0...v0.4.0
+[v0.3.0]: https://github.com/ikseth/ia_nest_core/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/ikseth/ia_nest_core/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/ikseth/ia_nest_core/releases/tag/v0.1.0

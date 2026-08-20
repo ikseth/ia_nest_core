@@ -74,6 +74,57 @@ ubicacion efectiva; en ese caso no declares `TEMPLATE`. La configuracion y el
 endpoint efectivo se pasan a REST mediante `IANEST_CONFIG` y su `EnvironmentFile`,
 por lo que los servicios no dependen de una ruta dentro del clon.
 
+## Verificar por REST despues de actualizar
+
+`deploy/setup.sh` verifica con la CLI, que lee del disco en cada invocacion. Un
+servicio REST ya arrancado NO: sigue con el codigo que cargo en memoria, asi que
+actualizar el arbol no lo actualiza. Y la REST es justo la superficie que
+consumen las capas de encima, que hablan por red.
+
+Por eso, tras actualizar el codigo de una maquina con servicios:
+
+```
+git pull                                    # SIN sudo, ver el aviso de abajo
+sudo <clon>/.venv/bin/pip install -e . --no-deps
+sudo systemctl restart ianest-<instancia>-rest.service ianest-<instancia>-mcp.service
+python3 deploy/smoke_rest.py http://<host>:<puerto> --expect-version <version>
+```
+
+El `pip install` va con `sudo` porque el venv es de root a proposito: un servicio
+no debe poder modificar su propio codigo. El `git`, NUNCA.
+
+El smoke se EJECUTA y devuelve codigo de salida; no es una tabla que se redacta.
+Comprueba la superficie -capacidades presentes, `/task/run` en JSON y
+`/task/stream` en SSE, `backend.gpu` como lista y sin filtrar topologia- e
+imprime las lineas del gate de tarea para que se lean. `--expect-version` es lo
+que atrapa un proceso viejo: si el servicio declara otra version que la
+instalada, el smoke falla en vez de dar por buena una verificacion que midio el
+codigo anterior.
+
+Reinstalar tambien hace falta para que `core_version` cambie: sale de los
+metadatos del paquete instalado, no del arbol.
+
+### Nunca lances `git` con `sudo` dentro del clon
+
+Ni `install.sh` ni `deploy/setup.sh` invocan `git`: el clon lo mantiene el
+operador. Si en algun momento se lanza `sudo git pull` -o cualquier otro `git`
+como root-, todo lo que git escriba en esa pasada queda de root, y el clon entra
+en un punto muerto del que no sale ningun usuario:
+
+- el usuario normal no puede escribir `.git/FETCH_HEAD` porque es de root;
+- `root` se niega con "posesion dudosa" porque el DIRECTORIO es del usuario, que
+  es una proteccion de git contra ejecutar hooks ajenos y hace bien.
+
+Se sale devolviendo el clon a su dueno, sin tocar el venv:
+
+```
+cd <clon>
+sudo find . -path ./.venv -prune -o -user root -exec chown <usuario>:<grupo> {} +
+```
+
+Conviene mirar tambien el arbol de trabajo, no solo `.git`: un fichero versionado
+que quedara de root hace fallar el siguiente `checkout` que lo toque.
+
 ## Registro de ejecuciones
 
 Las ejecuciones concretas (host, comandos, salidas, fecha) se registran en

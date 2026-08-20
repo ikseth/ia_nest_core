@@ -299,7 +299,7 @@ Criterio de salida (cumplido): smoke dentro de umbral; ficha
 registrada. El corte de v0.3.0 queda a decision del usuario en la
 reconciliacion.
 
-## Linea v0.4 (propuesta 2026-07-27; ampliada 2026-08-14)
+## Linea v0.4 (propuesta 2026-07-27; ampliada 2026-08-14; entregada en v0.4.0)
 
 Objetivo doble mas un saldo pendiente, en tramos independientes que se publican
 juntos:
@@ -484,7 +484,25 @@ false` con `degradations` VACIO, porque no es una degradacion -nada se replego n
 se perdio- sino una cobertura incompleta, que es otra cosa. Sin la segunda linea,
 el gate lo dejaria pasar.
 
-### Fase v0.4-C: retirada de routing_rules
+Criterio de salida CUMPLIDO (2026-08-18). `ia_nest_extended` ejercio la via de
+punta a punta en su fase 7b con corpus y modelos reales: `task.plan` ->
+enriquecer cada subtarea con RAG gateado por su dominio -> `task.run(plan)`, en
+tres brazos (sin plan, plan en eco, plan enriquecido) con tres repeticiones cada
+uno. `plan_attempts` 0, `requirements_covered` true y `degradations` vacio en
+todas las pasadas con plan suministrado. La leccion de ADR 0035 queda satisfecha:
+la capacidad tiene consumidor real, no solo compila.
+
+Hallazgo abierto de ese ejercicio, que NO bloquea el corte de v0.4.0 porque no
+toca contrato: el gate paso 18 de 18, y dos de esas 18 no convergieron -una corto
+con `replan_unavailable` y otra con `max_iterations`-. Ninguna de las tres lineas
+mira COMO termino la tarea, y `replan_unavailable` es especifico del camino que
+este gate existe para validar. La cuarta linea propuesta es
+`stop_reason == task_done`. Queda pendiente de decidir, con el dato delante: al
+anadirla, dos de esas dieciocho pasadas habrian fallado. Fuente:
+`ia_nest_meta/docs/handoff/avisos_al_core_desde_extended_2026-08-18.md`,
+hallazgos 1 y 2.
+
+### Fase v0.4-C: retirada de routing_rules (completada 2026-08-14)
 
 Ejecuta lo que ADR 0043 decidio y la linea del router dejo a medias: la clave
 `routing_rules` sale del esquema, del cargador y del validador, con rechazo
@@ -495,11 +513,18 @@ Va en esta linea porque romper contrato de config es MINOR y v0.4.0 ya se corta
 como MINOR: aqui no cuesta version, y aplazarlo deja una clave que el validador
 bendice y el motor ignora.
 
-Criterio de salida: `config.validate` rechaza `routing_rules` con `ConfigError`
-y mensaje accionable, por las tres interfaces; nada en `src/` la referencia;
-digest de conformance intacto o recalculado y declarado.
+Criterio de salida (cumplido): `config.validate` rechaza `routing_rules` con
+`ConfigError` y mensaje accionable, por las tres interfaces; nada en `src/` la
+referencia salvo el propio rechazo y sus tests; digest de conformance INTACTO
+(`6b7067ef...`), como se esperaba, porque la clave no influia en ningun
+resultado.
 
-## Linea del router semantico (abierta 2026-08-07; entregada en v0.3.0, con un pendiente)
+La ficha quedo en `implementada` el mismo dia con su verificacion independiente,
+pero esta entrada no lo recogio. Lo detecto `ia_nest_extended` al preparar el
+corte de v0.4.0 y se anota aqui: el PLAN es donde se mira para saber si la linea
+esta cerrada, asi que un cierre solo en la ficha no cuenta como cierre.
+
+## Linea del router semantico (abierta 2026-08-07; entregada en v0.3.0)
 
 Objetivo: el enrutado por dominio pasa de un filtro de palabras clave a un
 clasificador semantico (ADR 0043). Un solo router para `domain.route` (publica)
@@ -507,6 +532,9 @@ y para las subtareas de `task.run`; `prompt.run` va directo (sin router);
 `routing_rules.keywords` se retira; el core es agnostico en modelos. Version
 objetivo: MINOR (rompe contrato de config); el numero lo corta el usuario. Misma
 disciplina: contrato y bateria ANTES de implementar.
+
+El pendiente que esta linea dejo -`routing_rules` sobreviviendo en el esquema
+como clave ignorada- lo cierra la fase v0.4-C, publicada en v0.4.0.
 
 ### Fase 1: contrato (completada 2026-08-07)
 
@@ -575,7 +603,7 @@ ejes de maquina y la medicion del coste permanecen fuera del nivel. Bateria
 integrada: 20/20; conformance total 81/81 con digest declarado en
 `eval/README.md`; pytest verde con y sin extras.
 
-## Linea de observacion del backend (abierta 2026-08-15)
+## Linea de observacion del backend (abierta 2026-08-15; entregada en v0.4.0)
 
 Objetivo: que `runtime.health` diga quien tiene la GPU y si la esta usando, en
 vez de deducirlo del hardware local (ADR 0049). Nace de la topologia hacia la que
@@ -634,15 +662,26 @@ ejecutor de evaluacion, asi que la fase 3 implementa la sonda Y esa rama, con la
 inyeccion de `world.backend_probe`. Es el mismo reparto que hubo entre las fases
 v0.4-A2 y A3 con el catalogo.
 
-### Fase 3: implementacion
+### Fase 3: implementacion (completada 2026-08-18)
 
 La sonda entra por la costura del provisioning (ADR 0029), fuera del camino de
 inferencia, y `runtime.health` publica `backend.gpu` con paridad CLI/REST/MCP
 -que sale del catalogo, no a mano-.
 
-Criterio de salida: conformance en verde con digest declarado; en laboratorio,
-`gpu.available: false` y `backend.gpu.status: in_use` a la vez, que es la prueba
-de que los dos campos dicen cosas distintas y las dos ciertas.
+Criterio de salida (cumplido): conformidad 117/117 con digest recalculado y
+DECLARADO (`b4fb4350...`), cambio anunciado por adelantado en ADR 0049 porque
+anade clave al payload publico; los 106 casos anteriores no cambian. Y el gate de
+laboratorio PASA, con el core en una VM sin GPU y el backend en el anfitrion que
+si la tiene:
+
+    gpu local (la VM):  available = False        cierto, la VM no tiene GPU
+    backend.gpu:        status = in_use          cierto, el backend si la usa
+                        models_loaded = 1, reported_by = ollama
+
+Los dos campos dicen cosas distintas y las dos ciertas a la vez, que es lo que
+ADR 0049 buscaba. Verificado ademas que la salida no contiene ni host, ni puerto,
+ni la palabra `endpoint`: `runtime.health` no tiene autenticacion y no publica la
+topologia interna.
 
 Nota sobre ese gate: es sensible al reloj. `in_use` exige un modelo CARGADO en ese
 instante, y el backend lo descarga al vencer su `keep_alive`. El orden es

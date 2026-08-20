@@ -1,6 +1,6 @@
 # 0007: `task.plan` repliega en silencio cuando el planificador devuelve algo ilegible
 
-Estado: propuesta
+Estado: implementada (2026-08-18)
 Tipo: hueco de contrato (adicion compatible)
 Impacto de version: patch
 Version objetivo: v0.4.x
@@ -115,4 +115,21 @@ poder medir si mejora.
 
 ## Resultado
 
-Pendiente.
+Implementada junto con la ficha 0008, en una sola pasada, porque ninguna de las
+dos se puede verificar sola: la 0007 sin la 0008 produce un `task.plan` que
+publica `degradations` vacio -el instrumento existe y no mide nada- y la 0008 sin
+la 0007 corrige el hecho y deja a `task.plan` sin poder contarlo.
+
+`TaskPlanResult` gana el campo `degradations`, con la misma forma que en
+`task.run` y publicado SIEMPRE: lista vacia significa sin degradaciones, no "no
+se sabe". Paridad CLI/REST/MCP derivada del catalogo.
+
+Conformidad 121/121 con digest recalculado y DECLARADO
+(`fa9b79ff...`) en `eval/README.md`. Dos casos existentes cambian, los dos por
+efecto previsto: el caso sano de `task.plan` aserta `degradations` vacio, y el
+caso I4 del plan irrecuperable declara ademas `requirements_unavailable`, porque
+un repliegue a subtarea unica tampoco tiene requisitos que comprobar.
+
+En laboratorio, con modelos reales, el mismo prompt de tres partes pasa de una
+subtarea con `degradations` de dos entradas a tres subtareas con `degradations`
+vacio: la degradacion se ve en lugar de esconderse.

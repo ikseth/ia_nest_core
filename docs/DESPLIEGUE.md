@@ -74,6 +74,31 @@ ubicacion efectiva; en ese caso no declares `TEMPLATE`. La configuracion y el
 endpoint efectivo se pasan a REST mediante `IANEST_CONFIG` y su `EnvironmentFile`,
 por lo que los servicios no dependen de una ruta dentro del clon.
 
+## Verificar por REST despues de actualizar
+
+`deploy/setup.sh` verifica con la CLI, que lee del disco en cada invocacion. Un
+servicio REST ya arrancado NO: sigue con el codigo que cargo en memoria, asi que
+actualizar el arbol no lo actualiza. Y la REST es justo la superficie que
+consumen las capas de encima, que hablan por red.
+
+Por eso, tras actualizar el codigo de una maquina con servicios:
+
+```
+sudo systemctl restart ianest-<instancia>-rest.service ianest-<instancia>-mcp.service
+python3 deploy/smoke_rest.py http://<host>:<puerto> --expect-version <version>
+```
+
+El smoke se EJECUTA y devuelve codigo de salida; no es una tabla que se redacta.
+Comprueba la superficie -capacidades presentes, `/task/run` en JSON y
+`/task/stream` en SSE, `backend.gpu` como lista y sin filtrar topologia- e
+imprime las lineas del gate de tarea para que se lean. `--expect-version` es lo
+que atrapa un proceso viejo: si el servicio declara otra version que la
+instalada, el smoke falla en vez de dar por buena una verificacion que midio el
+codigo anterior.
+
+Reinstalar tambien hace falta para que `core_version` cambie: sale de los
+metadatos del paquete instalado, no del arbol.
+
 ## Registro de ejecuciones
 
 Las ejecuciones concretas (host, comandos, salidas, fecha) se registran en

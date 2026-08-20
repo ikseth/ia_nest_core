@@ -209,7 +209,7 @@ Debe tener:
 - salida observable,
 - capacidad de desactivar pasos no necesarios.
 
-### `task.plan` (linea v0.4: contrato fijado, implementacion pendiente)
+### `task.plan`
 
 Ejecuta SOLO la etapa PLAN de `task.run` y devuelve el plan sin ejecutarlo
 (ADR 0040, enmendado por ADR 0047). Alcance `mode=pipeline`.
@@ -345,10 +345,9 @@ sigue sin producir `done | rerun | replan`, asume `done` y declara
 degradacion no es un corte, no amplia el catalogo de cortes tipados y conserva
 el resultado ya producido.
 
-Entrada `plan` opcional (ADR 0040, enmendado por ADR 0047; linea v0.4:
-contrato fijado, implementacion pendiente). Alcance `mode=pipeline`. Sin `plan`,
-`task.run` se comporta exactamente como sin esta entrada: opt-in, cero
-regresion.
+Entrada `plan` opcional (ADR 0040, enmendado por ADR 0047). Alcance
+`mode=pipeline`. Sin `plan`, `task.run` se comporta exactamente como sin esta
+entrada: opt-in, cero regresion.
 
 `task.run` acepta los tres campos que devuelve `task.plan` -`plan`,
 `requirements` y `effort`- ademas del `prompt` original (ADR 0048). Quien

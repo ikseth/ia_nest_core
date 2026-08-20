@@ -1,6 +1,6 @@
 # 0008: los requisitos del planificador se pierden por la forma, y nadie lo dice
 
-Estado: propuesta
+Estado: implementada (2026-08-18)
 Tipo: robustez del runtime + hueco de declaracion
 Impacto de version: patch
 Version objetivo: v0.4.x
@@ -184,4 +184,29 @@ degradacion no es un corte.
 
 ## Resultado
 
-Pendiente.
+Implementada junto con la ficha 0007, en una sola pasada, por el motivo anotado
+alli.
+
+El planificador puede devolver `requirements` como MAPA de id a texto, que es
+como lo hace el modelo real de forma repetible, y se normaliza a la lista de
+siempre. El contrato publico no cambia por esto. Precedente: la ficha v0.3/0001
+hizo lo mismo en DERIVE con un id entero.
+
+Y la ausencia de requisitos pasa a ser UN solo hecho, venga el plan del
+planificador o del consumidor, y llegue como `None` o como lista vacia. Ahi
+estaba el fallo grave: la guarda preguntaba por `is None`, una lista vacia no es
+`None`, caia por la otra rama y `not uncovered` daba `True`. El core afirmaba que
+la cobertura estaba verificada cuando no habia nada que verificar. Los tres casos
+dan ahora `requirements_covered` false y declaran la misma degradacion.
+
+Cambio de significado declarado en el `CHANGELOG`: `requirements_covered` pasa de
+`true` a `false` con requisitos vacios. Es corregir una afirmacion falsa, no una
+ruptura.
+
+Conformidad 121/121 con digest recalculado y DECLARADO (`fa9b79ff...`).
+
+Medido en laboratorio con modelos reales:
+
+    requisitos recuperados       0 -> 3, cada uno con su covered_by correcto
+    llamadas al planificador     2 -> 1 (se acabo la renegociacion inutil)
+    plan suministrado con []     requirements_covered True -> False, con degradacion

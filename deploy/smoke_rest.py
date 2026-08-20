@@ -121,8 +121,17 @@ def c_runtime_health(base: str, ctx: dict) -> str:
     exigir(isinstance(backend["gpu"], list), "backend.gpu deberia ser una LISTA")
     crudo = json.dumps(payload)
     exigir("endpoint" not in crudo, "backend.gpu filtra la palabra endpoint")
-    estados = [e.get("status") for e in backend["gpu"]]
-    return f"gpu local available={payload['gpu'].get('available')}, backend.gpu={estados}"
+    # `unknown` sin su `reason` obliga a repetir el diagnostico a mano, y sus tres
+    # causas piden acciones distintas: no_models_loaded es benigno, y
+    # backend_unreachable NO lo es aunque la inferencia funcione -pasa cuando la
+    # sonda mira a un endpoint sin resolver-.
+    estados = [
+        e.get("status") if e.get("status") != "unknown" else f"unknown/{e.get('reason')}"
+        for e in backend["gpu"]
+    ]
+    local = payload["gpu"].get("available")
+    gate = "PASA" if local is False and "in_use" in estados else "-"
+    return f"gpu local available={local}, backend.gpu={estados}, gate ADR 0049: {gate}"
 
 
 def c_config_validate(base: str, ctx: dict) -> str:
@@ -217,13 +226,24 @@ def c_task_stream_es_sse(base: str, ctx: dict) -> str:
     return f"SSE, {len(eventos)} eventos, ultimo={eventos[-1]}"
 
 
+# El orden NO es cosmetico: `prompt.run` va ANTES que `runtime.health` para que
+# la propia sonda encuentre un modelo cargado. `in_use` exige un modelo cargado en
+# ese instante, y el backend lo descarga al vencer su `keep_alive`; consultar
+# primero da `unknown/no_models_loaded`, que seria correcto y parece un fallo.
+#
+# La inferencia de calentamiento la hace el smoke POR REST, no el operador desde
+# su shell. Calentar a mano con la CLI parece equivalente y no lo es: la CLI no
+# resuelve la variable de configuracion del core que la REST si respeta (hallazgo
+# 4 del handoff de extended del 2026-08-18), asi que lanzada fuera del directorio
+# con el `.env` falla en silencio y deja la sonda sin nada que ver. Ese error de
+# metodo ya se ha cobrado tres pasadas de laboratorio.
 COMPROBACIONES = [
     ("capability.list", c_capability_list),
     ("config.validate", c_config_validate),
-    ("runtime.health", c_runtime_health),
     ("domain.route", c_domain_route),
     ("domain.route sin tags", c_domain_route_sin_tags),
     ("prompt.run", c_prompt_run),
+    ("runtime.health", c_runtime_health),
     ("task.plan", c_task_plan),
     ("task.run es JSON", c_task_run_es_json),
     ("task.run con plan", c_task_run_con_plan),

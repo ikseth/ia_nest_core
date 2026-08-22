@@ -345,6 +345,38 @@ sigue sin producir `done | rerun | replan`, asume `done` y declara
 degradacion no es un corte, no amplia el catalogo de cortes tipados y conserva
 el resultado ya producido.
 
+Contribuciones vacias (ADR 0051). Una subtarea cuya respuesta, ya saneada
+(ADR 0042), queda VACIA no es un resultado, y el core lo declara en vez de
+integrarlo:
+
+- emite `{stage: fanout, reason: empty_subtask_output, action:
+  excluded_from_combine, subtask: "<indice>"}`, una entrada por subtarea
+  afectada;
+- esa contribucion NO entra en el material que recibe el combinador;
+- si NINGUNA subtarea produjo contenido, no se invoca al combinador: la
+  respuesta combinada es vacia y la degradacion dice por que. No hay corte nuevo
+  para el caso; el precedente es `prompt.run`, que devuelve la respuesta vacia
+  del modelo con su `finish_reason`. EVALUATE decide desde ahi.
+
+Un `finish_reason: length` con texto NO vacio no es una degradacion: en
+`pipeline` tocar techo es el regimen normal, empezando por el combinador.
+
+**Lo que el verde de `task.run` NO dice (ADR 0051).** Sus senales son
+MECANICAS, y conviene leerlas por lo que afirman:
+
+- `stop_reason: task_done` afirma que el bucle termino sin chocar con ningun
+  limite y que el evaluador acepto;
+- `degradations` vacio afirma que no hubo repliegue ni perdida declarada;
+- `requirements_covered: true` afirma que cada requisito tiene al menos una
+  subtarea que dijo cubrirlo.
+
+Ninguna afirma que la respuesta sea CIERTA. El core no dispone de fuente de
+verdad -RAG, memoria y datos web son de `ia_nest_extended` (ADR 0031), y el
+control deliberado sobre lo que se responde es de `ia_nest_core_conscience`
+(ADR 0034)-, su combinador tiene prohibido por diseno verificar afirmaciones, y
+su evaluador juzga sin fuente. Quien necesite veracidad la verifica fuera del
+core, contra una fuente, y no leyendo estas tres senales.
+
 Entrada `plan` opcional (ADR 0040, enmendado por ADR 0047). Alcance
 `mode=pipeline`. Sin `plan`, `task.run` se comporta exactamente como sin esta
 entrada: opt-in, cero regresion.

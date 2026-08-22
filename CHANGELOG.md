@@ -3,6 +3,30 @@
 Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 (ADR 0030). Sin acentos por convencion del repo.
 
+## [No publicado]
+
+### Decidido
+- **Lo que el verde del core no dice, y el vacio que si puede declarar**
+  (ADR 0051): disposicion de los tres hallazgos que `ia_nest_extended` midio el
+  2026-08-22 (issue #36). Se ACEPTA que el core declare una subtarea que no
+  produjo nada -degradacion `empty_subtask_output`, la contribucion vacia no
+  entra al combinador, y si ninguna subtarea produjo contenido no se invoca al
+  combinador-, se ADOPTA la cuarta linea del gate (`stop_reason == task_done`) y
+  se RECHAZAN por escrito dos cosas: cualquier senal de veracidad en el core, y
+  llevar el determinismo del planificador al contrato publico. Contrato y linea
+  de trabajo en `docs/CORE_CONTRACT.md` y `docs/PLAN.md`; la implementacion va
+  por sus fases. Impacto previsto: PATCH.
+
+### Cambiado
+- `config/core.lab.example.yaml` deja de servir de fabrica el fallo que su propio
+  comentario describe: el dominio `razonamiento` gana perfil propio con
+  presupuesto suficiente para la cadena de pensamiento, en vez de compartir el de
+  512 tokens que producia `finish_reason: length` y cadena vacia. El
+  planificador pasa a un perfil `temperature: 0.0`, que es la palanca del
+  operador para planes reproducibles. Solo plantilla: ni codigo, ni esquema, ni
+  contrato.
+  [ficha v0.4/0009](docs/fixes/v0.4/0009-el-ejemplo-publicado-sirve-su-propio-fallo.md)
+
 ## [v0.4.0] - 2026-08-20
 
 Catalogo unico de capacidades y plan explicito de `task.run` (linea v0.4 del

@@ -7,6 +7,15 @@ Fases segun `LINEA_DE_ACTUACION.md`. Regla: no se abre una fase sin validar
 la anterior. Cada fase tiene criterio de salida falsable. Este documento no
 acumula ideas sin decision.
 
+Regla de criterio de salida (ADR 0051): las senales que emite el propio core
+-`stop_reason`, `degradations`, `requirements_covered`, `params.effort`- son
+MECANICAS. Bastan para cerrar una fase que afirma "la maquinaria hace lo que
+dice"; NO bastan para cerrar una fase que afirma algo sobre la CALIDAD de las
+respuestas. Esa necesita un control externo a esas senales: contraste contra
+`prompt.run` sobre la misma pregunta, o casos de respuesta conocida verificados
+fuera del evaluador del core. **El evaluador del core no es criterio de
+aceptacion del core.**
+
 ## Fases 1-4: completadas
 
 - Fase 1 Contexto IA: `IA_NEST_CORE_CONTEXT.md` (validado).
@@ -497,10 +506,15 @@ toca contrato: el gate paso 18 de 18, y dos de esas 18 no convergieron -una cort
 con `replan_unavailable` y otra con `max_iterations`-. Ninguna de las tres lineas
 mira COMO termino la tarea, y `replan_unavailable` es especifico del camino que
 este gate existe para validar. La cuarta linea propuesta es
-`stop_reason == task_done`. Queda pendiente de decidir, con el dato delante: al
-anadirla, dos de esas dieciocho pasadas habrian fallado. Fuente:
+`stop_reason == task_done`. Fuente:
 `ia_nest_meta/docs/handoff/avisos_al_core_desde_extended_2026-08-18.md`,
 hallazgos 1 y 2.
+
+DECIDIDO (ADR 0051, 2026-08-22): la cuarta linea se ADOPTA -el smoke por REST ya
+la imprime desde v0.4.0- y con ella se cierra este pendiente. Pero no basta: con
+el roster real, cuatro pasadas de una pregunta factual dieron `task_done`,
+`degradations` vacio y contenido falso las cuatro. De ahi sale la regla de
+criterio de salida de la cabecera de este PLAN.
 
 ### Fase v0.4-C: retirada de routing_rules (completada 2026-08-14)
 
@@ -709,6 +723,77 @@ independencia del entorno del ente y del entorno de laboratorio nuevo.
 
 Version objetivo: ninguna sobre el contrato; lo del instalador va como patch.
 
+## Linea de la senal de vacio (abierta 2026-08-22)
+
+Objetivo: que el core deje de integrar en silencio una subtarea que no produjo
+nada, y que diga en el contrato lo que su verde NO afirma (ADR 0051). Nace del
+hallazgo 1 y del hallazgo 3 del brief de `ia_nest_extended` del 2026-08-22
+(issue #36), que apuntaban al mismo sitio sin saberlo.
+
+Version objetivo: PATCH. R1 anade un valor a un vocabulario ya publicado y
+aditivo; R2 y R3 corrigen comportamiento observable sin cambiar ninguna forma.
+
+Medida que la origina, hecha por el cable contra un banco local que emite
+`<think>` sin cerrar y `finish_reason: length` -no habia laboratorio alcanzable
+ese dia-, tres pasadas por brazo:
+
+    una subtarea vacia de dos    stop=task_done  degradations=[]  covered=True
+    LAS DOS subtareas vacias     stop=task_done  degradations=[]  covered=True
+
+Con cero contenido producido, el core entrega respuesta final y la declara sana.
+
+### Fase 1: contrato (completada 2026-08-22)
+
+ADR 0051 reconciliado; `CORE_CONTRACT.md` con las tres reglas de contribucion
+vacia y con lo que el verde de `task.run` no dice;
+[ficha v0.4/0009](fixes/v0.4/0009-el-ejemplo-publicado-sirve-su-propio-fallo.md)
+para el ejemplo publicado.
+
+Criterio de salida (cumplido): decision reconciliada por el usuario y
+registrada, con sus dos rechazos por escrito (senal de veracidad en el core;
+determinismo del planificador en el contrato).
+
+### Fase 2: bateria
+
+Casos de conformidad deterministas, congelados antes de tocar el runtime:
+subtarea vacia -> degradacion declarada con su indice y ausencia de esa
+contribucion en el material del combinador; TODAS vacias -> no se invoca al
+combinador y la respuesta es vacia; `finish_reason: length` con texto no vacio ->
+NINGUNA degradacion (el falso positivo que hay que evitar); sin subtareas vacias
+-> salida identica a la actual, byte a byte.
+
+Nota de herramienta: el ejecutor de evaluacion no sabe hoy guionizar
+`finish_reason` ni respuestas vacias por modelo -`ScriptedFakeAdapter` admite el
+parametro, pero el runner nunca se lo pasa-. Esa palanca entra en esta fase, con
+los casos; sin ella, la bateria no puede expresar el defecto.
+
+Criterio de salida: casos congelados y tests requeridos declarados en
+`eval/README.md`; digest sin mover.
+
+### Fase 3: implementacion
+
+Las tres reglas en `task_runtime`, con la bateria integrada y el digest
+recalculado y DECLARADO.
+
+Criterio de salida: conformidad en verde con digest declarado; pytest verde con
+y sin extras; ninguna ejecucion sin subtareas vacias cambia de salida.
+
+### Fase 4: puerta de laboratorio
+
+Con modelos reales, y CON CONTROL, que es lo que exige la regla de criterio de
+salida de este PLAN: repetir el protocolo de cuatro pasadas de extended sobre una
+pregunta factual y contrastar cada respuesta contra la misma pregunta respondida
+de una pieza por `prompt.run`. Lo que se mide no es que el gate salga verde, sino
+si la degradacion aparece cuando debe y no aparece cuando no debe.
+
+Se cruzan aqui, en la misma visita, las dos medidas que ADR 0051 dejo abiertas:
+
+- que un perfil de planificador con `temperature: 0.0` colapse la varianza del
+  tamano del plan con modelo real (medido esta que el parametro VIAJA al backend;
+  no que el backend obedezca);
+- que el ejemplo corregido de la ficha 0009 deje de dar cadena vacia en el
+  dominio `razonamiento`.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).
@@ -719,3 +804,10 @@ Version objetivo: ninguna sobre el contrato; lo del instalador va como patch.
   exista una herramienta concreta que lo justifique (anti-entropia); sin fase
   asignada (ADR 0022).
 - Optimizacion de rendimiento antes de tener el core funcionando.
+- Cualquier senal de VERACIDAD en el core: verificar exige fuente de verdad, y el
+  core no la tiene ni la tendra (ADR 0051, D2). Enriquecimiento en
+  `ia_nest_extended`, control deliberado en `ia_nest_core_conscience`.
+- Determinismo del planificador como campo del contrato (`seed` o similar), y
+  cualquier acotacion de la varianza del plan dentro del core (ADR 0051, D5): el
+  hogar de los parametros de muestreo es el perfil del operador, que ya funciona,
+  y la via reproducible del core es congelar el plan con `task.plan`.

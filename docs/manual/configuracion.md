@@ -81,6 +81,18 @@ Parametros de generacion, limites y `system` opcional. Campos: `id`,
         max_context_tokens: 4096
         system: "Responde siempre en espanol."
 
+Cualquier clave ADICIONAL del perfil viaja al backend como parametro de
+generacion, tal cual, salvo las tres que son limites del core y no del modelo
+(`max_iterations`, `max_time_s`, `max_context_tokens`). Ahi es donde se declara,
+por ejemplo, un `seed` si tu backend lo honra. El core no modela esos
+parametros: los transporta.
+
+Un dominio servido por un modelo de RAZONAMIENTO necesita perfil propio con
+presupuesto mayor. Ese modelo emite su cadena de pensamiento antes de la
+respuesta, y el core la sanea en origen (ADR 0042): si el techo de tokens llega
+antes de que la cadena cierre, la respuesta util es cadena VACIA con
+`finish_reason: length`.
+
 ### orchestration
 Objetivos y limites de `task.run`. El bloque base es el nivel de esfuerzo
 `medium`. `default_effort` selecciona el nivel cuando la peticion no envia
@@ -131,6 +143,13 @@ coste y no son una politica de esfuerzo.
 Las renegociaciones de PLAN y EVALUATE no son parametros de configuracion:
 cada etapa dispone de una por tarea, fijada en contrato (ADR 0041). Son
 independientes y se observan como `plan_attempts` y `evaluation_attempts`.
+
+Determinismo del plan: el planificador es un modelo muestreado, asi que el mismo
+prompt con el mismo `effort` puede dar planes de tamano distinto, y eso mueve el
+coste. Es palanca del OPERADOR, no del contrato: dale al planificador un perfil
+con `temperature: 0.0` (y `seed`, si tu backend lo honra). Para medir `task.run`
+de forma reproducible hay ademas una via del core: congelar el plan con
+`task.plan` y pasarselo a `task.run`, que lo acepta tal cual.
 
 ### identity_defaults
 `user_id`, `service` por defecto.

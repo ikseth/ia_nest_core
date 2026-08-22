@@ -70,13 +70,42 @@ domains:
     description: "Deduccion logica, problemas abstractos, planificacion y razonamiento paso a paso."
     preferred_model: deepseek_reason
     fallback_models: [qwen_tech]
-    profile: default
+    profile: razonamiento
     status: active
 
 profiles:
   - id: default
     temperature: 0.2
     max_tokens: 512
+    top_p: 1.0
+    max_iterations: 4
+    max_time_s: 60
+    max_context_tokens: 4096
+    system: "Responde siempre en espanol, de forma clara y concisa."
+  # Un modelo de razonamiento emite su cadena de pensamiento ANTES de la
+  # respuesta. Con 512 tokens el pensamiento agota el presupuesto y el core
+  # entrega cadena vacia con `finish_reason: length`, porque ADR 0042 sanea el
+  # canal de razonamiento en origen. El dominio que lo use necesita perfil
+  # propio. La cifra es un PUNTO DE PARTIDA: la buena se mide contra el modelo
+  # que despliegues.
+  - id: razonamiento
+    temperature: 0.2
+    max_tokens: 2048
+    top_p: 1.0
+    max_iterations: 4
+    max_time_s: 120
+    max_context_tokens: 4096
+    system: "Responde siempre en espanol, de forma clara y concisa."
+  # El plan lo emite un modelo muestreado: el mismo prompt puede dar planes de
+  # tamano distinto, y eso mueve el coste y hace poco reproducible cualquier
+  # medida sobre `task.run`. El determinismo es palanca del OPERADOR, aqui: los
+  # parametros del perfil viajan al backend tal cual. Si tu backend honra
+  # `seed`, anadelo a este perfil. Para medir sin que el planificador mueva el
+  # suelo, la via del core es otra: congelar el plan con `task.plan` y pasarlo a
+  # `task.run` (ADR 0040/0047/0048).
+  - id: planificador
+    temperature: 0.0
+    max_tokens: 1024
     top_p: 1.0
     max_iterations: 4
     max_time_s: 60
@@ -93,8 +122,11 @@ orchestration:
   # repliega a una subtarea unica y la orquestacion multi-modelo no llega a
   # ocurrir. Verificado en laboratorio (2026-08-18): con deepseek_reason, 1
   # subtarea siempre; con qwen_tech, 3 subtareas correctas y el mismo prompt.
-  # deepseek_reason sigue sirviendo al dominio `razonamiento`, que es su sitio.
-  planner: { model: qwen_tech, profile: default }
+  #
+  # deepseek_reason sigue sirviendo al dominio `razonamiento`, pero NO con el
+  # perfil de 512: ahi el mismo diagnostico daba subtareas con cadena vacia. Por
+  # eso ese dominio tiene perfil propio (ficha v0.4/0009).
+  planner: { model: qwen_tech, profile: planificador }
   combiner: { model: mistral_nemo, profile: default }
   max_subtasks: 6
   max_iterations: 2

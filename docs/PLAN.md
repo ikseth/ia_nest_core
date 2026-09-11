@@ -723,6 +723,27 @@ independencia del entorno del ente y del entorno de laboratorio nuevo.
 
 Version objetivo: ninguna sobre el contrato; lo del instalador va como patch.
 
+### Estado (revisado 2026-09-11)
+
+ENTREGADO y publicado en v0.4.0, con verificacion en laboratorio el 2026-08-18:
+una maquina limpia queda convertida en entidad con un fichero de configuracion,
+sus modelos descargados, sus dos units escuchando, inferencia real respondiendo y
+la suite en verde en esa maquina. ADR 0050 registra la postura sobre el backend.
+
+La linea sigue ABIERTA por un solo punto, comprobado sobre el arbol el
+2026-09-11: la escapatoria `MODELS=pull|skip` de la
+[ficha v0.4/0003](fixes/v0.4/0003-instalador-declarativo.md) se decidio despues
+de implementar el resto y nunca se implemento; la clave no existe en
+`deploy/setup.sh`.
+
+Criterio de salida de la linea: esa clave implementada, con su precedencia
+-argumento sobre fichero sobre defecto- y una instalacion que con `MODELS=skip`
+no descarga nada y aun asi deja el core instalado y verificable.
+
+Se anota aqui, y no solo en la ficha, por la leccion de la fase v0.4-C: un cierre
+que solo consta en la ficha no cuenta como cierre, porque el PLAN es donde se
+mira.
+
 ## Linea de la senal de vacio (abierta 2026-08-22)
 
 Objetivo: que el core deje de integrar en silencio una subtarea que no produjo

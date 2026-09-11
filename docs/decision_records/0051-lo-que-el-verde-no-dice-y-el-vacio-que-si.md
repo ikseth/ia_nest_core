@@ -1,9 +1,9 @@
 # Decision 0051: lo que el verde del core no dice, y el vacio que si puede declarar
 
 Fecha: 2026-08-22
-Estado: reconciliado por el usuario (2026-08-22). **Enmendado 2026-09-11** tras
-cerrar en laboratorio sus dos puntos abiertos; la enmienda queda pendiente de
-reconciliar.
+Estado: reconciliado por el usuario (2026-08-22); **enmendado y reconciliado
+2026-09-11**, tras cerrar en laboratorio sus dos puntos abiertos. La
+reconciliacion de la enmienda es el merge del PR #37 por el usuario.
 
 ## Enmiendas de 2026-09-11, todas medidas
 

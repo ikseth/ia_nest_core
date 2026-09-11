@@ -109,6 +109,16 @@ Declara ademas `core_version` (ADR 0046): la version del propio core, que es la
 cifra con la que las capas de encima fijan su vinculo por SemVer (ADR 0032). Es
 consulta de introspeccion: no requiere identidad.
 
+Y `build_id` (ADR 0052): identidad del ARTEFACTO que el proceso tiene cargado,
+como digest del paquete importado. Responde a una pregunta que `core_version` no
+puede responder -si dos procesos que declaran la misma version sirven el mismo
+codigo-, porque la version sale del manifiesto y no del artefacto. Vale `unknown`
+explicito cuando no se puede calcular.
+
+**`core_version` gobierna el vinculo por SemVer; `build_id` es observabilidad y
+no se usa para fijar dependencias.** Son dos ejes distintos y ninguno sustituye
+al otro.
+
 ### `capability.list`
 
 Enumera las capacidades que el core expone y como se invocan (ADR 0046). Es
@@ -118,7 +128,8 @@ El catalogo del que responde es la FUENTE UNICA de la que se derivan la CLI y
 las rutas REST, y contra la que se asertan las herramientas MCP. No es una lista
 mantenida aparte.
 
-Debe devolver `core_version` y, por capacidad:
+Debe devolver `core_version`, `build_id` -con el sentido y la regla de
+`runtime.health`- y, por capacidad:
 
 - nombre canonico y descripcion corta,
 - si transporta identidad y si su respuesta es streaming,
@@ -128,7 +139,22 @@ Debe devolver `core_version` y, por capacidad:
   textos de ayuda, banderas de render y entradas de la CLI -una entrada puede
   rellenar varios parametros a la vez, como el fichero de plan de `task.run`
   (ADR 0046, enmienda D1-b)-; nombre de herramienta MCP. NULO en la interfaz
-  donde no se expone.
+  donde no se expone,
+- como se LEE su respuesta (ADR 0052): un descriptor de presentacion en su
+  proyeccion de CLI, con una de estas formas -`text`, un campo que se imprime tal
+  cual; `row`, una fila de campos; `table`, una fila por elemento de una lista
+  con sus columnas; `opaque`, el core no declara presentacion-. El core declara
+  QUE SE LEE, nunca COMO SE PINTA: ni formato, ni anchos, ni estilo. `opaque` es
+  una declaracion, no un hueco: dice que ahi se cae a JSON a proposito.
+
+La presentacion del PROGRESO de las capacidades de streaming queda fuera: es una
+vista en vivo de eventos que el consumidor ya modela, no la presentacion de una
+respuesta.
+
+El gate del catalogo (ADR 0046) cubre las dos direcciones y las dos caras: toda
+capacidad con proyeccion de CLI declara presentacion, y lo declarado coincide con
+lo que su renderizador hace (ADR 0052). Sin eso, la declaracion envejeceria en
+silencio, que es la historia de `tags`.
 
 Las capacidades que no se exponen en alguna interfaz se declaran igualmente, con
 su hueco explicito. Los huecos vigentes y su motivo estan en ADR 0046:
@@ -197,6 +223,13 @@ Debe devolver:
 - dominio usado,
 - parametros efectivos,
 - trazabilidad minima.
+
+Su hermana `prompt.stream` entrega lo mismo por eventos, y su evento `done`
+publica el objeto `trace` -con `request_id`- igual que lo publican los `done` de
+`reasoning.stream` y `task.stream` (ADR 0052). Las tres capacidades de streaming
+tienen la misma auditabilidad: una respuesta que no se puede atribuir a su
+request no es auditable, y quien persiste lo que el core produce necesita saber
+de que request salio.
 
 ### `reasoning.run`
 

@@ -17,6 +17,17 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   de trabajo en `docs/CORE_CONTRACT.md` y `docs/PLAN.md`; la implementacion va
   por sus fases. Impacto previsto: PATCH.
 
+- **La respuesta del core se describe a si misma** (ADR 0052): disposicion de los
+  tres Change Requests que `ia_nest_extended` tenia abiertos. Se ACEPTA publicar
+  `build_id` -identidad del artefacto cargado- junto a `core_version`, con la
+  regla de que la version gobierna SemVer y el build es observabilidad; se ACEPTA
+  que `prompt.stream` publique el `trace` que sus dos hermanas ya publican; y se
+  ACEPTA que el catalogo declare como se LEE cada respuesta, en forma gruesa
+  (`text`, `row`, `table`, `opaque`), con el gate de ADR 0046 extendido a la
+  salida. `CR-0003` se acepta REFORMULADO: pedia el commit desplegado, y un
+  identificador leido de git describe el arbol de trabajo, que es justo lo que
+  mintio. Impacto previsto: PATCH.
+
 ### Cambiado
 - `config/core.lab.example.yaml` deja de servir de fabrica el fallo que su propio
   comentario describe. Medido en laboratorio (2026-09-11), la causa no era la que

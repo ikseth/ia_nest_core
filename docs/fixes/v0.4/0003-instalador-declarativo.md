@@ -1,6 +1,8 @@
 # 0003: instalador declarativo, con fichero de configuracion y personalizacion
 
-Estado: implementada (revision 2 - 2026-08-18; puntos abiertos cerrados 2026-08-18)
+Estado: implementada SALVO un punto, verificada en laboratorio (revision 2 -
+2026-08-18). Los dos puntos abiertos quedaron DECIDIDOS el 2026-08-18; uno de
+ellos, `MODELS=pull|skip`, sigue sin implementar. Ver Resultado
 Tipo: mejora del instalador (no toca contrato publico)
 Impacto de version: patch
 Version objetivo: v0.4.x
@@ -272,4 +274,21 @@ Todo lo demas esta entregado y verificado en laboratorio. Pendiente solo:
 
 ## Resultado
 
-Pendiente.
+Entregado y publicado en v0.4.0. Verificado en laboratorio el 2026-08-18
+estrenando `deploy/setup.sh` sobre una maquina limpia, con fichero de
+configuracion y sin mas argumentos: instalacion completa de punta a punta, cuatro
+modelos descargados por red hacia el backend del anfitrion, los dos units
+escuchando, inferencia real respondiendo y la suite en 273/273 en esa maquina.
+Cuatro hallazgos de ese estreno se corrigieron el mismo dia.
+
+**Lo que NO esta entregado**, comprobado el 2026-09-11 sobre el arbol: la
+escapatoria `MODELS=pull|skip`. La clave no aparece en `deploy/setup.sh` ni en
+`deploy/ejemplo.setup.conf`. Se DECIDIO el 2026-08-18, despues de implementar el
+resto, y ahi se quedo.
+
+Esta ficha se reviso el 2026-09-11 porque decia tres cosas distintas en tres
+sitios -cabecera `implementada`, cuerpo con un pendiente, y este apartado en
+"Pendiente"-, mientras el CHANGELOG ya la daba por entregada en v0.4.0 y el PLAN
+no decia nada. La inconsistencia es del tipo que `ia_nest_extended` ya destapo en
+la fase v0.4-C: el sitio donde se mira para saber si algo esta cerrado es el
+PLAN, y estaba mudo.

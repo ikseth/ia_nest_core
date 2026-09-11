@@ -17,7 +17,8 @@ Doctrina transversal del ente (repo de gobernanza `ia_nest_meta`), que aplica
 aqui y no se duplica en este repo:
 
 - `docs/DOCTRINA_MULTI_IA.md`: roles, modo ciego, regla de la inconsistencia,
-  regla del registro, handoff.
+  regla del registro, regla de la puerta de laboratorio -que define que significa
+  "validada" al cerrar una fase, meta ADR 0010- y handoff.
 - `docs/CONVENCIONES_TRANSVERSALES.md`: docs en ASCII puro, identificadores en
   ingles snake_case, citas `<repo> ADR NNNN`, repo publico, y hogar unico de los
   documentos (se referencia, no se copia; meta ADR 0008).

@@ -81,6 +81,25 @@ Parametros de generacion, limites y `system` opcional. Campos: `id`,
         max_context_tokens: 4096
         system: "Responde siempre en espanol."
 
+Cualquier clave ADICIONAL del perfil viaja al backend como parametro de
+generacion, tal cual, salvo las tres que son limites del core y no del modelo
+(`max_iterations`, `max_time_s`, `max_context_tokens`). Ahi es donde se declara,
+por ejemplo, un `seed` si tu backend lo honra. El core no modela esos
+parametros: los transporta.
+
+Un dominio servido por un modelo de RAZONAMIENTO necesita perfil propio, y no
+basta con subirle el techo. Ese modelo emite su cadena de pensamiento antes de
+la respuesta, y el core la sanea en origen (ADR 0042): si `</think>` no llega
+antes del techo, la respuesta util es cadena VACIA con `finish_reason: length`.
+
+Medido contra `deepseek-r1:8b` (2026-09-11): con `temperature: 0.2` y
+`top_p: 1.0` el modelo entra en bucle de repeticion dentro de la cadena y agota
+2048, 4096 u 8192 tokens por igual, incluso ante "cuanto es 2+2". Con el
+muestreo que el propio modelo recomienda la cadena a veces cierra en unos
+cientos de tokens y a veces no cierra en miles: la longitud varia mucho entre
+pasadas del mismo prompt. Usa el muestreo que recomiende tu modelo, dale holgura
+real, y no des por hecho que existe un techo que lo garantice.
+
 ### orchestration
 Objetivos y limites de `task.run`. El bloque base es el nivel de esfuerzo
 `medium`. `default_effort` selecciona el nivel cuando la peticion no envia
@@ -131,6 +150,19 @@ coste y no son una politica de esfuerzo.
 Las renegociaciones de PLAN y EVALUATE no son parametros de configuracion:
 cada etapa dispone de una por tarea, fijada en contrato (ADR 0041). Son
 independientes y se observan como `plan_attempts` y `evaluation_attempts`.
+
+Determinismo del plan: el planificador es un modelo muestreado, asi que el mismo
+prompt con el mismo `effort` puede dar planes distintos, y eso mueve el coste.
+La tentacion es bajarle la temperatura a 0. **Medido, sale mal**: con
+`qwen2.5:7b` a `temperature: 0.0`, el planificador dejo de declarar requisitos
+en 7 de 7 pasadas -degradacion `requirements_unavailable`, cobertura sin
+comprobar- y escribio las subtareas en ingles pese al system prompt; a
+`temperature: 0.2` el mismo prompt dio el mismo plan 6 de 6 veces, con sus
+requisitos (2026-09-11). El muestreo no es la palanca.
+
+La via del core para medidas reproducibles es otra, y no depende del modelo:
+congelar el plan con `task.plan` y pasarselo a `task.run`, que lo acepta tal
+cual.
 
 ### identity_defaults
 `user_id`, `service` por defecto.

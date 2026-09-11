@@ -3,6 +3,36 @@
 Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 (ADR 0030). Sin acentos por convencion del repo.
 
+## [No publicado]
+
+### Decidido
+- **Lo que el verde del core no dice, y el vacio que si puede declarar**
+  (ADR 0051): disposicion de los tres hallazgos que `ia_nest_extended` midio el
+  2026-08-22 (issue #36). Se ACEPTA que el core declare una subtarea que no
+  produjo nada -degradacion `empty_subtask_output`, la contribucion vacia no
+  entra al combinador, y si ninguna subtarea produjo contenido no se invoca al
+  combinador-, se ADOPTA la cuarta linea del gate (`stop_reason == task_done`) y
+  se RECHAZAN por escrito dos cosas: cualquier senal de veracidad en el core, y
+  llevar el determinismo del planificador al contrato publico. Contrato y linea
+  de trabajo en `docs/CORE_CONTRACT.md` y `docs/PLAN.md`; la implementacion va
+  por sus fases. Impacto previsto: PATCH.
+
+### Cambiado
+- `config/core.lab.example.yaml` deja de servir de fabrica el fallo que su propio
+  comentario describe. Medido en laboratorio (2026-09-11), la causa no era la que
+  se supuso: no es el presupuesto -2048, 4096 y 8192 tokens dan cadena vacia por
+  igual, y tambien la da "cuanto es 2+2"- sino que el modelo de razonamiento
+  entra en bucle dentro de su cadena de pensamiento y `</think>` no llega. El
+  ejemplo pasa a servir el dominio `razonamiento` con un modelo normal y un
+  perfil de 2048 tokens, retira el modelo de razonamiento tambien de los
+  fallbacks, y cuenta en su comentario lo medido. Puerta pasada 3 de 3. Solo
+  plantilla: ni codigo, ni esquema, ni contrato.
+  [ficha v0.4/0009](docs/fixes/v0.4/0009-el-ejemplo-publicado-sirve-su-propio-fallo.md)
+- `docs/manual/configuracion.md` corrige el consejo que daba sobre determinismo
+  del planificador. Bajar la temperatura a 0 NO estabiliza el plan: medido, el
+  planificador deja de declarar requisitos (7 de 7) y escribe en otro idioma. La
+  via reproducible es congelar el plan con `task.plan`.
+
 ## [v0.4.0] - 2026-08-20
 
 Catalogo unico de capacidades y plan explicito de `task.run` (linea v0.4 del

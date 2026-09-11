@@ -7,7 +7,8 @@ Fases segun `LINEA_DE_ACTUACION.md`. Regla: no se abre una fase sin validar
 la anterior. Cada fase tiene criterio de salida falsable. Este documento no
 acumula ideas sin decision.
 
-Regla de criterio de salida (ADR 0051): las senales que emite el propio core
+Regla de criterio de salida (ADR 0051, hoy tambien doctrina del ente en
+meta ADR 0010): las senales que emite el propio core
 -`stop_reason`, `degradations`, `requirements_covered`, `params.effort`- son
 MECANICAS. Bastan para cerrar una fase que afirma "la maquinaria hace lo que
 dice"; NO bastan para cerrar una fase que afirma algo sobre la CALIDAD de las

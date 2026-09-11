@@ -20,6 +20,18 @@ Definir y estabilizar el core antes de escribir integraciones.
 
 No se abre una fase nueva si la anterior no esta documentada y validada.
 
+Que significa VALIDADA no lo fija este documento: es vocabulario comun del ente y
+vive en `ia_nest_meta/docs/DOCTRINA_MULTI_IA.md`, regla de la puerta de
+laboratorio (meta ADR 0010). En resumen, para no tener que abrir el otro fichero:
+una fase que cambia comportamiento observable no cierra sin una ejecucion contra
+un despliegue real, por la superficie que consumen las capas de encima, con
+criterio declarado ANTES de medir, ejecutada en vez de narrada, y cruzada por dos
+agentes.
+
+Lo que este repo pone de su parte es el PROCEDIMIENTO: `deploy/smoke_rest.py`
+para la superficie REST, la bateria de conformidad con su digest declarado, y el
+criterio propio de cada fase del `PLAN`.
+
 ## Uso de IA
 
 La IA puede proponer, revisar y codificar, pero no debe ampliar alcance por

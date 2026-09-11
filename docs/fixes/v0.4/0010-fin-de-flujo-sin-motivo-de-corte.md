@@ -1,6 +1,7 @@
 # 0010: un flujo que termina a medias es indistinguible de uno que termina bien
 
-Estado: propuesta
+Estado: propuesta; su forma se decide en la fase 2 de la linea de la senal del
+vacio, junto a la bateria de ADR 0051 (acordado con el usuario el 2026-09-11)
 Tipo: hueco de declaracion en el adaptador
 Impacto de version: patch (previsto)
 Version objetivo: v0.4.x

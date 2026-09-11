@@ -776,6 +776,16 @@ determinismo del planificador en el contrato).
 
 ### Fase 2: bateria
 
+**Alcance acordado con el usuario (2026-09-11): esta fase cubre TAMBIEN la
+[ficha v0.4/0010](fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md)**, cuya
+forma se decide aqui, antes de congelar nada. Van juntas por tres razones, y
+ninguna es comodidad: son el mismo defecto a dos alturas -el core no distingue
+"termino" de "no produjo nada"-, tocan el mismo tramo de codigo, y separarlas
+mueve el digest de conformidad dos veces y paga dos visitas de laboratorio por el
+mismo camino. Hay ademas dependencia real: R1 se dispara con la respuesta VACIA,
+asi que si 0010 acaba sintetizando un `finish_reason`, el caso "cortado a medias
+con texto" cambia de dueno y habria que rehacer casos recien congelados.
+
 Casos de conformidad deterministas, congelados antes de tocar el runtime:
 subtarea vacia -> degradacion declarada con su indice y ausencia de esa
 contribucion en el material del combinador; TODAS vacias -> no se invoca al

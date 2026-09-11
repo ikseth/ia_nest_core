@@ -838,6 +838,68 @@ como terminacion limpia
 ([ficha v0.4/0010](fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md)). R1 no
 lo cubre -ahi hay texto, no vacio- y su forma es decision de contrato.
 
+## Linea de la respuesta que se describe a si misma (abierta 2026-09-11)
+
+Objetivo: que la respuesta del core diga QUE ARTEFACTO la produjo, QUE REQUEST la
+produjo y COMO SE LEE (ADR 0052). Cierra de una vez los tres Change Requests que
+`ia_nest_extended` tenia abiertos -`CR-0003`, `CR-0004` y `CR-0005`-, que
+llegaron por separado y resultaron ser el mismo punto ciego: el contrato describe
+con detalle lo que se ENVIA y casi nada de la respuesta como objeto.
+
+Version objetivo: PATCH. Tres adiciones, ningun renombrado ni retirada; el numero
+lo corta el usuario.
+
+### Fase 1: contrato (completada 2026-09-11)
+
+ADR 0052 reconciliado; `CORE_CONTRACT.md` con `build_id` y su regla -gobierna
+SemVer `core_version`, no el build-, con la presentacion declarada en el catalogo
+y con el `trace` de `prompt.stream`; respuestas a los tres CR emitidas en
+`ia_nest_meta` y estado de cada CR actualizado.
+
+Criterio de salida (cumplido): los tres CR disponen de respuesta razonada, con la
+reformulacion de `CR-0003` argumentada -su forma sugerida no respondia a su
+propio caso de uso- y reconciliada por el usuario.
+
+### Fase 2: bateria
+
+Casos congelados antes de tocar el runtime:
+
+- `build_id` presente y no vacio en `runtime.health` y en `capability.list`;
+  estable entre dos llamadas del mismo proceso; `unknown` explicito por su rama
+  de fallo. El VALOR no se congela -es un digest-, se congela su forma y su
+  estabilidad;
+- el `done` de `prompt.stream` lleva `trace` con `request_id`, y la forma del
+  trace es la misma que la de sus dos hermanas: una sola forma, no una por
+  capacidad;
+- toda capacidad con proyeccion de CLI declara presentacion, y las cuatro formas
+  -`text`, `row`, `table`, `opaque`- se validan contra lo que el renderizador
+  hace. Es un gate del catalogo, del tipo de ADR 0046, asi que se declara como
+  test requerido en `eval/README.md` y no como caso declarativo.
+
+Criterio de salida: casos congelados y tests requeridos declarados; digest sin
+mover.
+
+### Fase 3: implementacion
+
+Las tres adiciones, con la bateria integrada y el digest recalculado y DECLARADO,
+porque `capability.list` y `runtime.health` crecen en claves.
+
+Criterio de salida: conformidad en verde con digest declarado; pytest verde con y
+sin extras; el gate del catalogo cubriendo las dos caras.
+
+### Fase 4: puerta de laboratorio
+
+La de `build_id` es la unica que merece laboratorio, y es exactamente el fallo que
+la motivo: **actualizar el arbol SIN reiniciar el servicio y comprobar que
+`build_id` delata al proceso viejo**, mientras `core_version` sigue diciendo lo
+mismo. Si las dos respuestas coinciden antes y despues, el campo no sirve y hay
+que rehacerlo.
+
+Nota de coordinacion: esta linea y la de la senal del vacio son las dos PATCH, las
+dos congelan bateria y las dos piden visita de laboratorio. Si se implementan en
+una sola pasada, el digest se mueve una vez y la visita se paga una vez. Se
+decide al empezar la implementacion, no aqui.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

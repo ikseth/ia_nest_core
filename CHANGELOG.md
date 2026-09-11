@@ -19,13 +19,19 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ### Cambiado
 - `config/core.lab.example.yaml` deja de servir de fabrica el fallo que su propio
-  comentario describe: el dominio `razonamiento` gana perfil propio con
-  presupuesto suficiente para la cadena de pensamiento, en vez de compartir el de
-  512 tokens que producia `finish_reason: length` y cadena vacia. El
-  planificador pasa a un perfil `temperature: 0.0`, que es la palanca del
-  operador para planes reproducibles. Solo plantilla: ni codigo, ni esquema, ni
-  contrato.
+  comentario describe. Medido en laboratorio (2026-09-11), la causa no era la que
+  se supuso: no es el presupuesto -2048, 4096 y 8192 tokens dan cadena vacia por
+  igual, y tambien la da "cuanto es 2+2"- sino que el modelo de razonamiento
+  entra en bucle dentro de su cadena de pensamiento y `</think>` no llega. El
+  ejemplo pasa a servir el dominio `razonamiento` con un modelo normal y un
+  perfil de 2048 tokens, retira el modelo de razonamiento tambien de los
+  fallbacks, y cuenta en su comentario lo medido. Puerta pasada 3 de 3. Solo
+  plantilla: ni codigo, ni esquema, ni contrato.
   [ficha v0.4/0009](docs/fixes/v0.4/0009-el-ejemplo-publicado-sirve-su-propio-fallo.md)
+- `docs/manual/configuracion.md` corrige el consejo que daba sobre determinismo
+  del planificador. Bajar la temperatura a 0 NO estabiliza el plan: medido, el
+  planificador deja de declarar requisitos (7 de 7) y escribe en otro idioma. La
+  via reproducible es congelar el plan con `task.plan`.
 
 ## [v0.4.0] - 2026-08-20
 

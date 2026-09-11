@@ -786,13 +786,26 @@ pregunta factual y contrastar cada respuesta contra la misma pregunta respondida
 de una pieza por `prompt.run`. Lo que se mide no es que el gate salga verde, sino
 si la degradacion aparece cuando debe y no aparece cuando no debe.
 
-Se cruzan aqui, en la misma visita, las dos medidas que ADR 0051 dejo abiertas:
+Las dos medidas que ADR 0051 dejo abiertas ya se cruzaron, el 2026-09-11, con
+acceso al laboratorio. **Ninguna salio como se esperaba**, y las dos estan
+recogidas como enmiendas en ese ADR:
 
-- que un perfil de planificador con `temperature: 0.0` colapse la varianza del
-  tamano del plan con modelo real (medido esta que el parametro VIAJA al backend;
-  no que el backend obedezca);
-- que el ejemplo corregido de la ficha 0009 deje de dar cadena vacia en el
-  dominio `razonamiento`.
+- el perfil de planificador con `temperature: 0.0` EMPEORA el plan: 7 de 7
+  pasadas sin requisitos, con `requirements_unavailable` y subtareas en ingles.
+  A la temperatura desplegada, el mismo prompt dio el mismo plan 6 de 6 veces;
+- el arreglo del ejemplo estaba mal diagnosticado: la causa no era el
+  presupuesto sino el muestreo, y ninguna cifra de techo lo garantiza. Ficha
+  0009 rehecha, con su puerta pasada 3 de 3.
+
+Lo que queda para esta fase, por tanto, es solo lo que necesita la
+implementacion: el protocolo de cuatro pasadas con control por `prompt.run`,
+para ver si la degradacion aparece cuando debe y no aparece cuando no debe.
+
+Sale ademas de esa visita un hallazgo con ficha propia, que conviene decidir
+ANTES de implementar R1: un flujo que termina sin `finish_reason` se reporta hoy
+como terminacion limpia
+([ficha v0.4/0010](fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md)). R1 no
+lo cubre -ahi hay texto, no vacio- y su forma es decision de contrato.
 
 ## Fuera de este plan
 

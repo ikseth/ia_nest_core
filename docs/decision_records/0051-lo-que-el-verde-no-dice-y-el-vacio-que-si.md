@@ -1,7 +1,50 @@
 # Decision 0051: lo que el verde del core no dice, y el vacio que si puede declarar
 
 Fecha: 2026-08-22
-Estado: reconciliado por el usuario (2026-08-22)
+Estado: reconciliado por el usuario (2026-08-22). **Enmendado 2026-09-11** tras
+cerrar en laboratorio sus dos puntos abiertos; la enmienda queda pendiente de
+reconciliar.
+
+## Enmiendas de 2026-09-11, todas medidas
+
+Las dos medidas que esta decision dejo abiertas se hicieron con acceso real al
+laboratorio. Ninguna confirmo lo que se esperaba, y las dos corrigen texto de
+este ADR:
+
+1. **La palanca de D5 queda FALSIFICADA.** Se recomendaba dar al planificador un
+   perfil con `temperature: 0.0`. Medido con el roster real y el planificador
+   desplegado (`qwen2.5:7b`, `effort: high`, mismo prompt): a `temperature: 0.0`
+   el planificador dejo de declarar requisitos en **7 de 7** pasadas -degradacion
+   `requirements_unavailable`, cobertura sin comprobar- y escribio las subtareas
+   en ingles pese al system prompt. A `temperature: 0.2`, el desplegado, el mismo
+   prompt dio el MISMO plan **6 de 6** veces, con sus requisitos y sin
+   degradaciones. El muestreo no es la palanca, y bajarlo empeora el plan.
+2. **El arreglo de D6 estaba mal diagnosticado.** No era el presupuesto. Contra
+   `deepseek-r1:8b`, `max_tokens` de 2048, 4096 y 8192 dan cadena vacia por
+   igual, y tambien la da la pregunta "cuanto es 2+2" con 4096: el modelo entra
+   en bucle de repeticion dentro de la cadena y `</think>` no llega. Con el
+   muestreo que el modelo recomienda el bucle desaparece pero la cadena sigue sin
+   ser fiable (cerro 1 de 5 con un silogismo y techo de 4096). Detalle y arreglo
+   nuevo en la [ficha v0.4/0009](../fixes/v0.4/0009-el-ejemplo-publicado-sirve-su-propio-fallo.md).
+
+Lo que esas dos medidas NO tocan: D1, D2, D3 y D4 siguen en pie tal cual. D5
+mantiene su rechazo -la inestabilidad del plan no es defecto del core-, y de
+hecho lo refuerza: con el roster real el plan salio identico 6 de 6 veces. Lo
+que cae es el consejo que acompanaba al rechazo.
+
+**Y D3 sale reforzado, que es lo que mas importa.** La primera version de este
+ADR podia leerse como que una configuracion cuidadosa evita el vacio. Medido:
+no lo evita. Un modelo puede degenerar con cualquier techo, y la longitud de su
+cadena varia demasiado entre pasadas del mismo prompt como para que exista una
+cifra que lo garantice. Declarar el vacio no es prudencia: es la unica defensa
+que queda del lado del core.
+
+Hallazgo nuevo, aparecido al medir y que no estaba en ningun brief: un flujo del
+backend que termina sin `finish_reason` es indistinguible de uno que termina
+bien, y el core lo reporta como `ok`. Tiene ficha propia,
+[v0.4/0010](../fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md), porque vive
+en el adaptador -camino comun a todas las capacidades- y porque R1 de D3, que se
+dispara con la respuesta vacia, NO lo atrapa: ahi hay texto.
 
 Depende de: ADR 0036 (contrato de `task.run`), ADR 0041 (criterios de gestion de
 tareas), ADR 0042 (saneo del canal de razonamiento en origen), ADR 0044
@@ -208,11 +251,14 @@ patron que cuando el gate gano su segunda linea.
 
 ## Puntos abiertos
 
-Dos medidas quedan pendientes de laboratorio, y se declaran como criterio de
-salida de sus fases en el PLAN, no como supuestos de esta decision:
+Los dos que tenia quedan CERRADOS el 2026-09-11, y ninguno como se esperaba; ver
+las enmiendas de la cabecera.
 
-1. Que un perfil de planificador con `temperature: 0.0` (y `seed`, si el backend
-   lo honra) colapse de verdad la varianza del tamano del plan con modelo real.
-   Medido esta que el parametro VIAJA; no que el backend obedezca.
-2. Que el ejemplo corregido de la ficha 0009 deje de producir cadena vacia en el
-   dominio `razonamiento` con el modelo que declara.
+1. El perfil de planificador con `temperature: 0.0`: medido, y **empeora el
+   plan**. Retirado del ejemplo y del manual.
+2. El ejemplo corregido: medido, y la correccion del 2026-08-22 **no corregia**.
+   El ejemplo se rehizo con el diagnostico bueno y pasa su puerta 3 de 3.
+
+Queda abierto, nuevo: la forma en que el core declarara un flujo terminado sin
+motivo de corte (ficha v0.4/0010), que es decision de contrato y se toma antes
+de implementar.

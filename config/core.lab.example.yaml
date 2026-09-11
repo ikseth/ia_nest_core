@@ -27,13 +27,6 @@ models:
     model_name: qwen2.5:7b
     capabilities: [chat]
     profile: default
-  - id: deepseek_reason
-    provider: ollama
-    adapter: openai_compatible
-    endpoint: ${OPENAI_COMPAT_BASE_URL}
-    model_name: deepseek-r1:8b
-    capabilities: [chat]
-    profile: default
 
 domains:
   - id: general
@@ -51,25 +44,25 @@ domains:
   - id: matematicas
     description: "Calculo numerico y simbolico, algebra, geometria, estadistica y demostraciones matematicas."
     preferred_model: qwen_tech
-    fallback_models: [deepseek_reason]
+    fallback_models: [mistral_nemo]
     profile: default
     status: active
   - id: codigo
     description: "Diseno, escritura, revision, depuracion y explicacion de codigo fuente y software."
     preferred_model: qwen_tech
-    fallback_models: [deepseek_reason]
+    fallback_models: [mistral_nemo]
     profile: default
     status: active
   - id: linux
     description: "Administracion y diagnostico de Linux, shell, servicios, permisos, redes y sistemas."
     preferred_model: qwen_tech
-    fallback_models: [deepseek_reason]
+    fallback_models: [mistral_nemo]
     profile: default
     status: active
   - id: razonamiento
     description: "Deduccion logica, problemas abstractos, planificacion y razonamiento paso a paso."
-    preferred_model: deepseek_reason
-    fallback_models: [qwen_tech]
+    preferred_model: qwen_tech
+    fallback_models: [mistral_nemo]
     profile: razonamiento
     status: active
 
@@ -82,33 +75,32 @@ profiles:
     max_time_s: 60
     max_context_tokens: 4096
     system: "Responde siempre en espanol, de forma clara y concisa."
-  # Un modelo de razonamiento emite su cadena de pensamiento ANTES de la
-  # respuesta. Con 512 tokens el pensamiento agota el presupuesto y el core
-  # entrega cadena vacia con `finish_reason: length`, porque ADR 0042 sanea el
-  # canal de razonamiento en origen. El dominio que lo use necesita perfil
-  # propio. La cifra es un PUNTO DE PARTIDA: la buena se mide contra el modelo
-  # que despliegues.
+  # Perfil del dominio `razonamiento`: una respuesta paso a paso no cabe en 512
+  # tokens. Nada mas exotico que eso.
+  #
+  # Este ejemplo NO sirve ese dominio con un modelo de razonamiento, y es una
+  # decision medida, no un descuido. Contra deepseek-r1:8b, por el cable
+  # (2026-09-11): el modelo emite su cadena de pensamiento antes de la respuesta
+  # y el core la sanea en origen (ADR 0042), asi que si `</think>` no llega, lo
+  # que queda fuera es VACIO. Y no llega de forma fiable:
+  #
+  #   temperature 0.2 / top_p 1.0   bucle de repeticion dentro de <think>. Agota
+  #                                 2048, 4096 y 8192 tokens por igual y entrega
+  #                                 cadena vacia, incluso ante "cuanto es 2+2".
+  #   temperature 0.6 / top_p 0.95  con una pregunta trivial, 3 de 3 bien. Con
+  #                                 un silogismo, la cadena cerro 1 de 5 veces
+  #                                 con techo de 4096.
+  #
+  # Subir el techo no arregla nada: la longitud del pensamiento varia demasiado
+  # entre pasadas del mismo prompt. Si despliegas un modelo de razonamiento,
+  # usa el muestreo que el modelo recomiende, dale holgura de verdad y MIDELO en
+  # tu instalacion antes de ponerlo a servir un dominio. Ficha v0.4/0009.
   - id: razonamiento
-    temperature: 0.2
+    temperature: 0.6
     max_tokens: 2048
-    top_p: 1.0
+    top_p: 0.95
     max_iterations: 4
     max_time_s: 120
-    max_context_tokens: 4096
-    system: "Responde siempre en espanol, de forma clara y concisa."
-  # El plan lo emite un modelo muestreado: el mismo prompt puede dar planes de
-  # tamano distinto, y eso mueve el coste y hace poco reproducible cualquier
-  # medida sobre `task.run`. El determinismo es palanca del OPERADOR, aqui: los
-  # parametros del perfil viajan al backend tal cual. Si tu backend honra
-  # `seed`, anadelo a este perfil. Para medir sin que el planificador mueva el
-  # suelo, la via del core es otra: congelar el plan con `task.plan` y pasarlo a
-  # `task.run` (ADR 0040/0047/0048).
-  - id: planificador
-    temperature: 0.0
-    max_tokens: 1024
-    top_p: 1.0
-    max_iterations: 4
-    max_time_s: 60
     max_context_tokens: 4096
     system: "Responde siempre en espanol, de forma clara y concisa."
 
@@ -116,17 +108,23 @@ router: { model: mistral_nemo, profile: default }
 default_domain: general
 
 orchestration:
-  # El planificador NO debe ser un modelo de razonamiento. deepseek-r1 emite su
+  # El planificador NO debe ser un modelo de razonamiento. Uno de ellos emite su
   # cadena de pensamiento antes de la respuesta, y con `max_tokens: 512` el
   # pensamiento agota el presupuesto: el JSON del plan nunca se cierra, el core
   # repliega a una subtarea unica y la orquestacion multi-modelo no llega a
-  # ocurrir. Verificado en laboratorio (2026-08-18): con deepseek_reason, 1
-  # subtarea siempre; con qwen_tech, 3 subtareas correctas y el mismo prompt.
+  # ocurrir. Verificado en laboratorio (2026-08-18) con deepseek-r1: 1 subtarea
+  # siempre; con qwen_tech, 3 subtareas correctas y el mismo prompt.
   #
-  # deepseek_reason sigue sirviendo al dominio `razonamiento`, pero NO con el
-  # perfil de 512: ahi el mismo diagnostico daba subtareas con cadena vacia. Por
-  # eso ese dominio tiene perfil propio (ficha v0.4/0009).
-  planner: { model: qwen_tech, profile: planificador }
+  # Sobre el perfil del PLANIFICADOR, y contra lo que parece de sentido comun:
+  # bajar la temperatura a 0 para que el plan sea reproducible SALE MAL. Medido
+  # (2026-09-11, qwen2.5:7b, 7 pasadas): con `temperature: 0.0` el planificador
+  # dejo de declarar requisitos -degradacion `requirements_unavailable` y
+  # cobertura sin comprobar- y escribio las subtareas en ingles pese al system
+  # prompt. Con `temperature: 0.2` el mismo prompt dio el mismo plan 6 de 6
+  # veces, con sus requisitos. Si quieres reproducibilidad de verdad, no la
+  # busques en el muestreo: congela el plan con `task.plan` y pasaselo a
+  # `task.run` (ADR 0040/0047/0048).
+  planner: { model: qwen_tech, profile: default }
   combiner: { model: mistral_nemo, profile: default }
   max_subtasks: 6
   max_iterations: 2

@@ -25,7 +25,7 @@ capa.
 ## Capas y fronteras
 
 Este documento fija la costura del core. Donde el texto describe ademas la
-doctrina INTERNA de una capa aun no sembrada (conscience, pulse, web), va
+doctrina INTERNA de una capa aun no sembrada (pulse, web), va
 marcado `[doctrina de capa]`: es diseno reconciliado que se conserva aqui como
 deuda declarada y que mudara al repo de esa capa cuando se siembre. No se
 re-hoga a `ia_nest_meta`: meta gobierna COMO se construye el ente, no que hace
@@ -52,18 +52,13 @@ write-back con la respuesta. El core aporta la identidad de segmentacion
   interfaz de gestion y de usuario; no vive en el core. Depende de esas capas
   por version (ADR 0032).
 
-### ia_nest_core_conscience (la mente supervisora)
-- `[doctrina de capa]` Supervisor etico/de personalidad del ente (ADR 0034), dual: modo live
-  (supervisa checkpoints del flujo, puede bloquear/replantear contrastando con
-  memoria etica) y modo sueno (quiesce del core + revision batch de la
-  telemetria del dia).
+### ia_nest_conscience (la mente supervisora)
+- Supervisor etico/de personalidad del ente (ADR 0034). Su doctrina interna
+  (modos live y sueno, sedimentacion como memoria de comportamiento, control de
+  respuesta y "doble conciencia") mudo a su repo al sembrarse:
+  `ia_nest_conscience/docs/DOCTRINA.md` (conscience ADR 0001).
 - Frontera: contratos publicos + checkpoints de supervision del orquestador
   (linea v0.2 del core, ADR 0034) + telemetria CSV/JSONL (ADR 0010/0015).
-- `[doctrina de capa]` Sedimenta sus resoluciones como memoria de comportamiento
-  (tier de la memoria de `extended`), que vuelve al core via enriquecimiento
-  (ADR 0025/0031).
-- `[doctrina de capa]` El modelo de control/verificacion de respuesta (ADR 0025,
-  alternativa descartada para el core) y la "doble conciencia" viven aqui.
 
 ### ia_nest_external_* (integraciones: Home Assistant, Nextcloud, ...)
 - Frontera: `tool_contracts` (ADR 0007). El core invoca la herramienta por

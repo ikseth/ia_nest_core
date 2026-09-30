@@ -244,6 +244,11 @@ cerrar v0.2-3: DIFERIDA hasta sembrar conscience (leccion de MemoryPort: sin
 consumidor real, no se construye). La linea v0.2 se publica como v0.2.0 sin
 quiesce.
 
+Disparador precisado el 2026-09-30, al sembrarse conscience (conscience
+ADR 0001): la siembra fue solo documental y no consume quiesce. La fase sigue
+DIFERIDA hasta que conscience vaya a implementar su modo sueno; ese dia lo
+pide por CR (lo deja escrito `ia_nest_conscience/docs/DOCTRINA.md`).
+
 En paralelo (fuera de este plan): tras cerrar v0.2-1, sembrar la definicion de
 `ia_nest_extended` contra el contrato ya fijado.
 

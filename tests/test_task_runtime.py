@@ -63,63 +63,99 @@ def test_pipeline_accepts_integer_and_numeric_string_dependencies(tmp_path, depe
     assert "zero-based integer indexes into this same list" in planner.prompts[0]
 
 
-def test_pipeline_rejects_non_numeric_dependency_string(tmp_path) -> None:
-    planner = CountingScriptedAdapter(
-        "fake_planner", [_plan_response([{"prompt": "subtask", "domain": "general", "depends_on": ["a"]}])]
-    )
-    with pytest.raises(CoreError) as exc:
-        TaskRuntime(_config(tmp_path), adapter_factory={"fake_planner": planner}.get).run(prompt="task", request_id="parent")
-
-    assert exc.value.type == "PlanDependencyError"
-    assert exc.value.field == "depends_on"
-
-
-def test_pipeline_rejects_boolean_dependency(tmp_path) -> None:
+def _assert_derived_invalid_plan_falls_back(tmp_path, invalid_plan) -> None:
+    objective = "task with complete original prompt"
+    invalid_response = _plan_response(invalid_plan)
     planner = CountingScriptedAdapter(
         "fake_planner",
-        [_plan_response([
-            {"prompt": "first", "domain": "general", "depends_on": [True]},
-            {"prompt": "second", "domain": "general"},
-        ])],
+        [invalid_response, invalid_response, "done"],
     )
+    general = CountingScriptedAdapter("fake_general", ["FALLBACK_RESULT"])
+    adapters = {
+        "fake_planner": planner,
+        "fake_general": general,
+        "fake_combiner": ScriptedFakeAdapter("fake_combiner", ["FINAL"]),
+    }
+
+    result = TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(
+        prompt=objective,
+        request_id="parent",
+    )
+
+    assert result.response == "FINAL"
+    assert result.plan_attempts == 2
+    assert "depends_on" in planner.prompts[1]
+    assert len(result.subtasks) == 1
+    assert result.subtasks[0]["prompt"] == objective
+    assert result.subtasks[0]["response"] == "FALLBACK_RESULT"
+    assert general.calls == 1
+    assert result.degradations == [
+        {"stage": "plan", "reason": "invalid_dependencies", "action": "single_subtask"},
+        {
+            "stage": "plan",
+            "reason": "requirements_unavailable",
+            "action": "skip_coverage_check",
+        },
+    ]
+
+
+def test_pipeline_derived_non_numeric_dependency_falls_back_before_subtasks_run(tmp_path) -> None:
+    _assert_derived_invalid_plan_falls_back(
+        tmp_path,
+        [{"prompt": "invalid subtask", "domain": "general", "depends_on": ["a"]}],
+    )
+
+
+def test_pipeline_derived_boolean_dependency_falls_back_before_subtasks_run(tmp_path) -> None:
+    _assert_derived_invalid_plan_falls_back(
+        tmp_path,
+        [
+            {"prompt": "invalid first", "domain": "general", "depends_on": [True]},
+            {"prompt": "invalid second", "domain": "general"},
+        ],
+    )
+
+
+def test_pipeline_derived_out_of_range_plan_falls_back_before_subtasks_run(tmp_path) -> None:
+    _assert_derived_invalid_plan_falls_back(
+        tmp_path,
+        [{"prompt": "invalid subtask", "domain": "general", "depends_on": [1]}],
+    )
+
+
+def test_pipeline_derived_cyclic_plan_falls_back_before_subtasks_run(tmp_path) -> None:
+    _assert_derived_invalid_plan_falls_back(
+        tmp_path,
+        [
+            {"prompt": "invalid first", "domain": "general", "depends_on": [1]},
+            {"prompt": "invalid second", "domain": "general", "depends_on": [0]},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "plan",
+    [
+        [{"index": 0, "prompt": "out of range", "domain": "general", "depends_on": [1]}],
+        [
+            {"index": 0, "prompt": "first", "domain": "general", "depends_on": [1]},
+            {"index": 1, "prompt": "second", "domain": "general", "depends_on": [0]},
+        ],
+    ],
+    ids=["out_of_range", "cycle"],
+)
+def test_pipeline_supplied_invalid_dependencies_raise_before_subtasks_run(tmp_path, plan) -> None:
     general = CountingScriptedAdapter("fake_general", [])
-    adapters = {"fake_planner": planner, "fake_general": general}
+
     with pytest.raises(CoreError) as exc:
-        TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(prompt="task", request_id="parent")
-
-    assert exc.value.type == "PlanDependencyError"
-    assert exc.value.field == "depends_on"
-    assert general.calls == 0
-
-
-def test_pipeline_rejects_out_of_range_dependency_before_subtasks_run(tmp_path) -> None:
-    planner = CountingScriptedAdapter(
-        "fake_planner", [_plan_response([{"prompt": "subtask", "domain": "general", "depends_on": [1]}])]
-    )
-    general = CountingScriptedAdapter("fake_general", [])
-    adapters = {"fake_planner": planner, "fake_general": general}
-
-    with pytest.raises(CoreError, match="valid indexes") as exc:
-        TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(prompt="task", request_id="parent")
-
-    assert exc.value.type == "PlanDependencyError"
-    assert exc.value.field == "depends_on"
-    assert general.calls == 0
-
-
-def test_pipeline_rejects_cyclic_dependencies_before_subtasks_run(tmp_path) -> None:
-    planner = CountingScriptedAdapter(
-        "fake_planner",
-        [_plan_response([
-            {"prompt": "first", "domain": "general", "depends_on": [1]},
-            {"prompt": "second", "domain": "general", "depends_on": [0]},
-        ])],
-    )
-    general = CountingScriptedAdapter("fake_general", [])
-    adapters = {"fake_planner": planner, "fake_general": general}
-
-    with pytest.raises(CoreError, match="cycle") as exc:
-        TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(prompt="task", request_id="parent")
+        TaskRuntime(
+            _config(tmp_path),
+            adapter_factory={"fake_general": general}.get,
+        ).run(
+            prompt="task",
+            plan=plan,
+            request_id="parent",
+        )
 
     assert exc.value.type == "PlanDependencyError"
     assert exc.value.field == "depends_on"
@@ -316,6 +352,80 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     code_done = next(event for event in subtask_done if event["payload"].get("subtask_index") == 1)
     assert code_done["payload"]["finish_reason"] == "length"
     assert {event["payload"]["iteration"] for event in subtask_done} == {1}
+
+
+def test_pipeline_combiner_material_excludes_empty_subtask_output(tmp_path) -> None:
+    combiner = CountingScriptedAdapter("fake_combiner", ["FINAL"])
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", ["done"]),
+        "fake_reason": ScriptedFakeAdapter("fake_reason", [""]),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["CONTENIDO_UTIL"]),
+        "fake_combiner": combiner,
+    }
+
+    TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(
+        prompt="tarea",
+        plan=[
+            {"index": 0, "prompt": "analiza", "domain": "razonamiento", "depends_on": []},
+            {"index": 1, "prompt": "explica", "domain": "general", "depends_on": []},
+        ],
+        requirements=[{"id": "r1", "statement": "resolver", "covered_by": [0, 1]}],
+        request_id="parent",
+    )
+
+    assert combiner.calls == 1
+    assert '"response": "CONTENIDO_UTIL"' in combiner.prompts[0]
+    assert '"response": ""' not in combiner.prompts[0]
+
+
+def test_pipeline_all_empty_subtasks_do_not_invoke_combiner(tmp_path) -> None:
+    combiner = CountingScriptedAdapter("fake_combiner", ["RESPUESTA_FABRICADA"])
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", ["done"]),
+        "fake_reason": ScriptedFakeAdapter("fake_reason", [""]),
+        "fake_general": ScriptedFakeAdapter("fake_general", [""]),
+        "fake_combiner": combiner,
+    }
+
+    result = TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(
+        prompt="tarea",
+        plan=[
+            {"index": 0, "prompt": "analiza", "domain": "razonamiento", "depends_on": []},
+            {"index": 1, "prompt": "explica", "domain": "general", "depends_on": []},
+        ],
+        requirements=[{"id": "r1", "statement": "resolver", "covered_by": [0, 1]}],
+        request_id="parent",
+    )
+
+    assert combiner.calls == 0
+    assert result.response == ""
+
+
+def test_pipeline_rerun_does_not_duplicate_empty_subtask_degradation(tmp_path) -> None:
+    combiner = CountingScriptedAdapter("fake_combiner", [])
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", ["rerun", "done"]),
+        "fake_general": ScriptedFakeAdapter("fake_general", [""]),
+        "fake_combiner": combiner,
+    }
+
+    result = TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(
+        prompt="tarea",
+        plan=[{"index": 0, "prompt": "explica", "domain": "general", "depends_on": []}],
+        requirements=[{"id": "r1", "statement": "resolver", "covered_by": [0]}],
+        request_id="parent",
+    )
+
+    assert [(item["iteration"], item["index"]) for item in result.subtasks] == [(1, 0), (2, 0)]
+    assert combiner.calls == 0
+    assert result.degradations == [
+        {
+            "stage": "fanout",
+            "reason": "empty_subtask_output",
+            "action": "excluded_from_combine",
+            "subtask": "0",
+        }
+    ]
 
 
 def test_task_runtime_rerun_records_unique_iteration_and_index_pairs(tmp_path) -> None:

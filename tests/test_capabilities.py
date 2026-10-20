@@ -3,6 +3,10 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
+import shutil
+import subprocess
+import sys
 import tomllib
 from dataclasses import replace
 from pathlib import Path
@@ -11,11 +15,40 @@ from typing import Any
 import pytest
 
 from ianest_core import service
+from ianest_core import build_identity
 from ianest_core.capabilities import CAPABILITIES, _assert_catalog_invariants
 from ianest_core.cli import _build_parser, main
 
 
 IDENTITY_ARGUMENTS = {"user_id", "service", "session_id", "domain_tag", "namespace"}
+BUILD_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{64}|unknown)$")
+
+_PRESENTATION_INVOCATIONS = {
+    "capability.list": ("list_capabilities", ["capability", "list"]),
+    "domain.list": ("list_domains", ["--config", "unused", "domain", "list"]),
+    "domain.route": (
+        "route_domain",
+        ["--config", "unused", "domain", "route", "--prompt", "hola"],
+    ),
+    "eval.run": ("run_eval", ["--config", "unused", "eval", "run"]),
+    "model.list": ("list_models", ["--config", "unused", "model", "list"]),
+    "prompt.run": (
+        "run_prompt",
+        ["--config", "unused", "prompt", "run", "--prompt", "hola"],
+    ),
+    "reasoning.run": (
+        "run_reasoning",
+        ["--config", "unused", "reasoning", "run", "--prompt", "hola"],
+    ),
+    "task.plan": (
+        "plan_task",
+        ["--config", "unused", "task", "plan", "--prompt", "hola"],
+    ),
+    "task.run": (
+        "stream_task",
+        ["--config", "unused", "task", "run", "--prompt", "hola"],
+    ),
+}
 
 
 def test_capability_list_core_version_matches_pyproject() -> None:
@@ -23,6 +56,117 @@ def test_capability_list_core_version_matches_pyproject() -> None:
     declared = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
 
     assert service.list_capabilities()["core_version"] == declared
+
+
+def test_build_id_shape_and_stability_within_process() -> None:
+    first_catalog = service.list_capabilities()["build_id"]
+    second_catalog = service.list_capabilities()["build_id"]
+    first_health = service.health(
+        config_path="eval/fixtures/config.yaml",
+        gpu_status_factory=lambda: {"available": False, "gpus": []},
+    )["build_id"]
+    second_health = service.health(
+        config_path="eval/fixtures/config.yaml",
+        gpu_status_factory=lambda: {"available": False, "gpus": []},
+    )["build_id"]
+
+    values = [first_catalog, second_catalog, first_health, second_health]
+    assert all(BUILD_ID_PATTERN.fullmatch(value) for value in values)
+    assert len(set(values)) == 1
+
+
+def test_build_id_is_unknown_when_package_digest_cannot_be_read(monkeypatch) -> None:
+    original = Path.read_bytes
+
+    def fail_for_package_python(path: Path) -> bytes:
+        if path.suffix == ".py" and "ianest_core" in path.parts:
+            raise OSError("scripted unreadable package")
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_for_package_python)
+
+    assert build_identity._calculate_build_id() == "unknown"
+
+
+def test_build_id_identifies_the_package_loaded_at_service_import(tmp_path) -> None:
+    source_package = Path(service.__file__).resolve().parent
+    copied_package = tmp_path / "ianest_core"
+    shutil.copytree(source_package, copied_package)
+    before = _package_digest(copied_package)
+
+    script = f"""
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, {str(tmp_path)!r})
+from ianest_core import service
+
+(Path({str(copied_package)!r}) / "written_after_import.py").write_text("VALUE = 1\\n", encoding="utf-8")
+print(json.dumps(service.list_capabilities()["build_id"]))
+"""
+    observed = json.loads(subprocess.check_output([sys.executable, "-c", script], text=True))
+    after = _package_digest(copied_package)
+
+    assert observed == before
+    assert observed != after
+
+
+def test_catalog_cli_projections_declare_valid_presentation_forms() -> None:
+    entries = service.list_capabilities()["capabilities"]
+
+    for entry in entries:
+        projection = entry["cli"]
+        if projection is None:
+            continue
+        presentation = projection["presentation"]
+        form = presentation["form"]
+        assert form in {"text", "row", "table", "opaque"}
+        if form == "text":
+            assert set(presentation) == {"form", "field"}
+        elif form == "row":
+            assert set(presentation) == {"form", "fields"}
+        elif form == "table":
+            assert set(presentation) == {"form", "items", "columns"}
+        else:
+            assert set(presentation) == {"form"}
+
+
+def test_catalog_gate_rejects_missing_cli_presentation() -> None:
+    prompt_run = next(capability for capability in CAPABILITIES if capability.name == "prompt.run")
+    broken = replace(prompt_run, cli=replace(prompt_run.cli, presentation=None))
+    catalog = tuple(broken if capability.name == broken.name else capability for capability in CAPABILITIES)
+
+    with pytest.raises(AssertionError):
+        _assert_catalog_invariants(catalog)
+
+
+@pytest.mark.parametrize(
+    "capability",
+    [
+        capability
+        for capability in CAPABILITIES
+        if capability.cli is not None and capability.cli.presentation["form"] != "opaque"
+    ],
+    ids=lambda capability: capability.name,
+)
+def test_catalog_presentation_matches_what_the_renderer_prints(
+    capability, monkeypatch, capsys
+) -> None:
+    projection = capability.cli
+    assert projection is not None
+    payload = _presentation_payload(capability.name, projection.presentation)
+    service_name, argv = _PRESENTATION_INVOCATIONS[capability.name]
+    if capability.name == "task.run":
+        events = iter(({"type": "task_done", "data": payload},))
+        monkeypatch.setattr(service, service_name, lambda **kwargs: events)
+    else:
+        monkeypatch.setattr(service, service_name, lambda **kwargs: payload)
+
+    assert main(argv) == 0
+    rendered = capsys.readouterr().out.strip()
+
+    assert rendered == _expected_presentation(payload, projection.presentation)
 
 
 @pytest.mark.skipif(importlib.util.find_spec("starlette") is None, reason="REST extra not installed")
@@ -256,3 +400,73 @@ def _mcp_schema_type(schema: dict[str, Any]) -> str:
     variants = [variant for variant in schema.get("anyOf", []) if variant.get("type") != "null"]
     assert len(variants) == 1
     return str(variants[0]["type"])
+
+
+def _presentation_payload(name: str, presentation: dict[str, object]) -> dict[str, Any]:
+    def sentinel(field: object) -> str:
+        return f"SENTINEL_{name}_{field}".upper().replace(".", "_")
+
+    form = presentation["form"]
+    if form == "text":
+        payload = {str(presentation["field"]): sentinel(presentation["field"])}
+    elif form == "row":
+        fields = presentation["fields"]
+        assert isinstance(fields, (list, tuple))
+        payload = {str(field): sentinel(field) for field in fields}
+    else:
+        assert form == "table"
+        columns = presentation["columns"]
+        assert isinstance(columns, (list, tuple))
+        payload = {
+            str(presentation["items"]): [
+                {
+                    **{str(column): sentinel(column) for column in columns},
+                    "not_declared": sentinel("item_not_declared"),
+                }
+            ]
+        }
+    payload["not_declared"] = sentinel("not_declared")
+    if name == "task.run":
+        payload.update({"stop_reason": "task_done", "degradations": []})
+    return payload
+
+
+def _expected_presentation(
+    payload: dict[str, Any], presentation: dict[str, object]
+) -> str:
+    form = presentation["form"]
+    if form == "text":
+        return str(payload[str(presentation["field"])])
+    if form == "row":
+        fields = presentation["fields"]
+        assert isinstance(fields, (list, tuple))
+        return "\t".join(str(payload[str(field)]) for field in fields)
+    assert form == "table"
+    columns = presentation["columns"]
+    assert isinstance(columns, (list, tuple))
+    items = payload[str(presentation["items"])]
+    assert isinstance(items, list)
+    return "\n".join(
+        "\t".join(str(item[str(column)]) for column in columns)
+        for item in items
+    )
+
+
+def _package_digest(package_root: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    paths = sorted(
+        (
+            path
+            for path in package_root.rglob("*.py")
+            if "__pycache__" not in path.relative_to(package_root).parts
+        ),
+        key=lambda path: path.relative_to(package_root).as_posix(),
+    )
+    for path in paths:
+        digest.update(path.relative_to(package_root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()

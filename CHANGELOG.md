@@ -28,7 +28,42 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   identificador leido de git describe el arbol de trabajo, que es justo lo que
   mintio. Impacto previsto: PATCH.
 
+- **Tanda v0.4.1: cerrar lo abierto antes de abrir el ente a consumidores
+  reales** (`docs/PLAN.md`). La [ficha v0.4/0010](docs/fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md)
+  queda con su forma: un flujo sin `finish_reason` se publica como `incomplete`
+  y conserva el texto, y en `task.run` esa subtarea declara
+  `incomplete_subtask_output` sin salir del combinador. Se ACEPTA el aviso 1 de
+  extended del 2026-10-20: un plan DERIVADO con dependencias invalidas es un plan
+  inservible por la regla I4, no un 400
+  ([ficha v0.4/0011](docs/fixes/v0.4/0011-plan-derivado-con-ciclo-llega-como-400.md),
+  degradacion `invalid_dependencies`). Se APARCA el aviso 2
+  ([ficha v0.4/0012](docs/fixes/v0.4/0012-el-plan-recorta-la-peticion.md)): no
+  esta reproducido en el core y su remedio no es un patch. Impacto previsto:
+  PATCH.
+
 ### Cambiado
+- El instalador acepta `MODELS=pull|skip`: por defecto aprovisiona los modelos
+  declarados; al omitirlo, `VERIFY=strict` conserva la comprobacion
+  ([ficha v0.4/0003](docs/fixes/v0.4/0003-instalador-declarativo.md)).
+- El instalador ya no aborta con la configuracion por defecto
+  (`SERVICE_ENABLE=false`): con `set -e`, `enable_services` devolvia el codigo
+  de la comprobacion fallida y cortaba la instalacion antes de verificar. No se
+  habia visto porque el laboratorio siempre instalo con servicios habilitados.
+- `runtime.health` y `capability.list` publican el `build_id` estable del
+  paquete importado ([ADR 0052](docs/decision_records/0052-la-respuesta-del-core-se-describe-a-si-misma.md)).
+- El evento `done` de `prompt.stream` publica una traza auditable
+  ([ADR 0052](docs/decision_records/0052-la-respuesta-del-core-se-describe-a-si-misma.md)).
+- El catalogo declara la presentacion CLI y su gate comprueba todos los
+  renderizadores no opacos
+  ([ADR 0052](docs/decision_records/0052-la-respuesta-del-core-se-describe-a-si-misma.md)).
+- Las contribuciones vacias de `task.run` se declaran y quedan fuera del
+  combinador; si todas estan vacias, el combinador no se invoca (ADR 0051).
+- Un flujo sin `finish_reason` publica `incomplete` y una subtarea no vacia lo
+  declara sin perder su texto
+  ([ficha v0.4/0010](docs/fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md)).
+- Un plan derivado con dependencias invalidas renegocia y, si persiste, repliega
+  al prompt integro; un plan suministrado conserva `PlanDependencyError`
+  ([ficha v0.4/0011](docs/fixes/v0.4/0011-plan-derivado-con-ciclo-llega-como-400.md)).
 - `config/core.lab.example.yaml` deja de servir de fabrica el fallo que su propio
   comentario describe. Medido en laboratorio (2026-09-11), la causa no era la que
   se supuso: no es el presupuesto -2048, 4096 y 8192 tokens dan cadena vacia por

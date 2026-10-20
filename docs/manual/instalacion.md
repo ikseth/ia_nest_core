@@ -19,8 +19,10 @@ Con eso, un solo comando levanta backend + modelos + core + config + verificacio
     sudo bash deploy/setup.sh
 
 `deploy/setup.sh` hace: Ollama+GPU (compose) -> `install.sh` -> configuracion
-efectiva -> `ianest model pull` -> verificacion final. Los modelos salen solo de
-`core.yaml`; no hay una segunda lista en el instalador. Ve
+efectiva -> `ianest model pull` -> verificacion final. `MODELS=pull` es el
+defecto y descarga solo los modelos de `core.yaml`; no hay una segunda lista en
+el instalador. `MODELS=skip` afirma que el backend ya los tiene, pero
+`VERIFY=strict` los sigue comprobando. Ve
 [DESPLIEGUE.md](../DESPLIEGUE.md) para el fichero plano de configuracion,
 `--print-config`, servicios e instalacion con backend existente.
 
@@ -34,6 +36,7 @@ descargado. Recomendado que use GPU ([backend-gpu.md](backend-gpu.md)).
     cd ia_nest_core
     cp deploy/ejemplo.setup.conf local/core.setup.conf
     # Ajustar ENDPOINT=http://TU-OLLAMA:11434/v1 y PROVISION_BACKEND=false.
+    # Usar MODELS=skip solo si ese backend ya tiene los modelos de core.yaml.
     bash deploy/setup.sh --config local/core.setup.conf
 
 ## Comprobar

@@ -5,6 +5,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from ianest_core.adapters import (
     FakeAdapter,
     ModelRequest,
@@ -124,7 +126,43 @@ def test_openai_compatible_surfaces_last_non_null_finish_reason(monkeypatch) -> 
     )
 
     assert events[-1].type == "done"
+    assert events[-1].data["text"] == "hola"
     assert events[-1].data["finish_reason"] == "length"
+
+
+def test_openai_compatible_declares_incomplete_without_finish_reason_or_done(monkeypatch) -> None:
+    lines = [
+        b'data: {"choices":[{"delta":{"content":"texto parcial"},"finish_reason":null}]}\n',
+    ]
+    monkeypatch.setattr(openai_compatible, "urlopen", lambda request, timeout: _StreamResponse(lines))
+
+    events = list(
+        OpenAICompatibleAdapter("http://backend.test", "model-a").stream(
+            ModelRequest(messages=[{"role": "user", "content": "hola"}])
+        )
+    )
+
+    assert events[-1].type == "done"
+    assert events[-1].data["text"] == "texto parcial"
+    assert events[-1].data["finish_reason"] == "incomplete"
+
+
+def test_openai_compatible_declares_incomplete_with_done_but_no_finish_reason(monkeypatch) -> None:
+    lines = [
+        b'data: {"choices":[{"delta":{"content":"texto parcial"},"finish_reason":null}]}\n',
+        b'data: [DONE]\n',
+    ]
+    monkeypatch.setattr(openai_compatible, "urlopen", lambda request, timeout: _StreamResponse(lines))
+
+    events = list(
+        OpenAICompatibleAdapter("http://backend.test", "model-a").stream(
+            ModelRequest(messages=[{"role": "user", "content": "hola"}])
+        )
+    )
+
+    assert events[-1].type == "done"
+    assert events[-1].data["text"] == "texto parcial"
+    assert events[-1].data["finish_reason"] == "incomplete"
 
 
 def test_openai_compatible_captures_reasoning_separately(monkeypatch) -> None:
@@ -192,6 +230,30 @@ def test_prompt_runtime_stream_records_clean_response_and_reasoning(tmp_path) ->
     done = next(event for event in events if event["event"] == "done")
     assert done["payload"]["response"] == "respuesta"
     assert done["payload"]["reasoning"] == "del cable\ndel bloque"
+
+
+def test_prompt_stream_done_has_auditable_trace(tmp_path) -> None:
+    config = replace(
+        load_config(Path("eval/fixtures/config.yaml")),
+        telemetry=TelemetryConfig(
+            csv_path=str(tmp_path / "trace.csv"),
+            jsonl_path=str(tmp_path / "trace.jsonl"),
+            strict_mode=False,
+        ),
+    )
+    runtime = PromptRuntime(
+        config,
+        adapter_factory=lambda model: ScriptedFakeAdapter(model.id, ["respuesta"]),
+    )
+
+    events = list(
+        runtime.stream(prompt="hola", domain_id="general", request_id="prompt-stream-request")
+    )
+    done = next(event for event in events if event.type == "done")
+
+    assert done.data["trace"]["request_id"] == "prompt-stream-request"
+    assert done.data["trace"]["capability"] == "prompt.run"
+    assert done.data["trace"]["status"] == "ok"
 
 
 def test_scripted_finish_reason_reaches_prompt_trace_and_jsonl(tmp_path) -> None:

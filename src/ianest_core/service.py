@@ -11,6 +11,7 @@ from typing import Any, Callable, Iterator
 
 from ianest_core.config import load_config, load_config_data, validate_config_dict
 from ianest_core import __version__
+from ianest_core.build_identity import build_id
 from ianest_core.capabilities import CAPABILITIES
 from ianest_core.config.schema import ModelConfig
 from ianest_core.evaluation import run_eval as run_eval_core
@@ -25,6 +26,7 @@ MCP_PROTOCOL_VERSION_FALLBACK = "2025-03-26"
 def list_capabilities() -> dict[str, Any]:
     return {
         "core_version": __version__,
+        "build_id": build_id(),
         "capabilities": [asdict(capability) for capability in CAPABILITIES],
     }
 
@@ -286,6 +288,7 @@ def detect_runtime(
     return {
         "status": "ok",
         "core_version": __version__,
+        "build_id": build_id(),
         "process": {"ok": True, "pid": os.getpid()},
         "runtime": _runtime_status(),
         "backend": {

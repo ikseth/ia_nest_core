@@ -742,6 +742,9 @@ La linea sigue ABIERTA por un solo punto, comprobado sobre el arbol el
 de implementar el resto y nunca se implemento; la clave no existe en
 `deploy/setup.sh`.
 
+Implementada el 2026-10-20 (tanda v0.4.1, entrega D); falta solo su puerta en
+la visita de laboratorio de la tanda.
+
 Criterio de salida de la linea: esa clave implementada, con su precedencia
 -argumento sobre fichero sobre defecto- y una instalacion que con `MODELS=skip`
 no descarga nada y aun asi deja el core instalado y verificable.
@@ -905,6 +908,78 @@ Nota de coordinacion: esta linea y la de la senal del vacio son las dos PATCH, l
 dos congelan bateria y las dos piden visita de laboratorio. Si se implementan en
 una sola pasada, el digest se mueve una vez y la visita se paga una vez. Se
 decide al empezar la implementacion, no aqui.
+
+**Decidido el 2026-10-20:** van juntas, en la tanda v0.4.1 de abajo.
+
+## Tanda v0.4.1 (decidida 2026-10-20)
+
+Cierra TODO lo abierto del core antes de abrir el ente a consumidores reales:
+con usuarios de verdad, un defecto silencioso pasa a ser una respuesta mala que
+nadie ve venir. Reconciliada por el usuario el 2026-10-20.
+
+Alcance: la linea de la senal de vacio (ADR 0051 con la
+[ficha 0010](fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md), forma ya
+decidida), la linea de la respuesta que se describe a si misma (ADR 0052), el
+punto abierto de la linea del instalador (`MODELS=pull|skip`) y el aviso 1 de
+extended del 2026-10-20
+([ficha 0011](fixes/v0.4/0011-plan-derivado-con-ciclo-llega-como-400.md), plan
+derivado con ciclo). El aviso 2 queda APARCADO con
+[ficha 0012](fixes/v0.4/0012-el-plan-recorta-la-peticion.md), con sus motivos y
+lo que hace falta para reabrirla.
+
+Version: todo es aditivo o correccion, asi que PATCH segun la politica pre-1.0
+de meta. El numero lo corta el usuario; el rango de extended (`>=0.4 <0.5`) no
+se amplia, se re-verifica.
+
+Una entrega de Codex cada vez, verificada por el disenador antes de la
+siguiente:
+
+| # | Entrega | Criterio de salida |
+|---|---|---|
+| A | Bateria unica: vacio, 0010, 0011 y 0052, con la palanca del runner para guionizar `finish_reason` y vacio por modelo en `pipeline` | casos congelados y tests requeridos en `eval/README.md`; digest SIN mover |
+| B | Implementacion de vacio + 0010 + 0011 | bateria de A en verde, digest declarado; ninguna ejecucion sin vacio, sin corte y sin ciclo cambia de salida; un plan derivado con ciclo nunca da 400 |
+| C | Implementacion de ADR 0052 | verde, digest declarado, gate del catalogo cubriendo las dos caras |
+| D | `MODELS=pull\|skip` en el instalador | el criterio de salida de la linea del instalador, tal cual |
+| Lab | Una sola visita | las puertas de las dos lineas tal como estan escritas arriba, mas: un flujo cortado sale en la traza como `incomplete` y no como terminacion limpia, y una instalacion con `MODELS=skip` no descarga nada y queda verificable |
+
+Las fases 2-4 de las dos lineas se cumplen a traves de estas entregas; sus
+criterios de salida no cambian.
+
+Al cerrar: nota al hilo de extended para que re-verifique su rango contra el
+tag nuevo, y para que sepa que su reintento ante el ciclo deja de dispararse.
+
+### Estado (2026-10-20): entregas A-D hechas, puerta de laboratorio pasada
+
+Las cuatro entregas, cada una implementada por Codex y verificada por el
+disenador: 306 pytest, 135 casos de conformidad, digest `95d7e1bd`. La revision
+cazo dos defectos que la bateria no veia: un test de presentacion tautologico
+(entrega A) y un `build_id` que se calculaba en la PRIMERA CONSULTA y no al
+cargar, con lo que un proceso sin consultar publicaba el digest del arbol nuevo
+(entrega C). Y la entrega D destapo uno del instalador que no se buscaba: con la
+config por defecto abortaba antes de verificar.
+
+Puerta de laboratorio, sobre una copia aislada para no tocar el core desplegado,
+del que extended dependia en vivo ese dia:
+
+- `build_id`: el proceso vivo conserva su digest tras cambiar el arbol sin
+  reiniciar, el proceso nuevo da otro y `core_version` no cambia. PASA;
+- vacio y ficha 0010, 4 pasadas con control: la degradacion aparece en las 2
+  pasadas con una subtarea cortada sin `finish_reason` -la 0010 se reprodujo con
+  el backend real a traves del core- y en ninguna de las otras 2. PASA en lo
+  mecanico. En calidad, ni `task.run` ni `prompt.run` aciertan la pregunta
+  factual, y el troceo pierde informacion que la respuesta de una pieza si da:
+  el verde no afirma veracidad y esta puerta tampoco;
+- `MODELS=skip`: no descarga nada y la instalacion queda verificada. PASA.
+
+Con esto quedan cumplidas las fases 2, 3 y 4 de las dos lineas y la linea del
+instalador. Falta el corte del numero, que es del usuario.
+
+Hallazgo de la puerta, ABIERTO y sin forma decidida: las degradaciones de fanout
+no dicen de que iteracion son. En 2 de las 4 pasadas la respuesta final sale de
+una iteracion limpia y `degradations` sigue nombrando la subtarea cortada de una
+iteracion anterior, asi que el consumidor no sabe si lo que recibe contiene el
+trozo cortado. Le pasa igual a `undecipherable_decision`. Forma aditiva obvia: un
+campo `iteration` en la degradacion. No entra en v0.4.1; se decide aparte.
 
 ## Fuera de este plan
 

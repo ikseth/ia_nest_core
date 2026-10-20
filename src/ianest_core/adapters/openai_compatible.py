@@ -73,6 +73,8 @@ class OpenAICompatibleAdapter:
             return
 
         text = "".join(text_parts)
+        if finish_reason is None:
+            finish_reason = "incomplete"
         yield Event(
             "done",
             {

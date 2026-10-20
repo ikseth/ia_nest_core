@@ -471,3 +471,69 @@ al bloque de plan explicito y actualizan dos casos existentes por los cambios
 de contrato declarados arriba. La bateria completa queda en 121 casos de
 conformidad, todos en verde, con digest:
 `fa9b79ffffb0034e366a93de14c5192b5e1946f4ef200f1c8356de078b90fc42`.
+
+## Bateria de la tanda v0.4.1
+
+La entrega A congelo el criterio de las dos lineas abiertas y de las fichas
+v0.4/0010 y v0.4/0011 ANTES de implementar runtime, adaptadores o catalogo.
+Los casos de A vivieron en ficheros `*.yaml.frozen`, que el runner no descubre:
+
+- `eval/battery/v0.4/vacio.yaml.frozen`: ADR 0051 y ficha v0.4/0010.
+- `eval/battery/v0.4/plan_robusto.yaml.frozen`: ficha v0.4/0011.
+- `eval/battery/v0.4/autodescripcion.yaml`: hogar de ADR 0052. No tiene casos
+  ejecutables porque el DSL no expresa regex ni eventos de stream; esas
+  comprobaciones viven como pytest requeridos, sin ampliar el DSL. La entrega C
+  retiro el sufijo `.frozen` sin mover el digest.
+
+Casos congelados e invariante de cada uno:
+
+- `vacio_una_subtarea_se_excluye`: declara `empty_subtask_output` con indice y
+  excluye esa contribucion del combinado.
+- `vacio_todas_las_subtareas_omiten_combinador`: todas vacias producen
+  respuesta vacia y una degradacion por subtarea, sin fabricar contenido.
+- `vacio_length_con_texto_no_degrada`: `length` con texto no es degradacion.
+- `vacio_camino_sano_conserva_salida`: sin vacios, pipeline conserva su salida.
+- `incompleto_con_texto_se_conserva_y_degrada`: `incomplete` con texto entra
+  al combinado y declara `incomplete_subtask_output`.
+- `incompleto_vacio_solo_declara_vacio`: si `incomplete` queda vacio manda
+  ADR 0051 y no se publican dos degradaciones.
+- `plan_robusto_ciclo_y_luego_valido`: el segundo plan se usa con
+  `plan_attempts: 2` y sin degradacion.
+- `plan_robusto_dos_ciclos_degradan_task_run`: `task.run` repliega al prompt
+  integro y publica `invalid_dependencies` y, como todo repliegue sin
+  requisitos, `requirements_unavailable` (precedente: `unparseable_shape`).
+- `plan_robusto_dos_ciclos_degradan_task_plan`: `task.plan` publica el mismo
+  repliegue en `degradations`.
+- `plan_robusto_ciclo_suministrado_sigue_siendo_error`: un plan suministrado
+  conserva `PlanDependencyError`.
+
+Tests pytest requeridos, activos tras las entregas B y C:
+
+- Ficha v0.4/0010, adaptador OpenAI-compatible: SSE sin `finish_reason`, con y
+  sin `[DONE]`, conserva texto y termina con `incomplete`. El flujo normal con
+  motivo declarado queda sin xfail y conserva texto y `finish_reason`.
+- ADR 0051 R2: el prompt del combinador no contiene la contribucion vacia.
+- ADR 0051 R3: con todas las contribuciones vacias el combinador recibe cero
+  llamadas y la respuesta queda vacia.
+- ADR 0052 D1: `build_id` cumple `^([0-9a-f]{64}|unknown)$`, es el mismo en dos
+  llamadas del proceso y entre `runtime.health` y `capability.list`; una lectura
+  fallida del paquete, forzada con monkeypatch, produce `unknown`.
+- ADR 0052 D2: el `done` de `prompt.stream` publica `trace.request_id` y los
+  campos comunes de traza de sus capacidades hermanas.
+- ADR 0052 D3-D4: cada proyeccion CLI usa una de las cuatro formas validas, y
+  el gate falla si falta la declaracion. Ademas, lo declarado es lo que pinta el
+  renderizador: congelado sobre `prompt.run` con centinelas en cada campo, y la
+  entrega C lo generaliza a toda capacidad no `opaque`.
+
+La entrega B integra los 10 casos de `vacio.yaml` y `plan_robusto.yaml`. Los 125
+casos anteriores conservan su digest declarado
+`8c88061ac30c24309cb2896eb22d4be32847b6d2246e7439d3e8fb919c5ccc83`.
+El resultado pasa a 135 casos de conformidad y digest
+`95d7e1bdd053b6a8752397b73af21135ad340c61841887b02f43409fff8df65f`.
+La entrega C integra `autodescripcion.yaml` -sin casos ejecutables- y activa los
+6 pytest de ADR 0052. El gate de presentacion se generaliza a todas las
+capacidades no `opaque`, con un centinela distinto por campo y sin backend. La
+bateria conserva 135 casos y el digest
+`95d7e1bdd053b6a8752397b73af21135ad340c61841887b02f43409fff8df65f`: el
+fichero integrado esta vacio y `build_id` no entra en las aserciones de
+conformidad, igual que `core_version`.

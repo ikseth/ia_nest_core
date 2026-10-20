@@ -113,7 +113,10 @@ Y `build_id` (ADR 0052): identidad del ARTEFACTO que el proceso tiene cargado,
 como digest del paquete importado. Responde a una pregunta que `core_version` no
 puede responder -si dos procesos que declaran la misma version sirven el mismo
 codigo-, porque la version sale del manifiesto y no del artefacto. Vale `unknown`
-explicito cuando no se puede calcular.
+explicito cuando no se puede calcular. Forma: 64 caracteres hexadecimales en minuscula
+(sha256 sobre las rutas relativas ordenadas y el contenido de los `.py` del
+paquete importado, sin `__pycache__`) o la cadena `unknown`. El valor no es
+contrato; la forma y su estabilidad dentro de un proceso si.
 
 **`core_version` gobierna el vinculo por SemVer; `build_id` es observabilidad y
 no se usa para fijar dependencias.** Son dos ejes distintos y ninguno sustituye
@@ -145,7 +148,10 @@ Debe devolver `core_version`, `build_id` -con el sentido y la regla de
   cual; `row`, una fila de campos; `table`, una fila por elemento de una lista
   con sus columnas; `opaque`, el core no declara presentacion-. El core declara
   QUE SE LEE, nunca COMO SE PINTA: ni formato, ni anchos, ni estilo. `opaque` es
-  una declaracion, no un hueco: dice que ahi se cae a JSON a proposito.
+  una declaracion, no un hueco: dice que ahi se cae a JSON a proposito. Forma del
+  descriptor, clave `presentation` de la proyeccion de CLI: `{form: text, field:
+  <campo>}`, `{form: row, fields: [<campo>, ...]}`, `{form: table, items:
+  <campo lista>, columns: [<campo>, ...]}` o `{form: opaque}`.
 
 La presentacion del PROGRESO de las capacidades de streaming queda fuera: es una
 vista en vivo de eventos que el consumidor ya modela, no la presentacion de una
@@ -223,6 +229,11 @@ Debe devolver:
 - dominio usado,
 - parametros efectivos,
 - trazabilidad minima.
+
+`finish_reason` es el que declara el backend. Si el flujo termina sin que el
+backend haya declarado ninguno, el core publica `incomplete` en vez de nulo y
+conserva el texto recibido (ficha v0.4/0010): un nulo no se distingue de una
+terminacion limpia, y `incomplete` si.
 
 Su hermana `prompt.stream` entrega lo mismo por eventos, y su evento `done`
 publica el objeto `trace` -con `request_id`- igual que lo publican los `done` de
@@ -372,15 +383,20 @@ decision no es entendible. Cada contador esta fijado en 1 por contrato y no es
 configurable. `evaluation_attempts` viaja tambien en `iteration_end`.
 
 Regla de degradacion declarada (I4): si PLAN sigue siendo inservible tras
-renegociar, usa una subtarea con el prompt integro y lo declara; si EVALUATE
+renegociar, usa una subtarea con el prompt integro y lo declara. Inservible es
+tanto una forma que no se entiende (`unparseable_shape`) como un plan DERIVADO
+con dependencias circulares o indices fuera de rango (`{stage: plan, reason:
+invalid_dependencies, action: single_subtask}`, ficha v0.4/0011): el error de un
+plan que el core derivo no se entrega al consumidor como si fuera suyo. Un plan
+SUMINISTRADO invalido sigue siendo `PlanDependencyError`. Si EVALUATE
 sigue sin producir `done | rerun | replan`, asume `done` y declara
 `{stage: evaluate, reason: undecipherable_decision, action: assume_done}`. Una
 degradacion no es un corte, no amplia el catalogo de cortes tipados y conserva
 el resultado ya producido.
 
 Contribuciones vacias (ADR 0051). Una subtarea cuya respuesta, ya saneada
-(ADR 0042), queda VACIA no es un resultado, y el core lo declara en vez de
-integrarlo:
+(ADR 0042), queda VACIA -cadena vacia o solo espacios en blanco- no es un
+resultado, y el core lo declara en vez de integrarlo:
 
 - emite `{stage: fanout, reason: empty_subtask_output, action:
   excluded_from_combine, subtask: "<indice>"}`, una entrada por subtarea
@@ -393,6 +409,19 @@ integrarlo:
 
 Un `finish_reason: length` con texto NO vacio no es una degradacion: en
 `pipeline` tocar techo es el regimen normal, empezando por el combinador.
+
+El combinador es el UNICO punto donde una contribucion vacia podria integrarse:
+`depends_on` solo ordena la ejecucion y no inyecta la salida de las predecesoras
+en las dependientes (ADR 0040), asi que una subtarea que depende de otra vacia no
+recibe ese vacio. La regla "el vacio no es un resultado" no necesita mas
+mecanismo; si algun dia `depends_on` pasa material, esta regla viaja con el.
+
+Un `finish_reason: incomplete` con texto NO vacio SI lo es (ficha v0.4/0010): el
+flujo termino sin que el backend declarase por que, y el core no puede afirmar
+que la contribucion este entera. Emite `{stage: fanout, reason:
+incomplete_subtask_output, action: kept_in_combine, subtask: "<indice>"}` y el
+texto entra al combinador, porque lo recibido sirve. Si el texto queda vacio,
+manda la regla de contribucion vacia y solo se declara esa.
 
 **Lo que el verde de `task.run` NO dice (ADR 0051).** Sus senales son
 MECANICAS, y conviene leerlas por lo que afirman:

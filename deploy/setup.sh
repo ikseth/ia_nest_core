@@ -9,7 +9,7 @@
 #   --endpoint URL, --template NAME, --core-config PATH, --instance-name NAME.
 #   --provision-backend BOOL, --skip-backend, --rest-host HOST, --rest-port PORT.
 #   --mcp-host HOST, --mcp-port PORT, --service-install BOOL, --service-enable BOOL.
-#   --verify strict|warn|skip, --help.
+#   --models pull|skip, --verify strict|warn|skip, --help.
 #
 # Salidas:
 #   Configuracion efectiva en /opt/ia_nest/config/<instancia>, estado separado y,
@@ -32,7 +32,7 @@ readonly COMPOSE_FILE="$REPO_DIR/deploy/ollama.compose.yaml"
 readonly INSTALL_ROOT="/opt/ia_nest"
 readonly -a CONFIG_KEYS=(
   INSTANCE_NAME ENDPOINT TEMPLATE CORE_CONFIG PROVISION_BACKEND REST_HOST REST_PORT
-  MCP_HOST MCP_PORT SERVICE_INSTALL SERVICE_ENABLE VERIFY
+  MCP_HOST MCP_PORT SERVICE_INSTALL SERVICE_ENABLE MODELS VERIFY
 )
 
 declare -A VALUES=(
@@ -47,6 +47,7 @@ declare -A VALUES=(
   [MCP_PORT]=8090
   [SERVICE_INSTALL]=true
   [SERVICE_ENABLE]=false
+  [MODELS]=pull
   [VERIFY]=strict
 )
 declare -A SOURCES=()
@@ -104,6 +105,7 @@ validate_config() {
   require_bool SERVICE_INSTALL "${VALUES[SERVICE_INSTALL]}"
   require_bool SERVICE_ENABLE "${VALUES[SERVICE_ENABLE]}"
   [[ "${VALUES[TEMPLATE]}" == minimal || "${VALUES[TEMPLATE]}" == lab ]] || error "TEMPLATE debe ser minimal o lab"
+  [[ "${VALUES[MODELS]}" == pull || "${VALUES[MODELS]}" == skip ]] || error "MODELS debe ser pull o skip"
   [[ "${VALUES[VERIFY]}" == strict || "${VALUES[VERIFY]}" == warn || "${VALUES[VERIFY]}" == skip ]] || error "VERIFY debe ser strict, warn o skip"
   [[ "${VALUES[INSTANCE_NAME]}" =~ ^[A-Za-z0-9_-]+$ ]] || error "INSTANCE_NAME solo admite letras, numeros, guion y guion bajo"
   [[ "${VALUES[REST_PORT]}" =~ ^[0-9]+$ && "${VALUES[MCP_PORT]}" =~ ^[0-9]+$ ]] || error "REST_PORT y MCP_PORT deben ser numeros"
@@ -208,7 +210,7 @@ wait_for_port() {
 }
 
 enable_services() {
-  [[ "${VALUES[SERVICE_ENABLE]}" == true ]] || return
+  [[ "${VALUES[SERVICE_ENABLE]}" == true ]] || return 0
   local rest="ianest-${VALUES[INSTANCE_NAME]}-rest.service"
   local mcp="ianest-${VALUES[INSTANCE_NAME]}-mcp.service"
   systemctl enable --now "$rest" "$mcp"
@@ -263,7 +265,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --config) [[ $# -ge 2 ]] || error "--config requiere una ruta"; CONFIG_FILE="$2"; shift 2 ;;
     --print-config) PRINT_CONFIG=true; shift ;;
-    --instance-name|--endpoint|--template|--core-config|--provision-backend|--rest-host|--rest-port|--mcp-host|--mcp-port|--service-install|--service-enable|--verify)
+    --instance-name|--endpoint|--template|--core-config|--provision-backend|--rest-host|--rest-port|--mcp-host|--mcp-port|--service-install|--service-enable|--models|--verify)
       [[ $# -ge 2 ]] || error "$1 requiere un valor"
       key="${1#--}"; key="${key//-/_}"; set_argument "${key^^}" "$2"; shift 2 ;;
     --skip-backend) set_argument PROVISION_BACKEND false; shift ;;
@@ -287,7 +289,11 @@ if [[ "${VALUES[PROVISION_BACKEND]}" == true ]]; then check_backend_dependencies
 prepare_directories
 install_core
 configure_core
-"$REPO_DIR/.venv/bin/ianest" --config "$EFFECTIVE_CONFIG" model pull
+if [[ "${VALUES[MODELS]}" == pull ]]; then
+  "$REPO_DIR/.venv/bin/ianest" --config "$EFFECTIVE_CONFIG" model pull
+else
+  echo "MODELS=skip: el operador afirma que el backend ya tiene los modelos; no se ejecuta ianest model pull"
+fi
 enable_services
 verify_core
 echo "setup completado: instancia ${VALUES[INSTANCE_NAME]}"

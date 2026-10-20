@@ -130,10 +130,6 @@ def test_openai_compatible_surfaces_last_non_null_finish_reason(monkeypatch) -> 
     assert events[-1].data["finish_reason"] == "length"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="core ficha v0.4/0010: un SSE sin finish_reason ni [DONE] debe declarar incomplete",
-)
 def test_openai_compatible_declares_incomplete_without_finish_reason_or_done(monkeypatch) -> None:
     lines = [
         b'data: {"choices":[{"delta":{"content":"texto parcial"},"finish_reason":null}]}\n',
@@ -151,10 +147,6 @@ def test_openai_compatible_declares_incomplete_without_finish_reason_or_done(mon
     assert events[-1].data["finish_reason"] == "incomplete"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="core ficha v0.4/0010: [DONE] sin finish_reason tambien debe declarar incomplete",
-)
 def test_openai_compatible_declares_incomplete_with_done_but_no_finish_reason(monkeypatch) -> None:
     lines = [
         b'data: {"choices":[{"delta":{"content":"texto parcial"},"finish_reason":null}]}\n',

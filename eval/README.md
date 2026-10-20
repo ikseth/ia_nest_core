@@ -524,8 +524,9 @@ Tests pytest requeridos, marcados `xfail(strict=True)` mientras esperan B o C:
   renderizador: congelado sobre `prompt.run` con centinelas en cada campo, y la
   entrega C lo generaliza a toda capacidad no `opaque`.
 
-En esta entrega el resultado esperado sigue siendo 125 casos de conformidad y
-digest
+La entrega B integra los 10 casos de `vacio.yaml` y `plan_robusto.yaml`. Los 125
+casos anteriores conservan su digest declarado
 `8c88061ac30c24309cb2896eb22d4be32847b6d2246e7439d3e8fb919c5ccc83`.
-Las entregas B y C quitaran los sufijos que correspondan, retiraran sus xfail y
-declararan un digest nuevo al integrar los casos.
+El resultado pasa a 135 casos de conformidad y digest
+`95d7e1bdd053b6a8752397b73af21135ad340c61841887b02f43409fff8df65f`.
+`autodescripcion.yaml.frozen` y los 6 xfail de ADR 0052 quedan para la entrega C.

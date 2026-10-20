@@ -130,10 +130,19 @@ class _PlanAttempt:
 class _PlanResolution:
     attempts: list[_PlanAttempt]
     degradations: list[dict[str, str]]
+    plan_attempts: int | None = None
 
     @property
     def final(self) -> _PlanAttempt:
         return self.attempts[-1]
+
+    @property
+    def attempt_count(self) -> int:
+        return self.plan_attempts if self.plan_attempts is not None else len(self.attempts)
+
+    def numbered_attempts(self) -> Iterator[tuple[int, _PlanAttempt]]:
+        first_number = self.attempt_count - len(self.attempts) + 1
+        return enumerate(self.attempts, start=first_number)
 
 
 @dataclass
@@ -340,12 +349,12 @@ class TaskRuntime:
                 token_usage,
                 allow_renegotiation=True,
             )
-            plan_renegotiation_used = len(plan_resolution.attempts) == 2
+            plan_renegotiation_used = plan_resolution.attempt_count == 2
         degradations.extend(plan_resolution.degradations)
         token_budget_granted = self._pipeline_token_grant(plan_resolution.final.plan)
         token_budget_total = token_budget_granted
 
-        for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
+        for attempt_number, attempt in plan_resolution.numbered_attempts():
             yield self._checkpoint(
                 "plan_ready",
                 checkpoints,
@@ -378,7 +387,20 @@ class TaskRuntime:
             for item in iteration_results:
                 yield self._checkpoint("subtask_done", checkpoints, identity, parent_request_id, task_id, item)
 
-            response = self._combine(prompt, iteration_results, identity_data, parent_request_id, task_id, token_usage)
+            combine_results, fanout_degradations = self._fanout_material(iteration_results)
+            self._merge_fanout_degradations(degradations, fanout_degradations)
+            response = (
+                self._combine(
+                    prompt,
+                    combine_results,
+                    identity_data,
+                    parent_request_id,
+                    task_id,
+                    token_usage,
+                )
+                if combine_results
+                else ""
+            )
             yield self._checkpoint("combine_ready", checkpoints, identity, parent_request_id, task_id, {"response": response})
             decision, evaluation_attempts, evaluation_degradation = self._evaluate(
                 prompt,
@@ -424,12 +446,12 @@ class TaskRuntime:
                     token_usage,
                     allow_renegotiation=not plan_renegotiation_used,
                 )
-                if len(plan_resolution.attempts) == 2:
+                if plan_resolution.attempt_count == 2:
                     plan_renegotiation_used = True
                 degradations.extend(plan_resolution.degradations)
                 token_budget_granted = self._pipeline_token_grant(plan_resolution.final.plan)
                 token_budget_total += token_budget_granted
-                for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
+                for attempt_number, attempt in plan_resolution.numbered_attempts():
                     yield self._checkpoint(
                         "plan_ready",
                         checkpoints,
@@ -510,7 +532,7 @@ class TaskRuntime:
         )
         token_budget_granted = self._coverage_token_grant(plan_resolution.final.plan)
         token_budget_total = token_budget_granted
-        for attempt_number, attempt in enumerate(plan_resolution.attempts, start=1):
+        for attempt_number, attempt in plan_resolution.numbered_attempts():
             yield self._checkpoint(
                 "plan_ready",
                 checkpoints,
@@ -653,7 +675,7 @@ class TaskRuntime:
             "requirements_covered": plan_resolution.final.requirements_covered,
             "uncovered_requirements": plan_resolution.final.uncovered_requirements,
             "degradations": plan_resolution.degradations,
-            "plan_attempts": len(plan_resolution.attempts),
+            "plan_attempts": plan_resolution.attempt_count,
             "evaluation_attempts": 1,
             "token_budget_total": token_budget_total,
         }
@@ -1282,13 +1304,16 @@ class TaskRuntime:
                 if plan_key == "subtasks":
                     plan = self._resolve_pipeline_domains(plan)
             except CoreError as exc:
-                if exc.type != "PlanParseError":
+                if exc.type not in {"PlanParseError", "PlanDependencyError"}:
                     raise
-                attempts.append(_PlanAttempt([], [], False, []))
+                invalid_dependencies = exc.type == "PlanDependencyError"
+                if not invalid_dependencies:
+                    attempts.append(_PlanAttempt([], [], False, []))
                 if attempt_number < maximum_attempts:
                     next_instruction = self._plan_renegotiation_instruction(
                         instruction,
-                        shape_invalid=True,
+                        shape_invalid=not invalid_dependencies,
+                        invalid_dependencies=invalid_dependencies,
                         too_large=False,
                         uncovered=[],
                         requirements_missing=False,
@@ -1297,9 +1322,21 @@ class TaskRuntime:
                 plan = [{"prompt": prompt, "domain": self.config.default_domain or "general"}]
                 if plan_key == "units":
                     plan[0]["id"] = "u1"
-                attempts[-1] = _PlanAttempt(plan, [], False, [])
+                fallback = _PlanAttempt(plan, [], False, [])
+                if invalid_dependencies:
+                    attempts.append(fallback)
+                else:
+                    attempts[-1] = fallback
                 degradations.append(
-                    {"stage": "plan", "reason": "unparseable_shape", "action": "single_subtask"}
+                    {
+                        "stage": "plan",
+                        "reason": (
+                            "invalid_dependencies"
+                            if invalid_dependencies
+                            else "unparseable_shape"
+                        ),
+                        "action": "single_subtask",
+                    }
                 )
                 break
 
@@ -1320,6 +1357,7 @@ class TaskRuntime:
                 next_instruction = self._plan_renegotiation_instruction(
                     instruction,
                     shape_invalid=False,
+                    invalid_dependencies=False,
                     too_large=too_large,
                     uncovered=uncovered,
                     requirements_missing=requirements_missing,
@@ -1332,13 +1370,14 @@ class TaskRuntime:
             and not any(item["reason"] == "requirements_unavailable" for item in degradations)
         ):
             degradations.append(_requirements_unavailable_degradation())
-        return _PlanResolution(attempts, degradations)
+        return _PlanResolution(attempts, degradations, attempt_number)
 
     def _plan_renegotiation_instruction(
         self,
         instruction: str,
         *,
         shape_invalid: bool,
+        invalid_dependencies: bool,
         too_large: bool,
         uncovered: list[str],
         requirements_missing: bool,
@@ -1346,6 +1385,8 @@ class TaskRuntime:
         defects: list[str] = []
         if shape_invalid:
             defects.append("the prior response was not a usable list in a recognized wrapper")
+        if invalid_dependencies:
+            defects.append("the prior plan had invalid, cyclic or out-of-range depends_on indexes")
         if too_large:
             defects.append(
                 f"the plan exceeded the explicit budget of {self.settings.max_subtasks} units; "
@@ -1419,6 +1460,56 @@ class TaskRuntime:
                     completed[index] = futures[index].result()
                     pending.remove(index)
         return [completed[index] for index in range(len(plan))]
+
+    @staticmethod
+    def _fanout_material(
+        results: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+        combine_results: list[dict[str, Any]] = []
+        degradations: list[dict[str, str]] = []
+        for result in results:
+            subtask = str(result["index"])
+            if not str(result["response"]).strip():
+                degradations.append(
+                    {
+                        "stage": "fanout",
+                        "reason": "empty_subtask_output",
+                        "action": "excluded_from_combine",
+                        "subtask": subtask,
+                    }
+                )
+                continue
+            combine_results.append(result)
+            if result.get("finish_reason") == "incomplete":
+                degradations.append(
+                    {
+                        "stage": "fanout",
+                        "reason": "incomplete_subtask_output",
+                        "action": "kept_in_combine",
+                        "subtask": subtask,
+                    }
+                )
+        return combine_results, degradations
+
+    @staticmethod
+    def _merge_fanout_degradations(
+        degradations: list[dict[str, str]],
+        new_degradations: list[dict[str, str]],
+    ) -> None:
+        for degradation in new_degradations:
+            if degradation not in degradations:
+                degradations.append(degradation)
+        positions = [
+            index
+            for index, degradation in enumerate(degradations)
+            if degradation.get("stage") == "fanout"
+        ]
+        ordered = sorted(
+            (degradations[index] for index in positions),
+            key=lambda degradation: int(degradation["subtask"]),
+        )
+        for index, degradation in zip(positions, ordered):
+            degradations[index] = degradation
 
     def _run_subtask(self, index: int, iteration: int, objective: str, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
         declared_domain = item.get("domain")

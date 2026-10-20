@@ -42,6 +42,14 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   PATCH.
 
 ### Cambiado
+- Las contribuciones vacias de `task.run` se declaran y quedan fuera del
+  combinador; si todas estan vacias, el combinador no se invoca (ADR 0051).
+- Un flujo sin `finish_reason` publica `incomplete` y una subtarea no vacia lo
+  declara sin perder su texto
+  ([ficha v0.4/0010](docs/fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md)).
+- Un plan derivado con dependencias invalidas renegocia y, si persiste, repliega
+  al prompt integro; un plan suministrado conserva `PlanDependencyError`
+  ([ficha v0.4/0011](docs/fixes/v0.4/0011-plan-derivado-con-ciclo-llega-como-400.md)).
 - `config/core.lab.example.yaml` deja de servir de fabrica el fallo que su propio
   comentario describe. Medido en laboratorio (2026-09-11), la causa no era la que
   se supuso: no es el presupuesto -2048, 4096 y 8192 tokens dan cadena vacia por

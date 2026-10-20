@@ -1,6 +1,5 @@
-# Bateria congelada del plan derivado con dependencias invalidas.
-# Ficha v0.4/0011. La tanda v0.4.1 la integra quitando el sufijo .frozen;
-# hasta entonces no entra en el digest.
+# Bateria del plan derivado con dependencias invalidas.
+# Ficha v0.4/0011.
 
 - id: plan_robusto_ciclo_y_luego_valido
   track: conformance

@@ -28,6 +28,19 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   identificador leido de git describe el arbol de trabajo, que es justo lo que
   mintio. Impacto previsto: PATCH.
 
+- **Tanda v0.4.1: cerrar lo abierto antes de abrir el ente a consumidores
+  reales** (`docs/PLAN.md`). La [ficha v0.4/0010](docs/fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md)
+  queda con su forma: un flujo sin `finish_reason` se publica como `incomplete`
+  y conserva el texto, y en `task.run` esa subtarea declara
+  `incomplete_subtask_output` sin salir del combinador. Se ACEPTA el aviso 1 de
+  extended del 2026-10-20: un plan DERIVADO con dependencias invalidas es un plan
+  inservible por la regla I4, no un 400
+  ([ficha v0.4/0011](docs/fixes/v0.4/0011-plan-derivado-con-ciclo-llega-como-400.md),
+  degradacion `invalid_dependencies`). Se APARCA el aviso 2
+  ([ficha v0.4/0012](docs/fixes/v0.4/0012-el-plan-recorta-la-peticion.md)): no
+  esta reproducido en el core y su remedio no es un patch. Impacto previsto:
+  PATCH.
+
 ### Cambiado
 - `config/core.lab.example.yaml` deja de servir de fabrica el fallo que su propio
   comentario describe. Medido en laboratorio (2026-09-11), la causa no era la que

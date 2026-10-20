@@ -224,6 +224,11 @@ Debe devolver:
 - parametros efectivos,
 - trazabilidad minima.
 
+`finish_reason` es el que declara el backend. Si el flujo termina sin que el
+backend haya declarado ninguno, el core publica `incomplete` en vez de nulo y
+conserva el texto recibido (ficha v0.4/0010): un nulo no se distingue de una
+terminacion limpia, y `incomplete` si.
+
 Su hermana `prompt.stream` entrega lo mismo por eventos, y su evento `done`
 publica el objeto `trace` -con `request_id`- igual que lo publican los `done` de
 `reasoning.stream` y `task.stream` (ADR 0052). Las tres capacidades de streaming
@@ -372,7 +377,12 @@ decision no es entendible. Cada contador esta fijado en 1 por contrato y no es
 configurable. `evaluation_attempts` viaja tambien en `iteration_end`.
 
 Regla de degradacion declarada (I4): si PLAN sigue siendo inservible tras
-renegociar, usa una subtarea con el prompt integro y lo declara; si EVALUATE
+renegociar, usa una subtarea con el prompt integro y lo declara. Inservible es
+tanto una forma que no se entiende (`unparseable_shape`) como un plan DERIVADO
+con dependencias circulares o indices fuera de rango (`{stage: plan, reason:
+invalid_dependencies, action: single_subtask}`, ficha v0.4/0011): el error de un
+plan que el core derivo no se entrega al consumidor como si fuera suyo. Un plan
+SUMINISTRADO invalido sigue siendo `PlanDependencyError`. Si EVALUATE
 sigue sin producir `done | rerun | replan`, asume `done` y declara
 `{stage: evaluate, reason: undecipherable_decision, action: assume_done}`. Una
 degradacion no es un corte, no amplia el catalogo de cortes tipados y conserva
@@ -393,6 +403,13 @@ integrarlo:
 
 Un `finish_reason: length` con texto NO vacio no es una degradacion: en
 `pipeline` tocar techo es el regimen normal, empezando por el combinador.
+
+Un `finish_reason: incomplete` con texto NO vacio SI lo es (ficha v0.4/0010): el
+flujo termino sin que el backend declarase por que, y el core no puede afirmar
+que la contribucion este entera. Emite `{stage: fanout, reason:
+incomplete_subtask_output, action: kept_in_combine, subtask: "<indice>"}` y el
+texto entra al combinador, porque lo recibido sirve. Si el texto queda vacio,
+manda la regla de contribucion vacia y solo se declara esa.
 
 **Lo que el verde de `task.run` NO dice (ADR 0051).** Sus senales son
 MECANICAS, y conviene leerlas por lo que afirman:

@@ -906,6 +906,45 @@ dos congelan bateria y las dos piden visita de laboratorio. Si se implementan en
 una sola pasada, el digest se mueve una vez y la visita se paga una vez. Se
 decide al empezar la implementacion, no aqui.
 
+**Decidido el 2026-10-20:** van juntas, en la tanda v0.4.1 de abajo.
+
+## Tanda v0.4.1 (decidida 2026-10-20)
+
+Cierra TODO lo abierto del core antes de abrir el ente a consumidores reales:
+con usuarios de verdad, un defecto silencioso pasa a ser una respuesta mala que
+nadie ve venir. Reconciliada por el usuario el 2026-10-20.
+
+Alcance: la linea de la senal de vacio (ADR 0051 con la
+[ficha 0010](fixes/v0.4/0010-fin-de-flujo-sin-motivo-de-corte.md), forma ya
+decidida), la linea de la respuesta que se describe a si misma (ADR 0052), el
+punto abierto de la linea del instalador (`MODELS=pull|skip`) y el aviso 1 de
+extended del 2026-10-20
+([ficha 0011](fixes/v0.4/0011-plan-derivado-con-ciclo-llega-como-400.md), plan
+derivado con ciclo). El aviso 2 queda APARCADO con
+[ficha 0012](fixes/v0.4/0012-el-plan-recorta-la-peticion.md), con sus motivos y
+lo que hace falta para reabrirla.
+
+Version: todo es aditivo o correccion, asi que PATCH segun la politica pre-1.0
+de meta. El numero lo corta el usuario; el rango de extended (`>=0.4 <0.5`) no
+se amplia, se re-verifica.
+
+Una entrega de Codex cada vez, verificada por el disenador antes de la
+siguiente:
+
+| # | Entrega | Criterio de salida |
+|---|---|---|
+| A | Bateria unica: vacio, 0010, 0011 y 0052, con la palanca del runner para guionizar `finish_reason` y vacio por modelo en `pipeline` | casos congelados y tests requeridos en `eval/README.md`; digest SIN mover |
+| B | Implementacion de vacio + 0010 + 0011 | bateria de A en verde, digest declarado; ninguna ejecucion sin vacio, sin corte y sin ciclo cambia de salida; un plan derivado con ciclo nunca da 400 |
+| C | Implementacion de ADR 0052 | verde, digest declarado, gate del catalogo cubriendo las dos caras |
+| D | `MODELS=pull\|skip` en el instalador | el criterio de salida de la linea del instalador, tal cual |
+| Lab | Una sola visita | las puertas de las dos lineas tal como estan escritas arriba, mas: un flujo cortado sale en la traza como `incomplete` y no como terminacion limpia, y una instalacion con `MODELS=skip` no descarga nada y queda verificable |
+
+Las fases 2-4 de las dos lineas se cumplen a traves de estas entregas; sus
+criterios de salida no cambian.
+
+Al cerrar: nota al hilo de extended para que re-verifique su rango contra el
+tag nuevo, y para que sepa que su reintento ante el ciclo deja de dispararse.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

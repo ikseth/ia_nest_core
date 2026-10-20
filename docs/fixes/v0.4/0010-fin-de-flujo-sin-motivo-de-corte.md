@@ -1,10 +1,10 @@
 # 0010: un flujo que termina a medias es indistinguible de uno que termina bien
 
-Estado: propuesta; su forma se decide en la fase 2 de la linea de la senal del
-vacio, junto a la bateria de ADR 0051 (acordado con el usuario el 2026-09-11)
+Estado: forma decidida (2026-10-20, reconciliada por el usuario); implementacion
+pendiente en la tanda v0.4.1 de `docs/PLAN.md`
 Tipo: hueco de declaracion en el adaptador
 Impacto de version: patch (previsto)
-Version objetivo: v0.4.x
+Version objetivo: v0.4.1
 
 Origen: aparecio midiendo la [ficha v0.4/0009](0009-el-ejemplo-publicado-sirve-su-propio-fallo.md)
 en laboratorio el 2026-09-11. No estaba en ningun brief: lo destapo repetir.
@@ -62,6 +62,27 @@ fase de contrato; las dos candidatas obvias:
 La primera conserva el texto ya recibido, que es util; la segunda es mas
 estricta. La eleccion cambia el contrato de una forma u otra, asi que se decide
 antes de implementar y no al reves.
+
+### Forma decidida (2026-10-20)
+
+La primera, por ser la mas corta y la que no tira nada que ya llego:
+
+- si el flujo termina sin que el backend haya declarado ningun `finish_reason`,
+  haya o no `[DONE]`, el adaptador publica `finish_reason: incomplete` en vez de
+  nulo, y conserva el texto recibido. `prompt.run` sigue devolviendo la
+  respuesta; lo que cambia es que ya no se puede leer como terminacion limpia;
+- en `task.run` (`pipeline`), una subtarea con `finish_reason: incomplete` y
+  texto NO vacio declara `{stage: fanout, reason: incomplete_subtask_output,
+  action: kept_in_combine, subtask: "<indice>"}` y su texto SI entra al
+  combinador. Si el texto queda vacio manda R1 de ADR 0051
+  (`empty_subtask_output`) y no se declaran las dos;
+- `length` con texto sigue sin ser degradacion: es un corte DECLARADO por el
+  backend, no un flujo que se queda sin motivo;
+- en `coverage` no cambia nada: `finish_reason` ya es alli senal tecnica, y la
+  validacion decide la cobertura.
+
+Sin ADR nuevo: es la forma que ADR 0051 dejo por decidir para esta ficha, en su
+mismo vocabulario aditivo.
 
 ## Criterios de aceptacion (previstos)
 

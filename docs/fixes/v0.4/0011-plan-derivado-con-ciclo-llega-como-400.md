@@ -34,7 +34,8 @@ Solo en la via del planificador:
 - un `PlanDependencyError` al validar un plan derivado se trata como un plan
   inservible: renegocia una vez (si la renegociacion esta permitida) diciendo el
   defecto, y si el plan sigue invalido cae a una subtarea con el prompt integro y
-  declara `{stage: plan, reason: invalid_dependencies, action: single_subtask}`;
+  declara `{stage: plan, reason: invalid_dependencies, action: single_subtask}`. Como el repliegue no trae requisitos, declara ademas
+  `requirements_unavailable`, igual que hace hoy `unparseable_shape`;
 - vale igual para `task.plan`, que usa el mismo camino.
 
 No cambia:

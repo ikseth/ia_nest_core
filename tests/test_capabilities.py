@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import tomllib
 from dataclasses import replace
 from pathlib import Path
@@ -16,6 +17,7 @@ from ianest_core.cli import _build_parser, main
 
 
 IDENTITY_ARGUMENTS = {"user_id", "service", "session_id", "domain_tag", "namespace"}
+BUILD_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{64}|unknown)$")
 
 
 def test_capability_list_core_version_matches_pyproject() -> None:
@@ -23,6 +25,100 @@ def test_capability_list_core_version_matches_pyproject() -> None:
     declared = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
 
     assert service.list_capabilities()["core_version"] == declared
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="core ADR 0052 D1: build_id debe tener forma estable en runtime.health y capability.list",
+)
+def test_build_id_shape_and_stability_within_process() -> None:
+    first_catalog = service.list_capabilities()["build_id"]
+    second_catalog = service.list_capabilities()["build_id"]
+    first_health = service.health(
+        config_path="eval/fixtures/config.yaml",
+        gpu_status_factory=lambda: {"available": False, "gpus": []},
+    )["build_id"]
+    second_health = service.health(
+        config_path="eval/fixtures/config.yaml",
+        gpu_status_factory=lambda: {"available": False, "gpus": []},
+    )["build_id"]
+
+    values = [first_catalog, second_catalog, first_health, second_health]
+    assert all(BUILD_ID_PATTERN.fullmatch(value) for value in values)
+    assert len(set(values)) == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="core ADR 0052 D1: el fallo al calcular build_id debe publicar unknown",
+)
+def test_build_id_is_unknown_when_package_digest_cannot_be_read(monkeypatch) -> None:
+    original = Path.read_bytes
+
+    def fail_for_package_python(path: Path) -> bytes:
+        if path.suffix == ".py" and "ianest_core" in path.parts:
+            raise OSError("scripted unreadable package")
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_for_package_python)
+
+    assert service.list_capabilities()["build_id"] == "unknown"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="core ADR 0052 D3-D4: toda proyeccion CLI debe declarar una presentacion valida",
+)
+def test_catalog_cli_projections_declare_valid_presentation_forms() -> None:
+    entries = service.list_capabilities()["capabilities"]
+
+    for entry in entries:
+        projection = entry["cli"]
+        if projection is None:
+            continue
+        presentation = projection["presentation"]
+        form = presentation["form"]
+        assert form in {"text", "row", "table", "opaque"}
+        if form == "text":
+            assert set(presentation) == {"form", "field"}
+        elif form == "row":
+            assert set(presentation) == {"form", "fields"}
+        elif form == "table":
+            assert set(presentation) == {"form", "items", "columns"}
+        else:
+            assert set(presentation) == {"form"}
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="core ADR 0052 D4: el gate debe fallar si falta una declaracion de presentacion",
+)
+def test_catalog_gate_rejects_missing_cli_presentation() -> None:
+    prompt_run = next(capability for capability in CAPABILITIES if capability.name == "prompt.run")
+    broken = replace(prompt_run, cli=replace(prompt_run.cli, presentation=None))
+    catalog = tuple(broken if capability.name == broken.name else capability for capability in CAPABILITIES)
+
+    with pytest.raises(AssertionError):
+        _assert_catalog_invariants(catalog)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="core ADR 0052 D4: lo declarado en presentation debe ser lo que pinta el renderizador",
+)
+def test_catalog_presentation_matches_what_the_renderer_prints(monkeypatch, capsys) -> None:
+    # Ancla congelada sobre prompt.run (form text). La entrega C generaliza este
+    # gate a toda capacidad con proyeccion de CLI y forma distinta de opaque.
+    prompt_run = next(capability for capability in CAPABILITIES if capability.name == "prompt.run")
+    presentation = prompt_run.cli.presentation
+    payload = {"response": "CENTINELA_RESPONSE", "model": "CENTINELA_MODEL", "domain": "CENTINELA_DOMAIN"}
+    monkeypatch.setattr(service, "run_prompt", lambda **kwargs: payload)
+
+    assert main(["--config", "unused", "prompt", "run", "--prompt", "hola"]) == 0
+    rendered = capsys.readouterr().out.strip()
+
+    assert presentation["form"] == "text"
+    assert rendered == payload[presentation["field"]]
 
 
 @pytest.mark.skipif(importlib.util.find_spec("starlette") is None, reason="REST extra not installed")

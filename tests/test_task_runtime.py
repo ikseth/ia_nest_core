@@ -318,6 +318,61 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     assert {event["payload"]["iteration"] for event in subtask_done} == {1}
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="core ADR 0051 R2: el material del combinador debe excluir contribuciones vacias",
+)
+def test_pipeline_combiner_material_excludes_empty_subtask_output(tmp_path) -> None:
+    combiner = CountingScriptedAdapter("fake_combiner", ["FINAL"])
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", ["done"]),
+        "fake_reason": ScriptedFakeAdapter("fake_reason", [""]),
+        "fake_general": ScriptedFakeAdapter("fake_general", ["CONTENIDO_UTIL"]),
+        "fake_combiner": combiner,
+    }
+
+    TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(
+        prompt="tarea",
+        plan=[
+            {"index": 0, "prompt": "analiza", "domain": "razonamiento", "depends_on": []},
+            {"index": 1, "prompt": "explica", "domain": "general", "depends_on": []},
+        ],
+        requirements=[{"id": "r1", "statement": "resolver", "covered_by": [0, 1]}],
+        request_id="parent",
+    )
+
+    assert combiner.calls == 1
+    assert '"response": "CONTENIDO_UTIL"' in combiner.prompts[0]
+    assert '"response": ""' not in combiner.prompts[0]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="core ADR 0051 R3: el combinador no se invoca cuando todas las contribuciones estan vacias",
+)
+def test_pipeline_all_empty_subtasks_do_not_invoke_combiner(tmp_path) -> None:
+    combiner = CountingScriptedAdapter("fake_combiner", ["RESPUESTA_FABRICADA"])
+    adapters = {
+        "fake_planner": ScriptedFakeAdapter("fake_planner", ["done"]),
+        "fake_reason": ScriptedFakeAdapter("fake_reason", [""]),
+        "fake_general": ScriptedFakeAdapter("fake_general", [""]),
+        "fake_combiner": combiner,
+    }
+
+    result = TaskRuntime(_config(tmp_path), adapter_factory=adapters.get).run(
+        prompt="tarea",
+        plan=[
+            {"index": 0, "prompt": "analiza", "domain": "razonamiento", "depends_on": []},
+            {"index": 1, "prompt": "explica", "domain": "general", "depends_on": []},
+        ],
+        requirements=[{"id": "r1", "statement": "resolver", "covered_by": [0, 1]}],
+        request_id="parent",
+    )
+
+    assert combiner.calls == 0
+    assert result.response == ""
+
+
 def test_task_runtime_rerun_records_unique_iteration_and_index_pairs(tmp_path) -> None:
     config = _config(tmp_path)
     adapters = {

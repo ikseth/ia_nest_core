@@ -1,0 +1,162 @@
+# Bateria congelada de la senal de vacio y del fin de flujo incompleto.
+# ADR 0051 y ficha v0.4/0010. La tanda v0.4.1 la integra quitando el
+# sufijo .frozen; hasta entonces no entra en el digest.
+#
+# `responses.<model>` admite una cadena o una lista por llamada. La ultima
+# respuesta se repite. `finish_reasons.<model>` guioniza el motivo de corte
+# por llamada; si falta, el fake conserva `stop`.
+
+- id: vacio_una_subtarea_se_excluye
+  track: conformance
+  description: "Core ADR 0051 R1-R2: una subtarea vacia se declara y se excluye del combinado."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    plan:
+      - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+      - { index: 1, prompt: "explica", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar y explicar", covered_by: [0, 1] }
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: ""
+        fake_general: "CONTENIDO_UTIL"
+        fake_combiner: "COMBINADO_SIN_VACIO"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_SIN_VACIO"
+    degradations:
+      - { stage: fanout, reason: empty_subtask_output, action: excluded_from_combine, subtask: "0" }
+
+- id: vacio_todas_las_subtareas_omiten_combinador
+  track: conformance
+  description: "Core ADR 0051 R3: si todas las subtareas quedan vacias no se fabrica respuesta."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    plan:
+      - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+      - { index: 1, prompt: "explica", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar y explicar", covered_by: [0, 1] }
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: ""
+        fake_general: ""
+        fake_combiner: "NO_DEBE_APARECER"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: ""
+    degradations:
+      - { stage: fanout, reason: empty_subtask_output, action: excluded_from_combine, subtask: "0" }
+      - { stage: fanout, reason: empty_subtask_output, action: excluded_from_combine, subtask: "1" }
+
+- id: vacio_length_con_texto_no_degrada
+  track: conformance
+  description: "Core ADR 0051 D3: finish_reason length con texto no es una degradacion."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza una parte"
+    plan:
+      - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: ["CONTENIDO_TRUNCADO"]
+        fake_combiner: ["COMBINADO_FINAL"]
+      finish_reasons:
+        fake_reason: [length]
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_FINAL"
+    degradations: []
+
+- id: vacio_camino_sano_conserva_salida
+  track: conformance
+  description: "Core ADR 0051: sin contribuciones vacias la salida pipeline actual no cambia."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza y explica"
+    plan:
+      - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+      - { index: 1, prompt: "explica", domain: general, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar y explicar", covered_by: [0, 1] }
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: "ANALISIS"
+        fake_general: "EXPLICACION"
+        fake_combiner: "COMBINADO_ACTUAL"
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_ACTUAL"
+    degradations: []
+
+- id: incompleto_con_texto_se_conserva_y_degrada
+  track: conformance
+  description: "Core ficha v0.4/0010: incomplete con texto se conserva y declara incomplete_subtask_output."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza una parte"
+    plan:
+      - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: ["CONTENIDO_PARCIAL"]
+        fake_combiner: ["COMBINADO_PARCIAL"]
+      finish_reasons:
+        fake_reason: [incomplete]
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: "COMBINADO_PARCIAL"
+    degradations:
+      - { stage: fanout, reason: incomplete_subtask_output, action: kept_in_combine, subtask: "0" }
+
+- id: incompleto_vacio_solo_declara_vacio
+  track: conformance
+  description: "Core ficha v0.4/0010: incomplete vacio aplica ADR 0051 y no duplica degradaciones."
+  capability: task.run
+  fixture: eval/fixtures/orchestration_effort.yaml
+  input:
+    prompt: "analiza una parte"
+    plan:
+      - { index: 0, prompt: "analiza", domain: razonamiento, depends_on: [] }
+    requirements:
+      - { id: r1, statement: "analizar", covered_by: [0] }
+    identity: { user_id: u1, service: local_cli }
+  world:
+    script:
+      responses:
+        fake_reason: [""]
+        fake_combiner: ["NO_DEBE_APARECER"]
+      finish_reasons:
+        fake_reason: [incomplete]
+      evaluate_decisions: [done]
+  expect:
+    stop_reason: task_done
+    response: ""
+    degradations:
+      - { stage: fanout, reason: empty_subtask_output, action: excluded_from_combine, subtask: "0" }

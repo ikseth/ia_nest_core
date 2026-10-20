@@ -499,10 +499,7 @@ def _task_adapters(case: dict[str, Any], config: CoreConfig) -> dict[str, Script
         if case.get("input", {}).get("mode") == "coverage":
             return _coverage_adapters(script, config, planner_responses)
 
-        responses = dict(script.get("responses", {}))
-        adapters = {
-            model: ScriptedFakeAdapter(model, [str(response)]) for model, response in responses.items()
-        }
+        adapters = _pipeline_response_adapters(script)
         adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
         _add_router_adapter(adapters, script, config)
         return adapters
@@ -523,12 +520,29 @@ def _task_adapters(case: dict[str, Any], config: CoreConfig) -> dict[str, Script
         except StopIteration:
             pass
     planner_responses.extend(str(decision) for decision in decisions)
-    responses = dict(script.get("responses", {}))
-    adapters = {
-        model: ScriptedFakeAdapter(model, [str(response)]) for model, response in responses.items()
-    }
+    adapters = _pipeline_response_adapters(script)
     adapters["fake_planner"] = ScriptedFakeAdapter("fake_planner", planner_responses)
     _add_router_adapter(adapters, script, config)
+    return adapters
+
+
+def _pipeline_response_adapters(script: dict[str, Any]) -> dict[str, ScriptedFakeAdapter]:
+    responses = dict(script.get("responses", {}))
+    finish_reasons = dict(script.get("finish_reasons", {}))
+    adapters: dict[str, ScriptedFakeAdapter] = {}
+    for model, scripted in responses.items():
+        model_responses = scripted if isinstance(scripted, list) else [scripted]
+        if model in finish_reasons:
+            adapters[model] = _FinishReasonScriptedFakeAdapter(
+                model,
+                [str(response) for response in model_responses],
+                [str(reason) for reason in finish_reasons[model]],
+            )
+        else:
+            adapters[model] = ScriptedFakeAdapter(
+                model,
+                [str(response) for response in model_responses],
+            )
     return adapters
 
 

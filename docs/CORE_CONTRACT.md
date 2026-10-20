@@ -113,7 +113,10 @@ Y `build_id` (ADR 0052): identidad del ARTEFACTO que el proceso tiene cargado,
 como digest del paquete importado. Responde a una pregunta que `core_version` no
 puede responder -si dos procesos que declaran la misma version sirven el mismo
 codigo-, porque la version sale del manifiesto y no del artefacto. Vale `unknown`
-explicito cuando no se puede calcular.
+explicito cuando no se puede calcular. Forma: 64 caracteres hexadecimales en minuscula
+(sha256 sobre las rutas relativas ordenadas y el contenido de los `.py` del
+paquete importado, sin `__pycache__`) o la cadena `unknown`. El valor no es
+contrato; la forma y su estabilidad dentro de un proceso si.
 
 **`core_version` gobierna el vinculo por SemVer; `build_id` es observabilidad y
 no se usa para fijar dependencias.** Son dos ejes distintos y ninguno sustituye
@@ -145,7 +148,10 @@ Debe devolver `core_version`, `build_id` -con el sentido y la regla de
   cual; `row`, una fila de campos; `table`, una fila por elemento de una lista
   con sus columnas; `opaque`, el core no declara presentacion-. El core declara
   QUE SE LEE, nunca COMO SE PINTA: ni formato, ni anchos, ni estilo. `opaque` es
-  una declaracion, no un hueco: dice que ahi se cae a JSON a proposito.
+  una declaracion, no un hueco: dice que ahi se cae a JSON a proposito. Forma del
+  descriptor, clave `presentation` de la proyeccion de CLI: `{form: text, field:
+  <campo>}`, `{form: row, fields: [<campo>, ...]}`, `{form: table, items:
+  <campo lista>, columns: [<campo>, ...]}` o `{form: opaque}`.
 
 La presentacion del PROGRESO de las capacidades de streaming queda fuera: es una
 vista en vivo de eventos que el consumidor ya modela, no la presentacion de una

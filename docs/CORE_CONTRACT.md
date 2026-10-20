@@ -395,8 +395,8 @@ degradacion no es un corte, no amplia el catalogo de cortes tipados y conserva
 el resultado ya producido.
 
 Contribuciones vacias (ADR 0051). Una subtarea cuya respuesta, ya saneada
-(ADR 0042), queda VACIA no es un resultado, y el core lo declara en vez de
-integrarlo:
+(ADR 0042), queda VACIA -cadena vacia o solo espacios en blanco- no es un
+resultado, y el core lo declara en vez de integrarlo:
 
 - emite `{stage: fanout, reason: empty_subtask_output, action:
   excluded_from_combine, subtask: "<indice>"}`, una entrada por subtarea

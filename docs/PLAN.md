@@ -742,6 +742,9 @@ La linea sigue ABIERTA por un solo punto, comprobado sobre el arbol el
 de implementar el resto y nunca se implemento; la clave no existe en
 `deploy/setup.sh`.
 
+Implementada el 2026-10-20 (tanda v0.4.1, entrega D); falta solo su puerta en
+la visita de laboratorio de la tanda.
+
 Criterio de salida de la linea: esa clave implementada, con su precedencia
 -argumento sobre fichero sobre defecto- y una instalacion que con `MODELS=skip`
 no descarga nada y aun asi deja el core instalado y verificable.

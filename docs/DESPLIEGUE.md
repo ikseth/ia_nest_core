@@ -45,9 +45,14 @@ Requisitos del host:
 
    El instalador crea o usa `/opt/ia_nest/repositories` para clones,
    `/opt/ia_nest/config/<instancia>` para `core.yaml` y `.env`, y
-   `/opt/ia_nest/state/<instancia>` para el estado de los servicios. Descarga
-   exactamente los modelos declarados en ese `core.yaml` mediante
-   `ianest model pull`. Un proveedor sin provisioning hace fallar la instalacion.
+   `/opt/ia_nest/state/<instancia>` para el estado de los servicios. Con
+   `MODELS=pull` (el defecto), descarga exactamente los modelos declarados en
+   ese `core.yaml` mediante `ianest model pull`. Un proveedor sin provisioning
+   hace fallar la instalacion.
+
+   `MODELS=skip` no descarga: el operador afirma que el backend ya tiene los
+   modelos. No relaja `VERIFY`: con `VERIFY=strict`, la instalacion falla si el
+   modelo declarado no esta disponible.
 
    Con `SERVICE_ENABLE=true`, los units se habilitan y arrancan como
    `ianest-<instancia>-rest.service` e `ianest-<instancia>-mcp.service`.
@@ -66,8 +71,9 @@ sudo systemctl disable --now ianest-rest.service ianest-mcp.service
 
 Declara `PROVISION_BACKEND=false` y el endpoint de ese backend en el fichero de
 setup. El instalador no lo inicia ni lo modifica, pero sigue validando la
-configuracion, instalando el core y ejecutando `ianest model pull` contra los
-modelos declarados.
+configuracion, instalando el core y, con `MODELS=pull` (el defecto), ejecutando
+`ianest model pull` contra los modelos declarados. Si ya estan en el backend,
+declara `MODELS=skip`; `VERIFY=strict` los comprueba igualmente.
 
 `CORE_CONFIG=/ruta/core.yaml` copia una configuracion afinada byte a byte a la
 ubicacion efectiva; en ese caso no declares `TEMPLATE`. La configuracion y el

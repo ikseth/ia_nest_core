@@ -42,6 +42,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   PATCH.
 
 ### Cambiado
+- El instalador acepta `MODELS=pull|skip`: por defecto aprovisiona los modelos
+  declarados; al omitirlo, `VERIFY=strict` conserva la comprobacion
+  ([ficha v0.4/0003](docs/fixes/v0.4/0003-instalador-declarativo.md)).
+- El instalador ya no aborta con la configuracion por defecto
+  (`SERVICE_ENABLE=false`): con `set -e`, `enable_services` devolvia el codigo
+  de la comprobacion fallida y cortaba la instalacion antes de verificar. No se
+  habia visto porque el laboratorio siempre instalo con servicios habilitados.
 - `runtime.health` y `capability.list` publican el `build_id` estable del
   paquete importado ([ADR 0052](docs/decision_records/0052-la-respuesta-del-core-se-describe-a-si-misma.md)).
 - El evento `done` de `prompt.stream` publica una traza auditable

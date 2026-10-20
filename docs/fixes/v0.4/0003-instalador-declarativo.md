@@ -257,9 +257,10 @@ units y el requisito de `python313-pip`.
 
 ## Lo que falta por implementar de esta ficha
 
-Todo lo demas esta entregado y verificado en laboratorio. Pendiente solo:
-
-- `MODELS=pull|skip`, acordado despues de la implementacion.
+Nada. `MODELS=pull|skip` se implemento el 2026-10-20 en la tanda v0.4.1, con
+`pull` por defecto y la verificacion sin relajar; queda su puerta en la visita de
+laboratorio de la tanda. De paso salio un defecto del script: con la config por
+defecto (`SERVICE_ENABLE=false`) la instalacion abortaba antes de verificar.
 
 ## No cubre
 

@@ -6,6 +6,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from ianest_core.adapters import (
+    Event,
     FakeAdapter,
     ModelAdapter,
     ModelRequest,
@@ -96,24 +97,13 @@ class PromptRuntime:
             raise
 
         latency_ms = _latency_ms(prepared.started)
-        trace = {
-            "request_id": prepared.request_id,
-            "capability": "prompt.run",
-            "user_id": prepared.identity.user_id,
-            "service": prepared.identity.service,
-            "session_id": prepared.identity.session_id,
-            "domain_tag": prepared.identity.domain_tag,
-            "namespace": prepared.identity.namespace,
-            "domain": prepared.domain,
-            "model": prepared.resolved.model.id,
-            "latency_ms": latency_ms,
-            "tokens_in": response.tokens_in,
-            "tokens_out": response.tokens_out,
-            "finish_reason": response.finish_reason,
-            "status": "ok",
-            "substituted": prepared.resolved.substituted,
-            "preferred_model": prepared.resolved.preferred_model,
-        }
+        trace = _trace(
+            prepared,
+            latency_ms=latency_ms,
+            tokens_in=response.tokens_in,
+            tokens_out=response.tokens_out,
+            finish_reason=response.finish_reason,
+        )
         done_payload = {
             "response": response.text,
             "finish_reason": response.finish_reason,
@@ -165,6 +155,7 @@ class PromptRuntime:
         tokens_out = 0
         finish_reason: Any = None
         adapter_reasoning = ""
+        adapter_done: dict[str, Any] = {}
         completed = False
         for event in prepared.adapter.stream(prepared.req):
             if event.type == "token":
@@ -174,6 +165,7 @@ class PromptRuntime:
                 tokens_out = int(event.data.get("tokens_out", 0) or 0)
                 finish_reason = event.data.get("finish_reason")
                 adapter_reasoning = str(event.data.get("reasoning", "") or "")
+                adapter_done = dict(event.data)
                 completed = True
             elif event.type == "error":
                 error_type = str(event.data.get("type", "AdapterError"))
@@ -181,9 +173,9 @@ class PromptRuntime:
                 yield event
                 return
 
-            yield event
             if completed:
                 break
+            yield event
 
         if not completed:
             return
@@ -191,6 +183,13 @@ class PromptRuntime:
         latency_ms = _latency_ms(prepared.started)
         response_text, inline_reasoning = split_reasoning("".join(text_parts))
         reasoning = "\n".join(part for part in (adapter_reasoning, inline_reasoning) if part)
+        trace = _trace(
+            prepared,
+            latency_ms=latency_ms,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            finish_reason=finish_reason,
+        )
         done_payload = {"response": response_text, "finish_reason": finish_reason}
         if reasoning:
             done_payload["reasoning"] = reasoning
@@ -207,6 +206,7 @@ class PromptRuntime:
             tokens_out=tokens_out,
             status="ok",
         )
+        yield Event("done", {**adapter_done, "trace": trace})
 
     def _prepare(
         self,
@@ -322,6 +322,34 @@ class PromptRuntime:
 
 def _latency_ms(started: float) -> int:
     return int((time.monotonic() - started) * 1000)
+
+
+def _trace(
+    prepared: PreparedPrompt,
+    *,
+    latency_ms: int,
+    tokens_in: int,
+    tokens_out: int,
+    finish_reason: Any,
+) -> dict[str, Any]:
+    return {
+        "request_id": prepared.request_id,
+        "capability": "prompt.run",
+        "user_id": prepared.identity.user_id,
+        "service": prepared.identity.service,
+        "session_id": prepared.identity.session_id,
+        "domain_tag": prepared.identity.domain_tag,
+        "namespace": prepared.identity.namespace,
+        "domain": prepared.domain,
+        "model": prepared.resolved.model.id,
+        "latency_ms": latency_ms,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "finish_reason": finish_reason,
+        "status": "ok",
+        "substituted": prepared.resolved.substituted,
+        "preferred_model": prepared.resolved.preferred_model,
+    }
 
 
 def _messages_with_system(prompt: str, system: str) -> list[dict[str, str]]:

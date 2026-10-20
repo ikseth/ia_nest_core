@@ -474,15 +474,16 @@ conformidad, todos en verde, con digest:
 
 ## Bateria de la tanda v0.4.1
 
-La entrega A congela el criterio de las dos lineas abiertas y de las fichas
+La entrega A congelo el criterio de las dos lineas abiertas y de las fichas
 v0.4/0010 y v0.4/0011 ANTES de implementar runtime, adaptadores o catalogo.
-Los casos viven en ficheros `*.yaml.frozen`, que el runner no descubre:
+Los casos de A vivieron en ficheros `*.yaml.frozen`, que el runner no descubre:
 
 - `eval/battery/v0.4/vacio.yaml.frozen`: ADR 0051 y ficha v0.4/0010.
 - `eval/battery/v0.4/plan_robusto.yaml.frozen`: ficha v0.4/0011.
-- `eval/battery/v0.4/autodescripcion.yaml.frozen`: hogar de ADR 0052. Queda
-  sin casos ejecutables porque el DSL no expresa regex ni eventos de stream;
-  esas comprobaciones se congelan como pytest requeridos, sin ampliar el DSL.
+- `eval/battery/v0.4/autodescripcion.yaml`: hogar de ADR 0052. No tiene casos
+  ejecutables porque el DSL no expresa regex ni eventos de stream; esas
+  comprobaciones viven como pytest requeridos, sin ampliar el DSL. La entrega C
+  retiro el sufijo `.frozen` sin mover el digest.
 
 Casos congelados e invariante de cada uno:
 
@@ -506,7 +507,7 @@ Casos congelados e invariante de cada uno:
 - `plan_robusto_ciclo_suministrado_sigue_siendo_error`: un plan suministrado
   conserva `PlanDependencyError`.
 
-Tests pytest requeridos, marcados `xfail(strict=True)` mientras esperan B o C:
+Tests pytest requeridos, activos tras las entregas B y C:
 
 - Ficha v0.4/0010, adaptador OpenAI-compatible: SSE sin `finish_reason`, con y
   sin `[DONE]`, conserva texto y termina con `incomplete`. El flujo normal con
@@ -529,4 +530,10 @@ casos anteriores conservan su digest declarado
 `8c88061ac30c24309cb2896eb22d4be32847b6d2246e7439d3e8fb919c5ccc83`.
 El resultado pasa a 135 casos de conformidad y digest
 `95d7e1bdd053b6a8752397b73af21135ad340c61841887b02f43409fff8df65f`.
-`autodescripcion.yaml.frozen` y los 6 xfail de ADR 0052 quedan para la entrega C.
+La entrega C integra `autodescripcion.yaml` -sin casos ejecutables- y activa los
+6 pytest de ADR 0052. El gate de presentacion se generaliza a todas las
+capacidades no `opaque`, con un centinela distinto por campo y sin backend. La
+bateria conserva 135 casos y el digest
+`95d7e1bdd053b6a8752397b73af21135ad340c61841887b02f43409fff8df65f`: el
+fichero integrado esta vacio y `build_id` no entra en las aserciones de
+conformidad, igual que `core_version`.

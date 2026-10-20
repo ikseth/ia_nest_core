@@ -42,6 +42,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
   PATCH.
 
 ### Cambiado
+- `runtime.health` y `capability.list` publican el `build_id` estable del
+  paquete importado ([ADR 0052](docs/decision_records/0052-la-respuesta-del-core-se-describe-a-si-misma.md)).
+- El evento `done` de `prompt.stream` publica una traza auditable
+  ([ADR 0052](docs/decision_records/0052-la-respuesta-del-core-se-describe-a-si-misma.md)).
+- El catalogo declara la presentacion CLI y su gate comprueba todos los
+  renderizadores no opacos
+  ([ADR 0052](docs/decision_records/0052-la-respuesta-del-core-se-describe-a-si-misma.md)).
 - Las contribuciones vacias de `task.run` se declaran y quedan fuera del
   combinador; si todas estan vacias, el combinador no se invoca (ADR 0051).
 - Un flujo sin `finish_reason` publica `incomplete` y una subtarea no vacia lo

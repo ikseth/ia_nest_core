@@ -232,10 +232,6 @@ def test_prompt_runtime_stream_records_clean_response_and_reasoning(tmp_path) ->
     assert done["payload"]["reasoning"] == "del cable\ndel bloque"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="core ADR 0052 D2: el done de prompt.stream debe publicar trace con request_id",
-)
 def test_prompt_stream_done_has_auditable_trace(tmp_path) -> None:
     config = replace(
         load_config(Path("eval/fixtures/config.yaml")),

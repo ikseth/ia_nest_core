@@ -40,6 +40,7 @@ class CliProjection:
     group: str
     action: str | None
     description: str
+    presentation: dict[str, object]
     epilog: str | None = None
     flags: tuple[str, ...] = ()
     flag_help: tuple[tuple[str, str], ...] = ()
@@ -202,6 +203,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "capability",
             "list",
             "Lista capacidades, parametros y proyecciones de interfaz.",
+            {"form": "table", "items": "capabilities", "columns": ("name", "summary")},
             flags=("json",),
             flag_help=(_JSON_CATALOG,),
         ),
@@ -218,6 +220,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "config",
             "validate",
             "Valida modelos, dominios, perfiles y referencias.",
+            {"form": "opaque"},
             flags=("json",),
             flag_help=(_JSON_RESULT,),
         ),
@@ -234,6 +237,11 @@ CAPABILITIES: tuple[Capability, ...] = (
             "domain",
             "list",
             "Lista dominios, modelo preferido y estado.",
+            {
+                "form": "table",
+                "items": "domains",
+                "columns": ("id", "preferred_model", "status"),
+            },
             flags=("json",),
             flag_help=(_JSON_LISTING,),
             order=1,
@@ -259,6 +267,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "domain",
             "route",
             "Evalua las reglas declaradas y propone el dominio y modelo aplicables.",
+            {"form": "row", "fields": ("domain", "model", "reason")},
             flags=("json",),
             flag_help=(_JSON_RESULT,),
         ),
@@ -290,6 +299,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "eval",
             "run",
             "Ejecuta los casos de la pista seleccionada.",
+            {"form": "row", "fields": ("verdict", "conformance_digest")},
             flags=("json",),
             flag_help=(_JSON_EVAL,),
         ),
@@ -326,6 +336,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "init",
             None,
             "Crea config/core.yaml y .env desde una plantilla y valida el resultado.",
+            {"form": "opaque"},
         ),
         None,
     ),
@@ -340,6 +351,11 @@ CAPABILITIES: tuple[Capability, ...] = (
             "model",
             "list",
             "Lista modelos, proveedor, disponibilidad y perfil.",
+            {
+                "form": "table",
+                "items": "models",
+                "columns": ("id", "provider", "available", "profile"),
+            },
             flags=("json",),
             flag_help=(_JSON_LISTING,),
         ),
@@ -364,6 +380,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "model",
             "pull",
             "Descarga modelos ausentes mediante el provisioner compatible con su proveedor.",
+            {"form": "opaque"},
             flags=("json",),
             flag_help=(_JSON_RESULT,),
         ),
@@ -380,6 +397,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "prompt",
             "run",
             "Ejecuta un prompt contra un modelo local.",
+            {"form": "text", "field": "response"},
             epilog=(
                 "Resolucion: --model tiene prioridad sobre --domain. Sin ambos, usa "
                 "el dominio por defecto; no enruta. Para enrutar por sentido, "
@@ -401,6 +419,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "prompt",
             "stream",
             "Ejecuta un prompt: la respuesta va a stdout y el progreso a stderr.",
+            {"form": "opaque"},
             epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
             flags=("json", "quiet", "verbose"),
             flag_help=(_JSON_EVENTS, _QUIET, _VERBOSE),
@@ -418,6 +437,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "reasoning",
             "run",
             "Ejecuta razonamiento iterativo y devuelve su salida final.",
+            {"form": "text", "field": "output"},
             epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
             flags=("json", "quiet", "verbose"),
             flag_help=(_JSON_RESULT, _QUIET, _VERBOSE),
@@ -435,6 +455,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "reasoning",
             "stream",
             "Ejecuta razonamiento iterativo: la salida va a stdout y el progreso por paso a stderr.",
+            {"form": "opaque"},
             epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
             flags=("json", "quiet", "verbose"),
             flag_help=(_JSON_EVENTS, _QUIET, _VERBOSE),
@@ -452,6 +473,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "runtime",
             "health",
             "Informa de core, backend, modelos, GPU y version de protocolo MCP.",
+            {"form": "opaque"},
             flags=("json",),
             flag_help=(_JSON_REPORT,),
             aliases=("detect",),
@@ -470,6 +492,11 @@ CAPABILITIES: tuple[Capability, ...] = (
             "task",
             "plan",
             "Deriva el plan de una tarea sin ejecutar subtareas.",
+            {
+                "form": "table",
+                "items": "plan",
+                "columns": ("index", "domain", "prompt"),
+            },
             epilog=(
                 "Con --json emite el objeto que task run acepta mediante "
                 "--plan-file."
@@ -490,6 +517,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "task",
             "run",
             "Ejecuta task.run: la respuesta va a stdout y el progreso a stderr (--quiet lo silencia).",
+            {"form": "text", "field": "response"},
             epilog=(
                 "pipeline ejecuta el flujo multi-modelo de cinco etapas; coverage "
                 "genera y valida unidades enumerables hasta completar su cobertura."
@@ -519,6 +547,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             "task",
             "stream",
             "Ejecuta task.stream: emite cada evento como JSONL en stdout.",
+            {"form": "opaque"},
             epilog=(
                 "pipeline ejecuta el flujo multi-modelo de cinco etapas; coverage "
                 "genera y valida unidades enumerables hasta completar su cobertura."
@@ -565,6 +594,51 @@ def _assert_catalog_invariants(capabilities: tuple[Capability, ...]) -> None:
         capability.cli is None
         or set(dict(capability.cli.alias_summaries)) == set(capability.cli.aliases)
         for capability in capabilities
+    )
+    assert all(
+        capability.cli is None or _valid_presentation(capability.cli.presentation)
+        for capability in capabilities
+    )
+    assert all(
+        not capability.streaming or capability.cli is None
+        or capability.cli.presentation["form"] == "opaque"
+        for capability in capabilities
+    )
+
+
+def _valid_presentation(presentation: object) -> bool:
+    if not isinstance(presentation, dict):
+        return False
+    form = presentation.get("form")
+    if form == "opaque":
+        return set(presentation) == {"form"}
+    if form == "text":
+        return set(presentation) == {"form", "field"} and _field_name(
+            presentation.get("field")
+        )
+    if form == "row":
+        return set(presentation) == {"form", "fields"} and _field_names(
+            presentation.get("fields")
+        )
+    if form == "table":
+        return (
+            set(presentation) == {"form", "items", "columns"}
+            and _field_name(presentation.get("items"))
+            and _field_names(presentation.get("columns"))
+        )
+    return False
+
+
+def _field_name(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _field_names(value: object) -> bool:
+    return (
+        isinstance(value, (list, tuple))
+        and bool(value)
+        and all(_field_name(item) for item in value)
+        and len(set(value)) == len(value)
     )
 
 

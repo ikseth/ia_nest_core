@@ -1,7 +1,7 @@
 # ADR 0052 exige dos comprobaciones que el DSL declarativo vigente no puede
 # expresar sin ampliarlo: una regex para build_id y la inspeccion del evento
-# done de prompt.stream. Se congelan como pytest requeridos y xfail(strict=True)
-# en tests/test_capabilities.py y tests/test_prompt_runtime.py.
+# done de prompt.stream. Se comprueban como pytest requeridos en
+# tests/test_capabilities.py y tests/test_prompt_runtime.py.
 #
 # Este fichero conserva el hogar y el motivo de la bateria de la fase 2 sin
 # inventar una asercion exacta para un digest cuyo valor no es contrato.

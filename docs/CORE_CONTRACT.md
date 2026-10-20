@@ -410,6 +410,12 @@ resultado, y el core lo declara en vez de integrarlo:
 Un `finish_reason: length` con texto NO vacio no es una degradacion: en
 `pipeline` tocar techo es el regimen normal, empezando por el combinador.
 
+El combinador es el UNICO punto donde una contribucion vacia podria integrarse:
+`depends_on` solo ordena la ejecucion y no inyecta la salida de las predecesoras
+en las dependientes (ADR 0040), asi que una subtarea que depende de otra vacia no
+recibe ese vacio. La regla "el vacio no es un resultado" no necesita mas
+mecanismo; si algun dia `depends_on` pasa material, esta regla viaja con el.
+
 Un `finish_reason: incomplete` con texto NO vacio SI lo es (ficha v0.4/0010): el
 flujo termino sin que el backend declarase por que, y el core no puede afirmar
 que la contribucion este entera. Emite `{stage: fanout, reason:

@@ -948,6 +948,39 @@ criterios de salida no cambian.
 Al cerrar: nota al hilo de extended para que re-verifique su rango contra el
 tag nuevo, y para que sepa que su reintento ante el ciclo deja de dispararse.
 
+### Estado (2026-10-20): entregas A-D hechas, puerta de laboratorio pasada
+
+Las cuatro entregas, cada una implementada por Codex y verificada por el
+disenador: 306 pytest, 135 casos de conformidad, digest `95d7e1bd`. La revision
+cazo dos defectos que la bateria no veia: un test de presentacion tautologico
+(entrega A) y un `build_id` que se calculaba en la PRIMERA CONSULTA y no al
+cargar, con lo que un proceso sin consultar publicaba el digest del arbol nuevo
+(entrega C). Y la entrega D destapo uno del instalador que no se buscaba: con la
+config por defecto abortaba antes de verificar.
+
+Puerta de laboratorio, sobre una copia aislada para no tocar el core desplegado,
+del que extended dependia en vivo ese dia:
+
+- `build_id`: el proceso vivo conserva su digest tras cambiar el arbol sin
+  reiniciar, el proceso nuevo da otro y `core_version` no cambia. PASA;
+- vacio y ficha 0010, 4 pasadas con control: la degradacion aparece en las 2
+  pasadas con una subtarea cortada sin `finish_reason` -la 0010 se reprodujo con
+  el backend real a traves del core- y en ninguna de las otras 2. PASA en lo
+  mecanico. En calidad, ni `task.run` ni `prompt.run` aciertan la pregunta
+  factual, y el troceo pierde informacion que la respuesta de una pieza si da:
+  el verde no afirma veracidad y esta puerta tampoco;
+- `MODELS=skip`: no descarga nada y la instalacion queda verificada. PASA.
+
+Con esto quedan cumplidas las fases 2, 3 y 4 de las dos lineas y la linea del
+instalador. Falta el corte del numero, que es del usuario.
+
+Hallazgo de la puerta, ABIERTO y sin forma decidida: las degradaciones de fanout
+no dicen de que iteracion son. En 2 de las 4 pasadas la respuesta final sale de
+una iteracion limpia y `degradations` sigue nombrando la subtarea cortada de una
+iteracion anterior, asi que el consumidor no sabe si lo que recibe contiene el
+trozo cortado. Le pasa igual a `undecipherable_decision`. Forma aditiva obvia: un
+campo `iteration` en la degradacion. No entra en v0.4.1; se decide aparte.
+
 ## Fuera de este plan
 
 - Implementar memoria, RAG, web, conciencia o agentes (repos externos).

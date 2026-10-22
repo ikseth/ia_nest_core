@@ -974,6 +974,9 @@ del que extended dependia en vivo ese dia:
 Con esto quedan cumplidas las fases 2, 3 y 4 de las dos lineas y la linea del
 instalador. Falta el corte del numero, que es del usuario.
 
+**Cortada el 2026-10-22 como v0.4.1** (PATCH). Queda del cierre la nota al hilo
+de extended y la fila del core en `REGISTRO_CAPAS.md` de meta.
+
 Hallazgo de la puerta, ABIERTO y sin forma decidida: las degradaciones de fanout
 no dicen de que iteracion son. En 2 de las 4 pasadas la respuesta final sale de
 una iteracion limpia y `degradations` sigue nombrando la subtarea cortada de una

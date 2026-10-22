@@ -5,6 +5,18 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.4.1] - 2026-10-22
+
+Tanda v0.4.1 (`docs/PLAN.md`): cierra lo abierto del core antes de abrir el ente
+a consumidores reales. La senal de vacio (ADR 0051 con la ficha 0010), la
+respuesta que se describe a si misma (ADR 0052), el plan derivado con ciclo que
+deja de llegar como 400 (ficha 0011) y el instalador con `MODELS=pull|skip`
+(ficha 0003). La version es PATCH: todo es aditivo o correccion, sin ruptura de
+contrato, y el rango de `ia_nest_extended` (`>=0.4 <0.5`) no se amplia, se
+re-verifica. Validado: 306 tests, conformidad 135/135 con digest declarado
+(`95d7e1bd`), y puerta de laboratorio pasada el 2026-10-20 sobre una copia
+aislada del core desplegado.
+
 ### Decidido
 - **Lo que el verde del core no dice, y el vacio que si puede declarar**
   (ADR 0051): disposicion de los tres hallazgos que `ia_nest_extended` midio el
@@ -447,7 +459,8 @@ laboratorio sobre hardware real (RTX 3060 + Ollama).
 - Manual de usuario modular (`docs/manual/`), fronteras hacia capas externas
   (`docs/FRONTERAS.md`) y 30 ADRs.
 
-[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.4.0...HEAD
+[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.4.1...HEAD
+[v0.4.1]: https://github.com/ikseth/ia_nest_core/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/ikseth/ia_nest_core/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/ikseth/ia_nest_core/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/ikseth/ia_nest_core/compare/v0.1.0...v0.2.0

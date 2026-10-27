@@ -34,6 +34,9 @@ aqui y no se duplica en este repo:
   contrato publico del core y su registro de fichas.
 - `docs/change_requests/`: canal para pedir un cambio de contrato a otra capa,
   y CR abiertos hacia el core.
+- `docs/plan/HOJA_DE_RUTA.md`: el orden entre capas (meta ADR 0014). Los hilos
+  de un hito salen de meta; `docs/PLAN.md` de este repo lleva solo el detalle
+  interno del core.
 
 Versionado: toda propuesta que toque contrato publico declara su impacto
 (patch/minor/major) y actualiza `CHANGELOG.md`. Que cuenta como contrato publico

@@ -5,6 +5,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.4.2] - 2026-10-29
+
+Perfil del interlocutor en la identidad (`edge CR-0001`, ficha 0013), que
+bloquea la entrada de la familia (hito H08 de meta). PATCH: campo aditivo; la
+telemetria sube a `schema_version` 2. Validado: 323 tests, conformidad
+136/136.
+
 ### Cambiado
 
 - El contexto de identidad acepta y traza `interlocutor_profile` con los
@@ -469,7 +476,8 @@ laboratorio sobre hardware real (RTX 3060 + Ollama).
 - Manual de usuario modular (`docs/manual/`), fronteras hacia capas externas
   (`docs/FRONTERAS.md`) y 30 ADRs.
 
-[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.4.1...HEAD
+[No publicado]: https://github.com/ikseth/ia_nest_core/compare/v0.4.2...HEAD
+[v0.4.2]: https://github.com/ikseth/ia_nest_core/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/ikseth/ia_nest_core/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/ikseth/ia_nest_core/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/ikseth/ia_nest_core/compare/v0.2.0...v0.3.0

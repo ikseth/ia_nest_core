@@ -72,3 +72,8 @@ formato, y para que traza y memoria compartan identidad (ADR 0011).
   (ADR 0010).
 - Cambiar columnas o campos incrementa `schema_version` y exige decision
   registrada.
+
+## Estado posterior
+
+2026-10-29: `schema_version` 2; columna 19 `interlocutor_profile`; ficha
+`docs/fixes/v0.4/0013-perfil-del-interlocutor-en-la-identidad.md`.

@@ -38,8 +38,12 @@ Campos:
 - `domain_tag`
 - `namespace` (ejemplos: `facts`, `tasks`, `preferences`, `persona`, `ops`,
   `safety`)
+- `interlocutor_profile` (`adult` | `child`; ausente o vacio significa que no
+  hay dato)
 
 Estos campos deben reflejarse en la traza (telemetria, ADR 0010).
+El core transporta y traza `interlocutor_profile`, pero no lo interpreta: no
+cambia modelo, perfil, dominio, enrutado ni mensajes al modelo por su valor.
 
 Identidad por defecto: en uso local (CLI) existe una identidad local
 CONFIGURADA por defecto (operador local con nombre), no un modo anonimo, de

@@ -537,3 +537,8 @@ bateria conserva 135 casos y el digest
 `95d7e1bdd053b6a8752397b73af21135ad340c61841887b02f43409fff8df65f`: el
 fichero integrado esta vacio y `build_id` no entra en las aserciones de
 conformidad, igual que `core_version`.
+
+La ficha v0.4/0013 anade el caso de identidad
+`interlocutor_profile_propagated_to_trace`; el digest vigente queda declarado
+junto con su implementacion: 136 casos de conformidad y
+`f6558d3c7e16d20c453c3696e121e105e5869ebfb06f0d4fd9fff6849ceaff57`.

@@ -313,7 +313,8 @@ def test_coverage_generation_and_validation_prompts_remain_unchanged(tmp_path) -
     ]
 
 
-def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
+@pytest.mark.parametrize("interlocutor_profile", ["adult", "child"])
+def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path, interlocutor_profile) -> None:
     config = _config(tmp_path)
     adapters = {
         "fake_planner": ScriptedFakeAdapter(
@@ -328,7 +329,7 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
 
     result = runtime.run(
         prompt="tarea",
-        identity_override={"user_id": "u42", "service": "local_cli", "session_id": "s7"},
+        identity_override={"user_id": "u42", "service": "local_cli", "session_id": "s7", "interlocutor_profile": interlocutor_profile},
         request_id="parent",
     )
 
@@ -349,6 +350,8 @@ def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path) -> None:
     assert {event["payload"]["task_id"] for event in subtask_done} == {result.trace["task_id"]}
     assert {event["payload"]["parent_request_id"] for event in subtask_done} == {"parent"}
     assert {event["session_id"] for event in subtask_done} == {"s7"}
+    assert result.trace["interlocutor_profile"] == interlocutor_profile
+    assert {event["interlocutor_profile"] for event in events} == {interlocutor_profile}
     code_done = next(event for event in subtask_done if event["payload"].get("subtask_index") == 1)
     assert code_done["payload"]["finish_reason"] == "length"
     assert {event["payload"]["iteration"] for event in subtask_done} == {1}

@@ -5,6 +5,16 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+### Cambiado
+
+- El contexto de identidad acepta y traza `interlocutor_profile` con los
+  valores `adult` o `child`; es un campo aditivo PATCH solicitado por edge
+  ([ficha v0.4/0013](docs/fixes/v0.4/0013-perfil-del-interlocutor-en-la-identidad.md),
+  edge CR-0001).
+- La telemetria pasa a `schema_version` 2: `interlocutor_profile` es la columna
+  final del CSV y una cabecera distinta rota el fichero antes de escribir, para
+  no mezclar esquemas ([ficha v0.4/0013](docs/fixes/v0.4/0013-perfil-del-interlocutor-en-la-identidad.md)).
+
 ## [v0.4.1] - 2026-10-22
 
 Tanda v0.4.1 (`docs/PLAN.md`): cierra lo abierto del core antes de abrir el ente

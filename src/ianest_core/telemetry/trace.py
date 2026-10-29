@@ -10,7 +10,7 @@ from ianest_core.config.schema import TelemetryConfig
 from ianest_core.errors import CoreError
 from ianest_core.identity import Identity
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 ROTATE_SIZE_BYTES = 5 * 1024 * 1024
 
 TRACE_CSV_FIELDS = [
@@ -32,6 +32,7 @@ TRACE_CSV_FIELDS = [
     "verdict",
     "status",
     "error_type",
+    "interlocutor_profile",
 ]
 
 
@@ -39,6 +40,7 @@ class TelemetryWriter:
     def __init__(self, config: TelemetryConfig | None) -> None:
         self.config = config
         self.errors: list[str] = []
+        self._validated_csv_headers: set[Path] = set()
 
     def record(
         self,
@@ -121,6 +123,7 @@ class TelemetryWriter:
             "verdict": verdict,
             "status": status,
             "error_type": error_type,
+            "interlocutor_profile": identity.interlocutor_profile,
         }
 
     def _write(
@@ -135,12 +138,15 @@ class TelemetryWriter:
         if csv_event and self.config.csv_path:
             csv_path = Path(self.config.csv_path)
             csv_path.parent.mkdir(parents=True, exist_ok=True)
-            self._rotate_if_needed(csv_path)
+            if self._rotate_if_needed(csv_path):
+                self._validated_csv_headers.discard(csv_path)
+            self._rotate_if_header_differs(csv_path)
             needs_header = not csv_path.exists() or csv_path.stat().st_size == 0
             with csv_path.open("a", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=TRACE_CSV_FIELDS, delimiter=";")
                 if needs_header:
                     writer.writeheader()
+                    self._validated_csv_headers.add(csv_path)
                 writer.writerow(row)
         if jsonl_event and self.config.jsonl_path:
             jsonl_path = Path(self.config.jsonl_path)
@@ -157,16 +163,30 @@ class TelemetryWriter:
             if self.config is not None and self.config.strict_mode:
                 raise CoreError("TelemetryError", str(exc), None) from exc
 
-    def _rotate_if_needed(self, path: Path) -> None:
+    def _rotate_if_needed(self, path: Path) -> bool:
         if self.config is None or not path.exists():
-            return
+            return False
         if self.config.rotation == "size" and path.stat().st_size >= ROTATE_SIZE_BYTES:
             _rotate(path, datetime.now(UTC).strftime("%Y%m%d%H%M%S"))
+            return True
         elif self.config.rotation == "date":
             mtime = datetime.fromtimestamp(path.stat().st_mtime, UTC).date()
             today = datetime.now(UTC).date()
             if mtime != today:
                 _rotate(path, mtime.isoformat())
+                return True
+        return False
+
+    def _rotate_if_header_differs(self, path: Path) -> None:
+        if path in self._validated_csv_headers or not path.exists() or path.stat().st_size == 0:
+            return
+        with path.open(newline="", encoding="utf-8") as handle:
+            header = next(csv.reader(handle, delimiter=";"), [])
+        if header == TRACE_CSV_FIELDS:
+            self._validated_csv_headers.add(path)
+            return
+        _rotate(path, datetime.now(UTC).strftime("%Y%m%d%H%M%S"))
+        self._validated_csv_headers.discard(path)
 
 
 def _rotate(path: Path, suffix: str) -> None:

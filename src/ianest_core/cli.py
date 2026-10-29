@@ -234,6 +234,7 @@ def _add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     identity.add_argument("--session-id", metavar="ID", help="identificador opcional de continuidad de sesion")
     identity.add_argument("--domain-tag", metavar="ETIQUETA", help="etiqueta de dominio incluida en identidad y traza")
     identity.add_argument("--namespace", metavar="ESPACIO", help="espacio de identidad incluido en la traza")
+    identity.add_argument("--interlocutor-profile", choices=["adult", "child"], help="perfil del interlocutor incluido en identidad y traza")
 
 
 def _init(args: argparse.Namespace) -> int:
@@ -646,6 +647,7 @@ def _identity_override(args: argparse.Namespace) -> dict[str, str]:
         "session_id": args.session_id,
         "domain_tag": args.domain_tag,
         "namespace": args.namespace,
+        "interlocutor_profile": args.interlocutor_profile,
     }
     return {key: value for key, value in values.items() if value}
 

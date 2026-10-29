@@ -216,6 +216,7 @@ def _done_payload(
         "session_id": prepared.identity.session_id,
         "domain_tag": prepared.identity.domain_tag,
         "namespace": prepared.identity.namespace,
+        "interlocutor_profile": prepared.identity.interlocutor_profile,
         "domain": prepared.domain,
         "model": prepared.resolved.model.id,
         "latency_ms": latency_ms,

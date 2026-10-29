@@ -278,7 +278,7 @@ def test_scripted_finish_reason_reaches_prompt_trace_and_jsonl(tmp_path) -> None
     with (tmp_path / "trace.csv").open("r", newline="", encoding="utf-8") as handle:
         rows = list(csv.reader(handle, delimiter=";"))
     assert rows
-    assert all(len(row) == 18 for row in rows)
+    assert all(len(row) == 19 for row in rows)
 
 
 def test_prompt_runtime_propagates_identity_to_trace(tmp_path) -> None:

@@ -45,6 +45,19 @@
       service: local_cli
       session_id: s1
 
+- id: interlocutor_profile_propagated_to_trace
+  track: conformance
+  description: "El perfil del interlocutor aparece en la traza sin cambiar la inferencia."
+  capability: prompt.run
+  fixture: eval/fixtures/config.yaml
+  input:
+    prompt: "hola"
+    domain: general
+    identity: { interlocutor_profile: child }
+  expect:
+    trace_fields:
+      interlocutor_profile: child
+
 - id: admin_capability_no_identity_required
   track: conformance
   description: "Las capacidades administrativas no exigen identidad (ADR 0011)."

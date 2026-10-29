@@ -222,6 +222,8 @@ class PromptRuntime:
     ) -> PreparedPrompt:
         started = time.monotonic()
         request_id = request_id or str(uuid4())
+        identity_data = dict(identity_override or {})
+        Identity.from_defaults(self.config.identity_defaults, identity_data)
         route = None
         if model_id is None and domain_id is None:
             default_id = self.config.default_domain or "general"
@@ -229,7 +231,6 @@ class PromptRuntime:
         else:
             resolved = self.registry.resolve_prompt_target(model_id, domain_id)
         domain = resolved.domain.id if resolved.domain is not None else ""
-        identity_data = dict(identity_override or {})
         if domain and not identity_data.get("domain_tag"):
             identity_data["domain_tag"] = domain
         identity = Identity.from_defaults(self.config.identity_defaults, identity_data)
@@ -340,6 +341,7 @@ def _trace(
         "session_id": prepared.identity.session_id,
         "domain_tag": prepared.identity.domain_tag,
         "namespace": prepared.identity.namespace,
+        "interlocutor_profile": prepared.identity.interlocutor_profile,
         "domain": prepared.domain,
         "model": prepared.resolved.model.id,
         "latency_ms": latency_ms,

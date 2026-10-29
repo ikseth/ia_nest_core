@@ -20,7 +20,7 @@ from ianest_core.capabilities import CAPABILITIES, _assert_catalog_invariants
 from ianest_core.cli import _build_parser, main
 
 
-IDENTITY_ARGUMENTS = {"user_id", "service", "session_id", "domain_tag", "namespace"}
+IDENTITY_ARGUMENTS = {"user_id", "service", "session_id", "domain_tag", "namespace", "interlocutor_profile"}
 BUILD_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{64}|unknown)$")
 
 _PRESENTATION_INVOCATIONS = {

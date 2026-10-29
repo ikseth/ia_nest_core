@@ -141,3 +141,10 @@ del principio 4).
   deterministas por tipo de unidad quedan como evolucion), crecimiento
   del ledger (solo ids y referencias minimas viajan a ventanas
   siguientes).
+
+## Estado posterior
+
+2026-10-29: el CSV de telemetria pasa a 19 columnas bajo `schema_version` 2
+(columna final `interlocutor_profile`); las "18 columnas congeladas" de las
+consecuencias describen el esquema de entonces. Ver ADR 0015 (estado
+posterior) y la ficha `docs/fixes/v0.4/0013-perfil-del-interlocutor-en-la-identidad.md`.

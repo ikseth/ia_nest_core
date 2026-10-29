@@ -59,8 +59,9 @@ class DomainRuntime:
     ) -> DomainRouteResult:
         started = time.monotonic()
         request_id = request_id or str(uuid4())
-        route = self.router.route(prompt)
         identity_data = dict(identity_override or {})
+        Identity.from_defaults(self.config.identity_defaults, identity_data)
+        route = self.router.route(prompt)
         if not identity_data.get("domain_tag"):
             identity_data["domain_tag"] = route.domain
         identity = Identity.from_defaults(self.config.identity_defaults, identity_data)
@@ -73,6 +74,7 @@ class DomainRuntime:
             "session_id": identity.session_id,
             "domain_tag": identity.domain_tag,
             "namespace": identity.namespace,
+            "interlocutor_profile": identity.interlocutor_profile,
             "domain": route.domain,
             "model": route.model,
             "latency_ms": latency_ms,

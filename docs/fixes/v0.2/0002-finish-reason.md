@@ -80,3 +80,10 @@ Implementado en `fix/v0.2-0002-finish-reason`:
 - El `conformance_digest` no cambia:
   `1d405c95660947206a0be19a6f8ef8ecf92874a7718f3dd10348ab0fb040263b`;
   no se modifican `tests/test_phase_6b.py` ni `eval/README.md`.
+
+## Estado posterior
+
+2026-10-29: el esquema posterior es `schema_version` 2 con 19 columnas; la
+columna final `interlocutor_profile` y la rotacion por cabecera distinta se
+registran en la ficha v0.4/0013. Las 18 columnas de esta ficha describen el
+estado de su implementacion original.

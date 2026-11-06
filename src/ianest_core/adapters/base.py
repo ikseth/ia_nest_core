@@ -15,9 +15,10 @@ class Event:
 
 @dataclass(frozen=True)
 class ModelRequest:
-    messages: list[dict[str, str]]
+    messages: list[dict[str, Any]]
     params: dict[str, Any] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
+    tools: list[dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,8 @@ class ModelResponse:
     tokens_out: int
     finish_reason: Any = None
     reasoning: str = ""
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    turn_tool_calls: int = 0
 
 
 class ModelAdapter(Protocol):
@@ -66,10 +69,14 @@ def split_reasoning(text: str) -> tuple[str, str]:
 
 
 def run_blocking(adapter: ModelAdapter, req: ModelRequest) -> ModelResponse:
+    return collect_events(adapter.stream(req))
+
+
+def collect_events(events: Iterator[Event]) -> ModelResponse:
     text_parts: list[str] = []
     last_done: dict[str, Any] | None = None
 
-    for event in adapter.stream(req):
+    for event in events:
         if event.type == "token":
             text_parts.append(str(event.data.get("text", "")))
         elif event.type == "done":
@@ -101,4 +108,6 @@ def run_blocking(adapter: ModelAdapter, req: ModelRequest) -> ModelResponse:
         tokens_out=int(last_done.get("tokens_out", 0) or 0),
         finish_reason=last_done.get("finish_reason"),
         reasoning=reasoning,
+        tool_calls=list(last_done.get("tool_calls", [])),
+        turn_tool_calls=int(last_done.get("_turn_tool_calls", 0) or 0),
     )

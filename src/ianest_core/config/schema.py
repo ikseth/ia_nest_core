@@ -16,6 +16,23 @@ class ModelConfig:
 
 
 @dataclass(frozen=True)
+class ToolProviderConfig:
+    id: str
+    transport: str
+    url: str
+    auth_env: str | None = None
+    timeout_s: float = 10
+
+
+@dataclass(frozen=True)
+class DomainToolsConfig:
+    provider: str
+    max_rounds: int = 4
+    allow: dict[str, list[str]] = field(default_factory=dict)
+    deny: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class DomainConfig:
     id: str
     description: str
@@ -23,6 +40,7 @@ class DomainConfig:
     fallback_models: list[str]
     profile: str
     status: str
+    tools: DomainToolsConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -110,3 +128,4 @@ class CoreConfig:
     orchestration: OrchestrationConfig | None = None
     router: RouterConfig | None = None
     default_domain: str | None = None
+    tool_providers: dict[str, ToolProviderConfig] = field(default_factory=dict)

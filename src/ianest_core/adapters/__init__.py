@@ -3,6 +3,7 @@ from ianest_core.adapters.base import (
     ModelAdapter,
     ModelRequest,
     ModelResponse,
+    collect_events,
     run_blocking,
     split_reasoning,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "ModelResponse",
     "OpenAICompatibleAdapter",
     "ScriptedFakeAdapter",
+    "collect_events",
     "run_blocking",
     "split_reasoning",
 ]

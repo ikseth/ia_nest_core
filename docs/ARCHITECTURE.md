@@ -27,7 +27,7 @@ al mismo nucleo:
          └──> reasoning_loop ──────────────────┘
                     │
     telemetry <── (todos emiten trazas) ──> evaluation
-    tool_contracts (invocado por reasoning_loop bajo politica)
+    tool_contracts (invocado por prompt_runtime si el dominio declara tools, ADR 0053)
 ```
 
 Regla transversal: cada componente se explica en una pagina y se prueba de
@@ -223,14 +223,14 @@ contratos.
 ### reasoning_loop
 
 - Responsabilidad: razonamiento iterativo controlado y observable, con
-  limites de iteraciones, tiempo y presupuesto de tokens (D6); puede
-  invocar herramientas bajo politica (D5).
+  limites de iteraciones, tiempo y presupuesto de tokens (D6). No invoca
+  herramientas en `v0.5.0`: el bucle de herramientas vive en `prompt_runtime`
+  (ADR 0053).
 - Entradas: objetivo/prompt; limites; pasos habilitados/deshabilitados.
 - Salidas: `reasoning.run` (salida observable por paso; flujo D2).
 - Estado interno: estado del bucle por request (iteracion, presupuesto
   consumido); no persistente.
-- Dependencias: `prompt_runtime`, `tool_contracts` (opcional, bajo
-  politica), `telemetry`.
+- Dependencias: `prompt_runtime`, `telemetry`.
 - Decisiones que aplica: D2, D5, D6.
 - Prueba aislada: con runtime fake; se verifica corte por cada limite
   (iteraciones, tiempo, tokens), desactivacion de pasos y observabilidad.
@@ -239,8 +239,9 @@ contratos.
 
 - Responsabilidad: contrato y frontera de confianza para herramientas
   externas invocables desde el core (D5).
-- Entradas: declaracion de herramienta (capacidades, scopes,
-  destructiva si/no); invocacion desde `reasoning_loop`.
+- Entradas: proveedores MCP declarados (`tool_providers`) y su lista de
+  herramientas con anotaciones; politica del dominio por
+  `interlocutor_profile`; invocacion desde `prompt_runtime` (ADR 0053).
 - Salidas: resultado tipado de la herramienta o error de politica.
 - Estado interno: allowlist y politica activa.
 - Dependencias: `telemetry`.

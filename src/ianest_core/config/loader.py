@@ -11,6 +11,7 @@ from ianest_core.config.schema import (
     CoverageConfig,
     CoreConfig,
     DomainConfig,
+    DomainToolsConfig,
     EffortConfig,
     EffortCoverageConfig,
     ModelConfig,
@@ -20,6 +21,7 @@ from ianest_core.config.schema import (
     RouterConfig,
     TelemetryConfig,
     TokenBudgetConfig,
+    ToolProviderConfig,
 )
 from ianest_core.errors import ConfigError
 
@@ -51,6 +53,7 @@ def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:
     orchestration = _load_orchestration(raw.get("orchestration"))
     router = _load_router(raw.get("router"))
     default_domain = str(raw["default_domain"]) if raw.get("default_domain") else None
+    tool_providers = _load_tool_providers(raw.get("tool_providers"))
     return CoreConfig(
         models=models,
         domains=domains,
@@ -60,6 +63,7 @@ def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:
         orchestration=orchestration,
         router=router,
         default_domain=default_domain,
+        tool_providers=tool_providers,
     )
 
 
@@ -92,7 +96,34 @@ def _load_domain(raw: dict[str, Any]) -> DomainConfig:
         fallback_models=list(raw.get("fallback_models", [])),
         profile=str(raw.get("profile", "")),
         status=str(raw.get("status", "")),
+        tools=_load_domain_tools(raw.get("tools")),
     )
+
+
+def _load_domain_tools(raw: dict[str, Any] | None) -> DomainToolsConfig | None:
+    if raw is None:
+        return None
+    return DomainToolsConfig(
+        provider=str(raw.get("provider", "")),
+        max_rounds=int(raw.get("max_rounds", 4)),
+        allow={str(profile): list(names) for profile, names in raw.get("allow", {}).items()},
+        deny=list(raw.get("deny", [])),
+    )
+
+
+def _load_tool_providers(raw: dict[str, Any] | None) -> dict[str, ToolProviderConfig]:
+    if raw is None:
+        return {}
+    return {
+        str(provider_id): ToolProviderConfig(
+            id=str(provider_id),
+            transport=str(values.get("transport", "")),
+            url=str(values.get("url", "")),
+            auth_env=str(values["auth_env"]) if values.get("auth_env") else None,
+            timeout_s=float(values.get("timeout_s", 10)),
+        )
+        for provider_id, values in raw.items()
+    }
 
 
 def _load_profile(raw: dict[str, Any]) -> ProfileConfig:

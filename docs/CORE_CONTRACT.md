@@ -220,6 +220,12 @@ Debe devolver:
 Ejecuta un prompt contra el dominio declarado o el dominio por defecto. NO
 orquesta ni enruta por sentido (ADR 0043): es el camino atomico y directo.
 
+Es una peticion y una respuesta. Si el dominio resuelto declara `tools`, una
+peticion puede contener varias llamadas al modelo y a su proveedor MCP dentro
+del mismo turno (ADR 0053); no por ello enruta ni se convierte en
+`reasoning.run` o `task.run`. Un dominio sin `tools` conserva una sola llamada
+al modelo.
+
 Resolucion de modelo por precedencia (ADR 0019, enmendado por ADR 0043): modelo
 directo declarado > dominio declarado (usa su `preferred_model`) > dominio por
 defecto (`general`). `prompt.run` NO invoca el router: quien quiera enrutado
@@ -234,6 +240,9 @@ Debe devolver:
 - parametros efectivos,
 - trazabilidad minima.
 
+La traza anade `tool_calls`: numero de llamadas a herramientas solicitadas en
+el turno, invocadas o no. Vale 0 cuando el dominio no declara herramientas.
+
 `finish_reason` es el que declara el backend. Si el flujo termina sin que el
 backend haya declarado ninguno, el core publica `incomplete` en vez de nulo y
 conserva el texto recibido (ficha v0.4/0010): un nulo no se distingue de una
@@ -245,6 +254,25 @@ publica el objeto `trace` -con `request_id`- igual que lo publican los `done` de
 tienen la misma auditabilidad: una respuesta que no se puede atribuir a su
 request no es auditable, y quien persiste lo que el core produce necesita saber
 de que request salio.
+
+Con herramientas, `prompt.stream` conserva los tipos de evento existentes. Los
+`token` de todas las vueltas salen segun llegan y hay un solo `done`, cuyo texto
+es el de la ultima vuelta. Las llamadas y sus resultados no salen al cliente.
+
+#### Configuracion de herramientas
+
+`tool_providers` declara proveedores MCP por id. En v0.5.0 el unico transporte
+admitido es `streamable_http`; cada proveedor declara `url`, `timeout_s` por
+llamada (10 por defecto) y `auth_env` opcional, que nombra la variable cuyo
+valor se envia como bearer sin guardar el secreto en YAML.
+
+El bloque opcional `domains[].tools` declara `provider`, `max_rounds` (4 por
+defecto), `allow` por `interlocutor_profile` y un `deny` opcional que siempre
+gana. Perfil vacio o sin entrada en `allow` no recibe herramientas. Solo se
+ofrecen e invocan herramientas no destructivas segun sus anotaciones MCP:
+`readOnlyHint: true` o `destructiveHint: false`; sin anotaciones se consideran
+destructivas. La forma normativa completa y el cierre al alcanzar el limite
+estan en ADR 0053.
 
 ### `reasoning.run`
 
@@ -585,7 +613,7 @@ previsibles.
 
 Criterios de uso:
 
-- `prompt.run`: peticion atomica; una llamada, una respuesta.
+- `prompt.run`: peticion atomica; una peticion, una respuesta.
 - `reasoning.run`: una respuesta que mejora por borrador y refinamiento.
 - `task.run` (mode=pipeline): tarea descomponible en subtareas
   heterogeneas que se combinan.

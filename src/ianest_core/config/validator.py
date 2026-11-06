@@ -5,8 +5,10 @@ import re
 from typing import Any
 
 from ianest_core.errors import ConfigValidationError
+from ianest_core.identity import INTERLOCUTOR_PROFILES
 
 ENV_PATTERN = re.compile(r"^\$\{([A-Z0-9_]+)\}$")
+ENV_NAME_PATTERN = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
 MODEL_FIELDS = ["id", "provider", "adapter", "endpoint", "model_name", "capabilities", "profile"]
 DOMAIN_FIELDS = [
@@ -80,6 +82,7 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
     model_ids = _unique_ids(models, "model")
     domain_ids = _unique_ids(domains, "domain")
     profile_ids = _unique_ids(profiles, "profile")
+    provider_ids = _validate_tool_providers(raw.get("tool_providers"))
 
     for model in models:
         if model["profile"] not in profile_ids:
@@ -93,6 +96,9 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
         for fallback_model in domain["fallback_models"]:
             if fallback_model not in model_ids:
                 raise ConfigValidationError("fallback_model does not exist", "fallback_models")
+        tools = domain.get("tools")
+        if tools is not None:
+            _validate_domain_tools(tools, provider_ids)
 
     orchestration = raw.get("orchestration")
     if orchestration is not None:
@@ -107,6 +113,83 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
         raise ConfigValidationError("default_domain does not exist", "default_domain")
 
     return {"models": model_ids, "domains": domain_ids, "profiles": profile_ids}
+
+
+def _validate_tool_providers(raw: Any) -> set[str]:
+    if raw is None:
+        return set()
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("tool_providers must be a mapping", "tool_providers")
+    provider_ids: set[str] = set()
+    for provider_id, provider in raw.items():
+        field = f"tool_providers.{provider_id}"
+        if not isinstance(provider_id, str) or not provider_id:
+            raise ConfigValidationError("tool provider id must not be empty", "tool_providers")
+        if not isinstance(provider, dict):
+            raise ConfigValidationError("tool provider must be a mapping", field)
+        unknown = set(provider) - {"transport", "url", "auth_env", "timeout_s"}
+        if unknown:
+            raise ConfigValidationError(
+                "unknown tool provider field",
+                f"{field}.{sorted(unknown)[0]}",
+            )
+        if provider.get("transport") != "streamable_http":
+            raise ConfigValidationError(
+                "tool provider transport must be streamable_http",
+                f"{field}.transport",
+            )
+        if not isinstance(provider.get("url"), str) or not provider["url"]:
+            raise ConfigValidationError("tool provider url must not be empty", f"{field}.url")
+        auth_env = provider.get("auth_env")
+        if auth_env is not None and (
+            not isinstance(auth_env, str) or not ENV_NAME_PATTERN.fullmatch(auth_env)
+        ):
+            raise ConfigValidationError(
+                "tool provider auth_env must be an environment variable name",
+                f"{field}.auth_env",
+            )
+        timeout_s = provider.get("timeout_s", 10)
+        if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)) or timeout_s <= 0:
+            raise ConfigValidationError(
+                "tool provider timeout_s must be positive",
+                f"{field}.timeout_s",
+            )
+        provider_ids.add(provider_id)
+    return provider_ids
+
+
+def _validate_domain_tools(raw: Any, provider_ids: set[str]) -> None:
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("domain tools must be a mapping", "tools")
+    unknown = set(raw) - {"provider", "max_rounds", "allow", "deny"}
+    if unknown:
+        raise ConfigValidationError("unknown domain tools field", f"tools.{sorted(unknown)[0]}")
+    provider = raw.get("provider")
+    if not isinstance(provider, str) or not provider:
+        raise ConfigValidationError("domain tools provider is required", "tools.provider")
+    if provider not in provider_ids:
+        raise ConfigValidationError("tool provider does not exist", "tools.provider")
+    max_rounds = raw.get("max_rounds", 4)
+    if isinstance(max_rounds, bool) or not isinstance(max_rounds, int) or max_rounds < 1:
+        raise ConfigValidationError("tools max_rounds must be at least 1", "tools.max_rounds")
+    allow = raw.get("allow")
+    if not isinstance(allow, dict):
+        raise ConfigValidationError("tools allow must be a mapping", "tools.allow")
+    for profile, names in allow.items():
+        if profile not in INTERLOCUTOR_PROFILES:
+            raise ConfigValidationError(
+                "tools allow profile must be adult or child",
+                f"tools.allow.{profile}",
+            )
+        _validate_tool_name_list(names, f"tools.allow.{profile}")
+    deny = raw.get("deny")
+    if deny is not None:
+        _validate_tool_name_list(deny, "tools.deny")
+
+
+def _validate_tool_name_list(raw: Any, field: str) -> None:
+    if not isinstance(raw, list) or any(not isinstance(name, str) or not name for name in raw):
+        raise ConfigValidationError("tool names must be a list of non-empty strings", field)
 
 
 def _validate_orchestration(

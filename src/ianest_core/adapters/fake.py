@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator
+from typing import Any, Iterator
 
 from ianest_core.adapters.base import Event, ModelRequest
 
@@ -33,34 +33,48 @@ class FakeAdapter:
 
 
 class ScriptedFakeAdapter:
-    def __init__(self, model: str, responses: list[str], finish_reason: str = "stop") -> None:
+    def __init__(
+        self,
+        model: str,
+        responses: list[str | dict[str, Any]],
+        finish_reason: str = "stop",
+    ) -> None:
         self.model = model
         self.responses = responses
         self.finish_reason = finish_reason
         self.index = 0
+        self.requests: list[ModelRequest] = []
 
     def stream(self, req: ModelRequest) -> Iterator[Event]:
         prompt = _last_user_message(req)
-        text = self._next_response()
-        yield Event("token", {"text": text})
+        self.requests.append(req)
+        scripted = self._next_response()
+        response = {"text": scripted} if isinstance(scripted, str) else dict(scripted)
+        text = str(response.get("text", ""))
+        if text:
+            yield Event("token", {"text": text})
+        done = {
+            "text": text,
+            "model": self.model,
+            "tokens_in": _count_tokens(prompt),
+            "tokens_out": _count_tokens(text),
+            "finish_reason": response.get("finish_reason", self.finish_reason),
+        }
+        if "tool_calls" in response:
+            done["tool_calls"] = list(response["tool_calls"])
         yield Event(
             "done",
-            {
-                "text": text,
-                "model": self.model,
-                "tokens_in": _count_tokens(prompt),
-                "tokens_out": _count_tokens(text),
-                "finish_reason": self.finish_reason,
-            },
+            done,
         )
 
-    def _next_response(self) -> str:
+    def _next_response(self) -> str | dict[str, Any]:
         if not self.responses:
             return '{"output": "", "done": false}'
         if self.index >= len(self.responses):
-            return self.responses[-1]
-        response = self.responses[self.index]
-        self.index += 1
+            response = self.responses[-1]
+        else:
+            response = self.responses[self.index]
+            self.index += 1
         return response
 
 

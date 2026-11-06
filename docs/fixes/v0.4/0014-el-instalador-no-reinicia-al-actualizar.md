@@ -1,6 +1,6 @@
 # 0014: el instalador no reinicia los servicios al actualizar y su verificacion no lo detecta
 
-Estado: implementada (2026-11-06), pendiente de laboratorio
+Estado: implementada (2026-11-06), verificada en laboratorio (2026-11-06)
 Tipo: correccion del instalador
 Impacto de version: patch
 Version objetivo: v0.4.3
@@ -50,3 +50,13 @@ Sin cambios de contrato publico: es el instalador.
 - Si el proceso que responde no es el del arbol instalado (por ejemplo, una
   unit que no se reinicia), el instalador falla con un mensaje que lo dice.
 - Pruebas del instalador que cubren las dos cosas sin systemd real.
+
+## Verificacion en laboratorio (2026-11-06)
+
+Core servido en `v0.4.2` desde el 2026-11-06 11:27. Arbol del laboratorio a
+esta rama y segunda pasada del instalador con el mismo `setup.conf`: EXIT=0,
+las dos units reiniciadas por el instalador (PID nuevo, activas desde la
+pasada), `build_id` servido igual al calculado por el venv (el cambio no toca
+el paquete, solo `deploy/`) y humo de inferencia correcto. Ningun paso a mano.
+Los casos de fallo (unit sin reiniciar, `build_id` distinto o `unknown`) se
+cubren con las pruebas del instalador, no en el laboratorio.

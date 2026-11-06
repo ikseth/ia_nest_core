@@ -209,19 +209,45 @@ wait_for_port() {
   error "$nombre no escucha en $host:$port tras 30 segundos"
 }
 
+monotonic_microseconds() {
+  "$REPO_DIR/.venv/bin/python" -c 'import time; print(time.clock_gettime_ns(time.CLOCK_MONOTONIC) // 1000)'
+}
+
+verify_service_restarted() {
+  local unit="$1" before="$2" active_since
+  active_since="$(systemctl show --property=ActiveEnterTimestampMonotonic --value "$unit")" \
+    || error "no se pudo comprobar si $unit se reinicio"
+  [[ "$active_since" =~ ^[0-9]+$ && "$active_since" -gt "$before" ]] \
+    || error "$unit no se reinicio en esta pasada: se esperaba ActiveEnterTimestampMonotonic posterior a $before y se encontro ${active_since:-vacio}"
+}
+
+verify_served_build_id() {
+  local expected_build_id served_build_id health_url
+  expected_build_id="$("$REPO_DIR/.venv/bin/python" -c 'from ianest_core.build_identity import build_id; print(build_id())')" \
+    || error "no se pudo calcular el build_id esperado desde el venv instalado"
+  health_url="http://${VALUES[REST_HOST]}:${VALUES[REST_PORT]}/runtime/health"
+  served_build_id="$(curl -fsS "$health_url" | "$REPO_DIR/.venv/bin/python" -c 'import json, sys; print(json.load(sys.stdin).get("build_id", "unknown"))')" \
+    || error "REST escucha pero /runtime/health no devolvio un build_id valido"
+  [[ "$expected_build_id" != unknown && "$served_build_id" != unknown && "$expected_build_id" == "$served_build_id" ]] \
+    || error "build_id servido distinto del instalado: se esperaba $expected_build_id y se encontro $served_build_id"
+}
+
 enable_services() {
   [[ "${VALUES[SERVICE_ENABLE]}" == true ]] || return 0
   local rest="ianest-${VALUES[INSTANCE_NAME]}-rest.service"
-  local mcp="ianest-${VALUES[INSTANCE_NAME]}-mcp.service"
-  systemctl enable --now "$rest" "$mcp"
+  local mcp="ianest-${VALUES[INSTANCE_NAME]}-mcp.service" restart_started
+  systemctl enable "$rest" "$mcp"
+  restart_started="$(monotonic_microseconds)"
+  systemctl restart "$rest" "$mcp"
   wait_for_port "${VALUES[REST_HOST]}" "${VALUES[REST_PORT]}" "REST"
   wait_for_port "${VALUES[MCP_HOST]}" "${VALUES[MCP_PORT]}" "MCP"
   # Despues del puerto, el estado: un servicio en bucle de reinicio pasa por
   # `active` a ratos, asi que preguntar solo por `is-active` no basta.
   systemctl is-active --quiet "$rest" || error "$rest no quedo activo"
   systemctl is-active --quiet "$mcp" || error "$mcp no quedo activo"
-  curl -fsS "http://${VALUES[REST_HOST]}:${VALUES[REST_PORT]}/runtime/health" >/dev/null \
-    || error "REST escucha pero no responde en /runtime/health"
+  verify_service_restarted "$rest" "$restart_started"
+  verify_service_restarted "$mcp" "$restart_started"
+  verify_served_build_id
 }
 
 report_backend_gpu() {

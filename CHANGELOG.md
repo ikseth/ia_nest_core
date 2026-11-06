@@ -5,6 +5,13 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.4.3] - 2026-11-06
+
+El instalador reinicia los servicios al actualizar y verifica que responde el
+arbol instalado (ficha 0014, issue #47), que bloqueaba el criterio 12 del hito
+H08 de meta y el tramo 2 de H09. PATCH: solo el instalador. Validado en el
+laboratorio por una segunda pasada sin pasos a mano.
+
 ### Corregido
 
 - El instalador reinicia siempre las units REST y MCP que gestiona, y comprueba

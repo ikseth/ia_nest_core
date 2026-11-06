@@ -5,8 +5,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
-Impacto previsto: MINOR (`v0.5.0`) por envergadura, sin cambiar todavia la
-version del paquete.
+## [v0.5.0] - 2026-11-06
+
+Primera frontera de herramientas del core: `tool_contracts` por MCP
+(ADR 0053), que dispone `external_home_assistant CR-0001` (issue #51) para el
+tramo 2 del hito H09 de meta (Home Assistant al ente). MINOR por envergadura
+(precedente ADR 0034): todo es aditivo y un dominio sin `tools` responde como
+en `v0.4.3`. Validado: 359 tests, conformidad 136/136 y prueba en el
+laboratorio con un proveedor MCP de prueba (criterio del ADR, puntos 1-5 y 7;
+el 6 por tests). Aviso a extended: ia_nest_extended#101.
 
 ### Anadido
 

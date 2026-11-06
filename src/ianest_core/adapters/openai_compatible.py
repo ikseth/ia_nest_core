@@ -28,6 +28,8 @@ class OpenAICompatibleAdapter:
             **_public_params(req.params),
             **req.extra,
         }
+        if req.tools is not None:
+            body["tools"] = req.tools
         request = Request(
             _chat_completions_url(self.endpoint),
             data=json.dumps(body).encode("utf-8"),
@@ -40,6 +42,7 @@ class OpenAICompatibleAdapter:
         tokens_in = 0
         tokens_out = 0
         finish_reason: Any = None
+        tool_call_parts: list[tuple[int, dict[str, Any]]] = []
         try:
             with urlopen(request, timeout=120) as response:
                 for raw_line in response:
@@ -68,6 +71,8 @@ class OpenAICompatibleAdapter:
                         if token:
                             text_parts.append(token)
                             yield Event("token", {"text": token})
+                        for fragment in delta.get("tool_calls") or []:
+                            _accumulate_tool_call(tool_call_parts, fragment)
         except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             yield Event("error", {"type": "AdapterError", "message": str(exc), "field": None})
             return
@@ -75,17 +80,17 @@ class OpenAICompatibleAdapter:
         text = "".join(text_parts)
         if finish_reason is None:
             finish_reason = "incomplete"
-        yield Event(
-            "done",
-            {
-                "text": text,
-                "model": self.model_name,
-                "tokens_in": tokens_in,
-                "tokens_out": tokens_out,
-                "finish_reason": finish_reason,
-                "reasoning": "".join(reasoning_parts),
-            },
-        )
+        done = {
+            "text": text,
+            "model": self.model_name,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "finish_reason": finish_reason,
+            "reasoning": "".join(reasoning_parts),
+        }
+        if tool_call_parts:
+            done["tool_calls"] = [call for _, call in tool_call_parts]
+        yield Event("done", done)
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
@@ -104,3 +109,29 @@ def _chat_completions_url(endpoint: str) -> str:
 def _public_params(params: dict[str, Any]) -> dict[str, Any]:
     blocked = {"max_iterations", "max_time_s", "max_context_tokens"}
     return {key: value for key, value in params.items() if key not in blocked}
+
+
+def _accumulate_tool_call(
+    parts: list[tuple[int, dict[str, Any]]], fragment: dict[str, Any]
+) -> None:
+    index = int(fragment.get("index", 0) or 0)
+    fragment_id = str(fragment["id"]) if fragment.get("id") else ""
+    current: dict[str, Any] | None = None
+    for candidate_index, candidate in reversed(parts):
+        if candidate_index != index:
+            continue
+        if not fragment_id or not candidate["id"] or candidate["id"] == fragment_id:
+            current = candidate
+        break
+    if current is None:
+        current = {"id": "", "type": "function", "function": {"name": "", "arguments": ""}}
+        parts.append((index, current))
+    if fragment_id:
+        current["id"] = fragment_id
+    if fragment.get("type"):
+        current["type"] = str(fragment["type"])
+    function = fragment.get("function") or {}
+    if function.get("name"):
+        current["function"]["name"] += str(function["name"])
+    if function.get("arguments"):
+        current["function"]["arguments"] += str(function["arguments"])

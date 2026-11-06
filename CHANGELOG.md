@@ -5,6 +5,17 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+Impacto previsto: MINOR (`v0.5.0`) por envergadura, sin cambiar todavia la
+version del paquete.
+
+### Anadido
+
+- `tool_contracts` por MCP en `prompt.run` y `prompt.stream`, declarado por
+  dominio y denegado por defecto segun `interlocutor_profile`: configuracion
+  aditiva, politica no destructiva, bucle acotado, telemetria por llamada y
+  proveedor de prueba local ([ADR 0053](docs/decision_records/0053-tool-contracts-por-mcp-en-prompt.md),
+  `ia_nest_external_home_assistant` CR-0001, issue #51).
+
 ## [v0.4.3] - 2026-11-06
 
 El instalador reinicia los servicios al actualizar y verifica que responde el

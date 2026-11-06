@@ -162,3 +162,29 @@ telemetry:
   jsonl_path: local/telemetry/core.jsonl
   rotation: size
   strict_mode: false
+
+# Ejemplo de proveedor de herramientas para el servidor de prueba de ADR 0053.
+# Arranque: python tests/fixtures/mcp_test_provider.py --port 8765
+#
+# tool_providers:
+#   test_house:
+#     transport: streamable_http
+#     url: http://localhost:8765/mcp
+#     # auth_env: IANEST_MCP_TEST_TOKEN
+#     timeout_s: 10
+#
+# Un dominio que lo use declararia este bloque junto a sus campos habituales:
+#
+#   - id: domotica
+#     description: "Luces, clima y estado de la casa de prueba."
+#     preferred_model: mistral_nemo
+#     fallback_models: [mistral_7b]
+#     profile: default
+#     status: active
+#     tools:
+#       provider: test_house
+#       max_rounds: 4
+#       allow:
+#         child: [get_state, light_on, light_off]
+#         adult: [get_state, light_on, light_off, climate_set]
+#       deny: [lock_open, mystery]

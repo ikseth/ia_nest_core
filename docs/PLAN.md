@@ -993,6 +993,8 @@ campo `iteration` en la degradacion. No entra en v0.4.1; se decide aparte.
 - tool_contracts (invocacion de herramientas, ADR 0007): diferido hasta que
   exista una herramienta concreta que lo justifique (anti-entropia); sin fase
   asignada (ADR 0022).
+  Superado el 2026-11-06: la primera herramienta concreta (Home Assistant,
+  `external_home_assistant CR-0001`) lo trae a `v0.5.0` con la forma de ADR 0053.
 - Optimizacion de rendimiento antes de tener el core funcionando.
 - Cualquier senal de VERACIDAD en el core: verificar exige fuente de verdad, y el
   core no la tiene ni la tendra (ADR 0051, D2). Enriquecimiento en

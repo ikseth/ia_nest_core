@@ -5,6 +5,11 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+### Corregido
+
+- El instalador reinicia siempre las units REST y MCP que gestiona, y comprueba
+  que REST sirve el `build_id` del arbol instalado ([ficha v0.4/0014](docs/fixes/v0.4/0014-el-instalador-no-reinicia-al-actualizar.md), issue #47).
+
 ## [v0.4.2] - 2026-10-29
 
 Perfil del interlocutor en la identidad (`edge CR-0001`, ficha 0013), que

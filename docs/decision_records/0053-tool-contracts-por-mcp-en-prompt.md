@@ -169,7 +169,8 @@ en el formato OpenAI compatible.
   En la serie pre-1.0 seria PATCH; se marca **MINOR (`v0.5.0`)** por su
   envergadura, como en el precedente de ADR 0034. Decision del usuario.
 - Extended: sin eventos D2 nuevos, asi que no tiene nada que reenviar de mas.
-  Consta el aviso (meta `REGISTRO_CAPAS.md` 2b).
+  Consta el aviso (meta `REGISTRO_CAPAS.md` 2b) en ia_nest_extended#101,
+  que recuerda ademas que `v0.5.0` queda fuera de su rango `core >=0.4 <0.5`.
 - Borde: ninguno. Sigue rechazando `tools` del cliente (edge ADR 0002).
 - Capa origen: `ia_nest_external_home_assistant` necesita `core >=0.5 <0.6`.
 

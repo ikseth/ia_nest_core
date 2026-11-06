@@ -61,9 +61,11 @@ write-back con la respuesta. El core aporta la identidad de segmentacion
   (linea v0.2 del core, ADR 0034) + telemetria CSV/JSONL (ADR 0010/0015).
 
 ### ia_nest_external_* (integraciones: Home Assistant, Nextcloud, ...)
-- Frontera: `tool_contracts` (ADR 0007). El core invoca la herramienta por
-  contrato (denegar por defecto, human-in-the-loop en operaciones destructivas)
-  y no absorbe su logica. Cada integracion es un `ia_nest_external_<nombre>`.
+- Frontera: `tool_contracts` (ADR 0007, forma en ADR 0053). Cada integracion
+  es un `ia_nest_external_<nombre>` que publica un servidor MCP; el core es su
+  cliente, la declara en `tool_providers` y la invoca por contrato (denegar por
+  defecto, nada destructivo hasta construir la confirmacion humana) sin absorber
+  su logica. Una integracion nueva es configuracion del core, sin codigo.
 
 ### ia_nest_agents (agentes que usan el ente)
 - Frontera: los contratos publicos del core (CLI/REST/MCP). Un agente consume
@@ -88,8 +90,14 @@ write-back con la respuesta. El core aporta la identidad de segmentacion
 `tool_contracts` (ADR 0007) es la frontera hacia herramientas que ACTUAN
 (integraciones con efecto): denegar por defecto, scopes explicitos, confirmacion
 humana en lo destructivo. RAG, memoria y datos web NO son herramientas: son
-enriquecimiento (ADR 0031). Se planificara cuando exista una herramienta
-concreta que lo justifique (ADR 0022).
+enriquecimiento (ADR 0031).
+
+Forma desde `v0.5.0` (ADR 0053, primera herramienta concreta, ADR 0022): MCP,
+el core cliente y cada capa externa servidor. Solo un dominio que declara
+`tools` las ve, dentro de `prompt.*`; la politica va por `interlocutor_profile`
+en la configuracion del core, se aplica al ofrecer y al invocar, y deja fuera
+todo lo destructivo (anotaciones MCP de proveedores declarados; el core solo
+endurece). El cliente ve solo texto; cada llamada consta en la telemetria.
 
 ## Regla para nuevas capacidades
 

@@ -5,12 +5,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.6.0] - 2026-11-20
+
 Tramo A de `extended CR-0006` (ia_nest_core#57), con el ajuste de meta H12P7:
 proveedores como techo y efecto de la peticion
 ([ADR 0054](docs/decision_records/0054-techo-de-proveedores-y-efecto-de-la-peticion.md)).
 MINOR: parametro opcional, campos aditivos, capacidad nueva y cambio de
 semantica de `tool_providers` cuando llega `turn_context`. Conformidad 136/136,
-digest declarado de nuevo por la capacidad nueva.
+digest declarado de nuevo por la capacidad nueva. Validado: 383 tests.
+Extended lo consume desde `v0.7.0` (ia_nest_extended ADR 0016).
 
 ### Anadido
 

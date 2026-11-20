@@ -98,6 +98,9 @@ el core cliente y cada capa externa servidor. Solo un dominio que declara
 en la configuracion del core, se aplica al ofrecer y al invocar, y deja fuera
 todo lo destructivo (anotaciones MCP de proveedores declarados; el core solo
 endurece). El cliente ve solo texto; cada llamada consta en la telemetria.
+Desde `v0.6.0` (ADR 0054), declarar un proveedor es el techo y la confianza
+llega de extended en `turn_context`; y el efecto de la peticion (`read` u
+`order`) solo resta: con `read`, solo herramientas de solo lectura.
 
 ## Regla para nuevas capacidades
 

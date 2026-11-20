@@ -119,6 +119,19 @@ _PLAN = _param(
     "plan de subtareas suministrado; omite la etapa PLAN",
     cli=False,
 )
+_TURN_CONTEXT = _param(
+    "turn_context",
+    "object",
+    "contexto del turno compuesto por extended (ADR 0054): trusted_providers",
+    cli=False,
+)
+_TURN_CONTEXT_INPUT = CliInput(
+    "turn-context-file",
+    "json_file",
+    ("turn_context",),
+    "RUTA",
+    "JSON con {\"turn_context\": {...}}: contexto del turno (ADR 0054)",
+)
 _REQUIREMENTS = _param(
     "requirements",
     "array",
@@ -172,6 +185,11 @@ CLI_GROUPS: tuple[CliGroup, ...] = (
         "model",
         "consulta y aprovisiona modelos",
         "Consulta modelos o descarga los declarados que falten.",
+    ),
+    CliGroup(
+        "tool_provider",
+        "consulta los proveedores de herramientas",
+        "Lista el techo de proveedores de herramientas, sin url ni secretos (ADR 0054).",
     ),
     CliGroup(
         "config",
@@ -391,7 +409,7 @@ CAPABILITIES: tuple[Capability, ...] = (
         "ejecuta un prompt contra un modelo o dominio declarado",
         True,
         False,
-        (_PROMPT, _DOMAIN, _MODEL),
+        (_PROMPT, _DOMAIN, _MODEL, _TURN_CONTEXT),
         RestProjection("/prompt/run", "POST"),
         CliProjection(
             "prompt",
@@ -405,6 +423,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             ),
             flags=("json", "quiet", "verbose"),
             flag_help=(_JSON_RESULT, _QUIET, _VERBOSE),
+            inputs=(_TURN_CONTEXT_INPUT,),
         ),
         McpProjection("prompt.run"),
     ),
@@ -413,7 +432,7 @@ CAPABILITIES: tuple[Capability, ...] = (
         "emite los fragmentos del prompt mientras se ejecuta",
         True,
         True,
-        (_PROMPT, _DOMAIN, _MODEL),
+        (_PROMPT, _DOMAIN, _MODEL, _TURN_CONTEXT),
         RestProjection("/prompt/stream", "POST"),
         CliProjection(
             "prompt",
@@ -423,6 +442,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             epilog="--model tiene prioridad sobre --domain; sin ambos, dominio por defecto (no enruta).",
             flags=("json", "quiet", "verbose"),
             flag_help=(_JSON_EVENTS, _QUIET, _VERBOSE),
+            inputs=(_TURN_CONTEXT_INPUT,),
         ),
         None,
     ),
@@ -554,6 +574,27 @@ CAPABILITIES: tuple[Capability, ...] = (
             ),
         ),
         None,
+    ),
+    Capability(
+        "tool_provider.list",
+        "lista los proveedores de herramientas del techo y los dominios que los usan",
+        False,
+        False,
+        (),
+        RestProjection("/tool_provider/list", "GET"),
+        CliProjection(
+            "tool_provider",
+            "list",
+            "Lista los proveedores de herramientas declarados (sin url ni secretos).",
+            {
+                "form": "table",
+                "items": "tool_providers",
+                "columns": ("id", "domains"),
+            },
+            flags=("json",),
+            flag_help=(_JSON_LISTING,),
+        ),
+        McpProjection("tool_provider.list"),
     ),
 )
 

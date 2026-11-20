@@ -32,6 +32,10 @@ _PRESENTATION_INVOCATIONS = {
     ),
     "eval.run": ("run_eval", ["--config", "unused", "eval", "run"]),
     "model.list": ("list_models", ["--config", "unused", "model", "list"]),
+    "tool_provider.list": (
+        "list_tool_providers",
+        ["--config", "unused", "tool_provider", "list"],
+    ),
     "prompt.run": (
         "run_prompt",
         ["--config", "unused", "prompt", "run", "--prompt", "hola"],

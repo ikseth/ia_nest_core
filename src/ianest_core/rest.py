@@ -32,6 +32,7 @@ def create_app(config_path: str | Path | None = None):
                 model=payload.get("model"),
                 domain=payload.get("domain"),
                 identity=payload.get("identity", {}),
+                turn_context=payload.get("turn_context"),
             )
         )
 
@@ -45,6 +46,7 @@ def create_app(config_path: str | Path | None = None):
                 model=payload.get("model"),
                 domain=payload.get("domain"),
                 identity=payload.get("identity", {}),
+                turn_context=payload.get("turn_context"),
             ):
                 yield service.sse_encode(event)
 
@@ -149,6 +151,9 @@ def create_app(config_path: str | Path | None = None):
     async def runtime_health(request: Request):
         return _json(service.health(config_path=config_path))
 
+    async def tool_provider_list(request: Request):
+        return _json(service.list_tool_providers(config_path=config_path))
+
     async def capability_list(request: Request):
         return _json(service.list_capabilities())
 
@@ -170,6 +175,7 @@ def create_app(config_path: str | Path | None = None):
         "task.plan": task_plan,
         "task.run": task_run,
         "task.stream": task_stream,
+        "tool_provider.list": tool_provider_list,
     }
     routes = [
         Route(capability.rest.path, handlers[capability.name], methods=[capability.rest.method])

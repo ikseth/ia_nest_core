@@ -23,6 +23,7 @@ ACTIONS = [
     ("domain", "list"),
     ("model", "list"),
     ("model", "pull"),
+    ("tool_provider", "list"),
     ("config", "validate"),
     ("eval", "run"),
     ("runtime", "health"),

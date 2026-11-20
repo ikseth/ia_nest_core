@@ -94,7 +94,11 @@ class DomainRouter:
             preferred_model=resolved.preferred_model,
         )
 
-    def _classify(self, prompt: str) -> dict[str, Any]:
+    def complete(self, content: str) -> str:
+        """Una llamada corta al modelo del enrutador, con su perfil.
+
+        La usan la clasificacion por dominio y la del efecto (ADR 0054, D3).
+        """
         target = self.config.router
         if target is None:
             raise RoutingError("router is not configured", "router")
@@ -103,12 +107,15 @@ class DomainRouter:
         messages: list[dict[str, str]] = []
         if profile.system:
             messages.append({"role": "system", "content": profile.system})
-        messages.append({"role": "user", "content": self._classification_prompt(prompt)})
+        messages.append({"role": "user", "content": content})
         response = run_blocking(
             self._adapter_for(resolved.model),
             ModelRequest(messages=messages, params=dict(profile.params), extra=dict(profile.extra)),
         )
-        decision = _parse_router_response(response.text)
+        return response.text
+
+    def _classify(self, prompt: str) -> dict[str, Any]:
+        decision = _parse_router_response(self.complete(self._classification_prompt(prompt)))
         if decision is None:
             raise RoutingError("router response is not valid JSON", "router")
         return decision

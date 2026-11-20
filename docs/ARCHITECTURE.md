@@ -241,7 +241,9 @@ contratos.
   externas invocables desde el core (D5).
 - Entradas: proveedores MCP declarados (`tool_providers`) y su lista de
   herramientas con anotaciones; politica del dominio por
-  `interlocutor_profile`; invocacion desde `prompt_runtime` (ADR 0053).
+  `interlocutor_profile`; invocacion desde `prompt_runtime` (ADR 0053);
+  `turn_context.trusted_providers` y el efecto de la peticion, que solo
+  restan (ADR 0054).
 - Salidas: resultado tipado de la herramienta o error de politica.
 - Estado interno: allowlist y politica activa.
 - Dependencias: `telemetry`.

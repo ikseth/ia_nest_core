@@ -274,6 +274,7 @@ def _prompt_run(args: argparse.Namespace) -> int:
         model=args.model,
         domain=args.domain,
         identity=_identity_override(args),
+        turn_context=args.turn_context,
     )
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
@@ -290,6 +291,7 @@ def _prompt_stream(args: argparse.Namespace) -> int:
         model=args.model,
         domain=args.domain,
         identity=_identity_override(args),
+        turn_context=args.turn_context,
     ):
         if args.verbose and started_at is None:
             started_at = time.monotonic()
@@ -542,6 +544,18 @@ def _domain_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _tool_provider_list(args: argparse.Namespace) -> int:
+    result = service.list_tool_providers(config_path=args.config)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    else:
+        for record in result["tool_providers"]:
+            domains = record["domains"]
+            shown = ",".join(domains) if isinstance(domains, list) else str(domains)
+            print(f"{record['id']}\t{shown}")
+    return 0
+
+
 def _model_list(args: argparse.Namespace) -> int:
     result = service.list_models(config_path=args.config)
     if args.json:
@@ -621,6 +635,7 @@ _RENDERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "domain.route": _domain_route,
     "domain.list": _domain_list,
     "model.list": _model_list,
+    "tool_provider.list": _tool_provider_list,
     "model.pull": _model_pull,
     "config.validate": _config_validate,
     "eval.run": _eval_run,

@@ -995,6 +995,9 @@ campo `iteration` en la degradacion. No entra en v0.4.1; se decide aparte.
   asignada (ADR 0022).
   Superado el 2026-11-06: la primera herramienta concreta (Home Assistant,
   `external_home_assistant CR-0001`) lo trae a `v0.5.0` con la forma de ADR 0053.
+  Ampliado el 2026-11-20 por ADR 0054 (`extended CR-0006`, tramo A; meta
+  H12P7): `tool_providers` es el techo, la confianza llega en `turn_context` y
+  el efecto de la peticion (`read` u `order`) solo resta.
 - Optimizacion de rendimiento antes de tener el core funcionando.
 - Cualquier senal de VERACIDAD en el core: verificar exige fuente de verdad, y el
   core no la tiene ni la tendra (ADR 0051, D2). Enriquecimiento en

@@ -274,6 +274,36 @@ ofrecen e invocan herramientas no destructivas segun sus anotaciones MCP:
 destructivas. La forma normativa completa y el cierre al alcanzar el limite
 estan en ADR 0053.
 
+#### Techo, contexto del turno y efecto (ADR 0054, desde `v0.6.0`)
+
+`prompt.run` y `prompt.stream` aceptan un parametro opcional `turn_context`
+(objeto; en la CLI, `--turn-context-file` con `{"turn_context": {...}}`). Lo
+compone extended; es dato y no llega al modelo. Parte conocida:
+`trusted_providers`, lista de ids. Las partes desconocidas se ignoran; un tipo
+invalido en una parte conocida es `ConfigValidationError`. Sin `turn_context`,
+el comportamiento de proveedores es el de `v0.5.0`.
+
+- **Techo.** `tool_providers` es el techo: a que puede conectarse el core y con
+  que secreto. Con `trusted_providers`, un turno solo abre sesion con el
+  proveedor de su dominio si ademas esta en esa lista; si no, sigue sin
+  herramientas, con la nota de proveedor no disponible, y `tools_offered`
+  registra `reason: "untrusted"`. Un id confiado fuera del techo no hace nada.
+- **Efecto.** Todo turno con herramientas clasifica antes el efecto de la
+  peticion con una llamada corta al modelo de `router` (sin `router`, al del
+  dominio): `read` u `order`. En la duda, o si la clasificacion falla, `read`.
+  Vale igual con dominio fijado. Con `read` solo se ofrecen e invocan las
+  herramientas permitidas que traen `readOnlyHint: true`; con `order`, lo de
+  `v0.5.0`. Una llamada fuera del efecto consta como `denied`.
+- **Traza y telemetria (aditivo).** En turnos con herramientas, `done.trace`
+  lleva `effect` y `effect_reason`; `tools_offered` lleva `effect`,
+  `effect_reason`, `effect_latency_ms` y, cuando aplica, `reason`.
+
+### `tool_provider.list`
+
+Solo lectura (ADR 0054, D5). Devuelve el techo de proveedores:
+`{"tool_providers": [{"id": "...", "domains": ["..."]}]}`, con los dominios que
+usan cada proveedor. Nunca url, transporte, `auth_env` ni secretos.
+
 ### `reasoning.run`
 
 Ejecuta razonamiento iterativo controlado.

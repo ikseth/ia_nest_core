@@ -27,7 +27,7 @@ configuracion ni contacta con el backend.
 `GRUPO` y `ACCION` son obligatorios (dos palabras). Ejemplos: `prompt run`,
 `prompt stream`, `reasoning run`, `reasoning stream`, `task plan`, `task run`, `task stream`,
 `capability list`, `domain route`, `domain list`, `model list`, `model pull`,
-`config validate`, `eval run`, `runtime detect`, `runtime health`.
+`tool_provider list`, `config validate`, `eval run`, `runtime detect`, `runtime health`.
 
 NO funciona `ianest --prompt "..."` suelto: le falta el grupo y la accion.
 Lo correcto es `ianest ... prompt run --prompt "..."`.
@@ -70,6 +70,10 @@ Crea `config/core.yaml` y `.env`, y valida. Es la excepcion a "dos palabras":
 Flags de identidad (opcionales): `--user-id`, `--service`, `--session-id`,
 `--domain-tag`, `--namespace`.
 
+Contexto del turno (opcional, ADR 0054): `--turn-context-file RUTA` con
+`{"turn_context": {"trusted_providers": ["..."]}}`. Lo compone extended; sin el,
+el core se comporta como `v0.5.0`.
+
 ## Tareas
 
     # pipeline multi-modelo; --mode acepta pipeline (por defecto) o coverage
@@ -109,6 +113,7 @@ cero. `--json` transporta los campos `requirements_covered`,
     ianest --config config/core.yaml model list                    # modelos y disponibilidad
     ianest --config config/core.yaml model pull                    # descarga los modelos declarados ausentes
     ianest --config config/core.yaml domain list                   # dominios
+    ianest --config config/core.yaml tool_provider list            # techo de proveedores (sin url ni secretos)
     ianest capability list --json                                  # catalogo de capacidades
 
 ## Configuracion y evaluacion

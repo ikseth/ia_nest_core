@@ -25,6 +25,11 @@ from ianest_core.tool_contracts import ProviderTool, invocation_is_allowed, offe
 
 
 HAS_MCP = importlib.util.find_spec("mcp") is not None
+# ADR 0054, D3: todo turno con herramientas clasifica antes el efecto con el
+# modelo (sin enrutador en el fixture, el del dominio). Estas pruebas de
+# ADR 0053 fijan `order` para seguir probando la politica de siempre.
+ORDER = '{"effect": "order", "reason": "test"}'
+READ = '{"effect": "read", "reason": "test"}'
 
 
 def test_config_without_tool_sections_loads_unchanged() -> None:
@@ -263,7 +268,7 @@ def test_internal_task_prompt_does_not_enable_domain_tools(tmp_path) -> None:
 def test_child_only_sees_child_tools_and_forced_adult_call_is_denied(tmp_path) -> None:
     adapter = ScriptedFakeAdapter(
         "fake_b",
-        [_tool_response("climate_set", '{"name":"hall","temperature":22}'), "not allowed"],
+        [ORDER, _tool_response("climate_set", '{"name":"hall","temperature":22}'), "not allowed"],
     )
     turn = FakeTurn(_all_provider_tools())
     runtime = _tool_runtime(tmp_path, adapter, turn)
@@ -311,7 +316,7 @@ def test_provider_down_adds_system_note_and_turn_continues(tmp_path) -> None:
 def test_max_rounds_records_limit_and_final_call_has_no_tools(tmp_path) -> None:
     adapter = ScriptedFakeAdapter(
         "fake_b",
-        [_tool_response("get_state", "{}"), _tool_response("get_state", "{}"), "final answer"],
+        [ORDER, _tool_response("get_state", "{}"), _tool_response("get_state", "{}"), "final answer"],
     )
     turn = FakeTurn(_all_provider_tools())
     runtime = _tool_runtime(tmp_path, adapter, turn, max_rounds=2)
@@ -324,7 +329,7 @@ def test_max_rounds_records_limit_and_final_call_has_no_tools(tmp_path) -> None:
 
     assert result.response == "final answer"
     assert result.trace["tool_calls"] == 2
-    assert [request.tools is None for request in adapter.requests] == [False, False, True]
+    assert [request.tools is None for request in adapter.requests] == [True, False, False, True]
     statuses = [
         event["payload"]["status"]
         for event in _jsonl_events(tmp_path)
@@ -342,7 +347,7 @@ def test_multiple_calls_are_invoked_in_model_order(tmp_path) -> None:
             _tool_response("light_on", '{"name":"desk"}')["tool_calls"][0],
         ],
     }
-    adapter = ScriptedFakeAdapter("fake_b", [first_round, "done"])
+    adapter = ScriptedFakeAdapter("fake_b", [ORDER, first_round, "done"])
     turn = FakeTurn(_all_provider_tools())
     runtime = _tool_runtime(tmp_path, adapter, turn)
 
@@ -354,7 +359,7 @@ def test_multiple_calls_are_invoked_in_model_order(tmp_path) -> None:
 
     assert turn.calls == [("get_state", {}), ("light_on", {"name": "desk"})]
     tool_messages = [
-        message for message in adapter.requests[1].messages if message["role"] == "tool"
+        message for message in adapter.requests[2].messages if message["role"] == "tool"
     ]
     assert [message["tool_call_id"] for message in tool_messages] == [
         "call_get_state",
@@ -363,7 +368,7 @@ def test_multiple_calls_are_invoked_in_model_order(tmp_path) -> None:
 
 
 def test_mcp_is_error_returns_short_tool_result_and_turn_continues(tmp_path) -> None:
-    adapter = ScriptedFakeAdapter("fake_b", [_tool_response("get_state", "{}"), "fallback"])
+    adapter = ScriptedFakeAdapter("fake_b", [ORDER, _tool_response("get_state", "{}"), "fallback"])
     turn = FakeTurn(_all_provider_tools(), result="provider exploded", is_error=True)
     runtime = _tool_runtime(tmp_path, adapter, turn)
 
@@ -375,7 +380,7 @@ def test_mcp_is_error_returns_short_tool_result_and_turn_continues(tmp_path) -> 
 
     assert result.response == "fallback"
     tool_message = next(
-        message for message in adapter.requests[1].messages if message["role"] == "tool"
+        message for message in adapter.requests[2].messages if message["role"] == "tool"
     )
     assert tool_message["content"] == "error: get_state failed: provider exploded"
     call = next(event for event in _jsonl_events(tmp_path) if event["event"] == "tool_call")
@@ -385,7 +390,7 @@ def test_mcp_is_error_returns_short_tool_result_and_turn_continues(tmp_path) -> 
 def test_stream_emits_all_round_tokens_one_done_and_no_new_event_type(tmp_path) -> None:
     adapter = ScriptedFakeAdapter(
         "fake_b",
-        [{**_tool_response("get_state", "{}"), "text": "checking"}, "finished"],
+        [ORDER, {**_tool_response("get_state", "{}"), "text": "checking"}, "finished"],
     )
     runtime = _tool_runtime(tmp_path, adapter, FakeTurn(_all_provider_tools()))
 
@@ -412,7 +417,7 @@ def test_stream_emits_all_round_tokens_one_done_and_no_new_event_type(tmp_path) 
 def test_tool_session_close_failure_keeps_completed_response_and_closes_in_turn(
     tmp_path, monkeypatch, caplog, stream: bool
 ) -> None:
-    adapter = ScriptedFakeAdapter("fake_b", ["completed response"])
+    adapter = ScriptedFakeAdapter("fake_b", [ORDER, "completed response"])
     turn = ClosingFailureTurn(_all_provider_tools())
     runtime = _tool_runtime(tmp_path, adapter, turn)
     unraisable: list[Any] = []
@@ -445,7 +450,7 @@ def test_tool_session_close_failure_keeps_completed_response_and_closes_in_turn(
 
 def test_tool_result_preview_is_utf8_safe_and_sized_in_bytes(tmp_path) -> None:
     long_result = "a" * 2047 + "n" + "\u00f1" + "tail"
-    adapter = ScriptedFakeAdapter("fake_b", [_tool_response("get_state", "{}"), "done"])
+    adapter = ScriptedFakeAdapter("fake_b", [ORDER, _tool_response("get_state", "{}"), "done"])
     turn = FakeTurn(_all_provider_tools(), result=long_result)
     runtime = _tool_runtime(tmp_path, adapter, turn)
 
@@ -491,7 +496,7 @@ def test_real_provider_invocation_from_active_event_loop(tmp_path, monkeypatch) 
         raw["telemetry"] = _telemetry_raw(tmp_path)
         adapter = ScriptedFakeAdapter(
             "fake_b",
-            [_tool_response("light_on", '{"name":"desk"}'), "The desk light is on."],
+            [ORDER, _tool_response("light_on", '{"name":"desk"}'), "The desk light is on."],
         )
         runtime = PromptRuntime(load_config_from_dict(raw), adapter_factory=lambda model: adapter)
 

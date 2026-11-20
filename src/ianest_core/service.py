@@ -39,6 +39,7 @@ def run_prompt(
     domain: str | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
+    turn_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     result = PromptRuntime(config, availability=availability).run(
@@ -46,6 +47,7 @@ def run_prompt(
         model_id=model,
         domain_id=domain,
         identity_override=identity or {},
+        turn_context=turn_context,
     )
     return result.to_dict()
 
@@ -58,6 +60,7 @@ def stream_prompt(
     domain: str | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
+    turn_context: dict[str, Any] | None = None,
 ) -> Iterator[dict[str, Any]]:
     config = load_config(config_path)
     runtime = PromptRuntime(config, availability=availability)
@@ -66,6 +69,7 @@ def stream_prompt(
         model_id=model,
         domain_id=domain,
         identity_override=identity or {},
+        turn_context=turn_context,
     ):
         yield {"type": event.type, "data": event.data}
 
@@ -244,6 +248,20 @@ def _selected_models(models: list[ModelConfig], references: list[str]) -> list[M
 def list_domains(*, config_path: str | Path, availability: AvailabilityProvider | None = None) -> dict[str, Any]:
     config = load_config(config_path)
     return {"domains": ModelRegistry(config, availability=availability).domain_records()}
+
+
+def list_tool_providers(*, config_path: str | Path) -> dict[str, Any]:
+    """El techo de proveedores (ADR 0054, D5): ids y dominios, sin url ni secretos."""
+    config = load_config(config_path)
+    records = []
+    for provider_id in sorted(config.tool_providers):
+        domains = sorted(
+            domain.id
+            for domain in config.domains
+            if domain.tools is not None and domain.tools.provider == provider_id
+        )
+        records.append({"id": provider_id, "domains": domains})
+    return {"tool_providers": records}
 
 
 def validate_config(*, config_path: str | Path) -> dict[str, str]:

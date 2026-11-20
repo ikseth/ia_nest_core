@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from contextlib import AbstractContextManager, closing, nullcontext
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Iterator
 from uuid import uuid4
 
@@ -26,9 +26,16 @@ from ianest_core.mcp_client import MCPClientTurn, ToolCallResult
 from ianest_core.registry import AvailabilityProvider, ModelRegistry, ResolvedModel
 from ianest_core.telemetry import TelemetryWriter
 from ianest_core.tool_contracts import (
+    EFFECT_ORDER,
+    EFFECT_READ,
     ProviderTool,
+    TurnContext,
+    effect_classification_prompt,
     invocation_is_allowed,
     offered_tools,
+    parse_effect_response,
+    parse_turn_context,
+    provider_is_trusted,
 )
 
 
@@ -68,6 +75,10 @@ class PreparedPrompt:
     req: ModelRequest
     capability: str
     trace_payload: dict[str, Any]
+    prompt: str = ""
+    turn_context: TurnContext | None = None
+    # Lo que decide el turno con herramientas (efecto y motivo, ADR 0054).
+    tool_state: dict[str, Any] = field(default_factory=dict)
 
 
 class PromptRuntime:
@@ -96,6 +107,7 @@ class PromptRuntime:
         request_id: str | None = None,
         trace_payload: dict[str, Any] | None = None,
         profile_id: str | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> PromptRunResult:
         prepared = self._prepare(
             prompt=prompt,
@@ -106,6 +118,7 @@ class PromptRuntime:
             capability="prompt.run",
             trace_payload=trace_payload,
             profile_id=profile_id,
+            turn_context=turn_context,
         )
 
         try:
@@ -163,6 +176,7 @@ class PromptRuntime:
         domain_id: str | None = None,
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
+        turn_context: dict[str, Any] | None = None,
     ):
         prepared = self._prepare(
             prompt=prompt,
@@ -171,6 +185,7 @@ class PromptRuntime:
             identity_override=identity_override,
             request_id=request_id,
             capability="prompt.run",
+            turn_context=turn_context,
         )
 
         text_parts: list[str] = []
@@ -257,6 +272,11 @@ class PromptRuntime:
             return
         policy = domain.tools
         provider = self.config.tool_providers[policy.provider]
+        if not provider_is_trusted(prepared.turn_context, provider.id):
+            # ADR 0054, D2: fuera de lo confiado no se abre conexion.
+            self._record_tools_offered(prepared, provider.id, [], reason="untrusted")
+            yield from self._provider_unavailable_events(prepared)
+            return
         try:
             manager = self.tool_turn_factory(provider)
             turn = manager.__enter__()
@@ -276,10 +296,17 @@ class PromptRuntime:
                 self._record_tools_offered(prepared, provider.id, [])
                 yield from self._provider_unavailable_events(prepared)
                 return
+            effect, effect_reason, effect_latency_ms = self._classify_effect(prepared)
+            prepared.tool_state.update(
+                effect=effect,
+                effect_reason=effect_reason,
+                effect_latency_ms=effect_latency_ms,
+            )
             allowed = offered_tools(
                 domain,
                 prepared.identity.interlocutor_profile,
                 provider_tools,
+                effect,
             )
             self._record_tools_offered(prepared, provider.id, allowed)
             yield from self._run_tool_rounds(
@@ -415,6 +442,7 @@ class PromptRuntime:
                 f"{_short_error(arguments_error)}"
             )
         else:
+            effect = prepared.tool_state.get("effect", EFFECT_ORDER)
             if not invocation_is_allowed(
                 domain,
                 prepared.identity.interlocutor_profile,
@@ -424,6 +452,19 @@ class PromptRuntime:
             ):
                 status = "denied"
                 result_text = f"denied: {name or 'tool'} is not allowed for this interlocutor"
+            elif not invocation_is_allowed(
+                domain,
+                prepared.identity.interlocutor_profile,
+                provider_tools,
+                provider.id,
+                name,
+                effect,
+            ):
+                status = "denied"
+                result_text = (
+                    f"denied: {name or 'tool'} changes something and this request "
+                    "only asks to know; do not change anything"
+                )
             else:
                 try:
                     result: ToolCallResult = turn.call_tool(name, arguments)
@@ -448,22 +489,54 @@ class PromptRuntime:
         )
         return {"role": "tool", "tool_call_id": call_id, "content": result_text}
 
+    def _classify_effect(self, prepared: PreparedPrompt) -> tuple[str, str, int]:
+        """Efecto de la peticion (ADR 0054, D3); en la duda, `read`.
+
+        Una llamada corta al modelo del enrutador; sin enrutador, al del
+        dominio. Quien llama no puede imponer el efecto.
+        """
+        started = time.monotonic()
+        content = effect_classification_prompt(prepared.prompt)
+        try:
+            if self.config.router is not None:
+                text = self.router.complete(content)
+            else:
+                req = ModelRequest(
+                    messages=[{"role": "user", "content": content}],
+                    params=dict(prepared.params),
+                    extra=dict(prepared.req.extra),
+                )
+                text = run_blocking(prepared.adapter, req).text
+        except Exception as exc:  # cualquier fallo del clasificador resta
+            reason = exc.type if isinstance(exc, CoreError) else exc.__class__.__name__
+            return EFFECT_READ, f"classifier failed: {reason}", _latency_ms(started)
+        effect, reason = parse_effect_response(text)
+        return effect, reason, _latency_ms(started)
+
     def _record_tools_offered(
         self,
         prepared: PreparedPrompt,
         provider: str,
         tools: list[ProviderTool],
+        *,
+        reason: str | None = None,
     ) -> None:
+        payload: dict[str, Any] = {
+            "provider": provider,
+            "profile": prepared.identity.interlocutor_profile,
+            "tools": [tool.name for tool in tools],
+        }
+        if reason is not None:
+            payload["reason"] = reason
+        for key in ("effect", "effect_reason", "effect_latency_ms"):
+            if key in prepared.tool_state:
+                payload[key] = prepared.tool_state[key]
         self.telemetry.record(
             request_id=prepared.request_id,
             event="tools_offered",
             capability=prepared.capability,
             identity=prepared.identity,
-            payload={
-                "provider": provider,
-                "profile": prepared.identity.interlocutor_profile,
-                "tools": [tool.name for tool in tools],
-            },
+            payload=payload,
             domain=prepared.domain,
             model=prepared.resolved.model.id,
         )
@@ -511,8 +584,10 @@ class PromptRuntime:
         capability: str = "prompt.run",
         trace_payload: dict[str, Any] | None = None,
         profile_id: str | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> PreparedPrompt:
         started = time.monotonic()
+        parsed_turn_context = parse_turn_context(turn_context)
         request_id = request_id or str(uuid4())
         identity_data = dict(identity_override or {})
         Identity.from_defaults(self.config.identity_defaults, identity_data)
@@ -587,6 +662,8 @@ class PromptRuntime:
             req=req,
             capability=capability,
             trace_payload=dict(trace_payload or {}),
+            prompt=prompt,
+            turn_context=parsed_turn_context,
         )
 
     def _record_error(self, prepared: PreparedPrompt, payload: dict[str, Any], error_type: str) -> None:
@@ -626,7 +703,7 @@ def _trace(
     finish_reason: Any,
     tool_calls: int,
 ) -> dict[str, Any]:
-    return {
+    trace = {
         "request_id": prepared.request_id,
         "capability": "prompt.run",
         "user_id": prepared.identity.user_id,
@@ -646,6 +723,10 @@ def _trace(
         "substituted": prepared.resolved.substituted,
         "preferred_model": prepared.resolved.preferred_model,
     }
+    if "effect" in prepared.tool_state:
+        trace["effect"] = prepared.tool_state["effect"]
+        trace["effect_reason"] = prepared.tool_state["effect_reason"]
+    return trace
 
 
 def _messages_with_system(prompt: str, system: str) -> list[dict[str, Any]]:

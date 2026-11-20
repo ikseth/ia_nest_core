@@ -5,6 +5,32 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+Tramo A de `extended CR-0006` (ia_nest_core#57), con el ajuste de meta H12P7:
+proveedores como techo y efecto de la peticion
+([ADR 0054](docs/decision_records/0054-techo-de-proveedores-y-efecto-de-la-peticion.md)).
+MINOR: parametro opcional, campos aditivos, capacidad nueva y cambio de
+semantica de `tool_providers` cuando llega `turn_context`. Conformidad 136/136,
+digest declarado de nuevo por la capacidad nueva.
+
+### Anadido
+
+- `turn_context` opcional en `prompt.run` y `prompt.stream` (parte
+  `trusted_providers`), declarado en `capability.list`.
+- Efecto `read` u `order` en todo turno con herramientas, clasificado con el
+  modelo del enrutador (o del dominio); `effect` y `effect_reason` en
+  `done.trace` y en `tools_offered`.
+- Capacidad `tool_provider.list` (REST, MCP y CLI): ids del techo y sus
+  dominios, sin url ni secretos.
+
+### Cambiado
+
+- Con `trusted_providers`, solo se consulta la interseccion con el techo
+  (`tool_providers`); fuera, el turno sigue sin herramientas
+  (`tools_offered.reason = "untrusted"`).
+- Con efecto `read`, solo se ofrecen e invocan herramientas con
+  `readOnlyHint: true`. Coste: una llamada corta mas por turno con
+  herramientas.
+
 ## [v0.5.0] - 2026-11-06
 
 Primera frontera de herramientas del core: `tool_contracts` por MCP

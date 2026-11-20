@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from ianest_core.config.schema import DomainConfig
+from ianest_core.errors import ConfigValidationError
+
+
+# Efecto de la peticion (ADR 0054, D3-D4): solo resta de lo permitido.
+EFFECT_READ = "read"
+EFFECT_ORDER = "order"
+EFFECTS = (EFFECT_READ, EFFECT_ORDER)
 
 
 @dataclass(frozen=True)
@@ -15,15 +24,96 @@ class ProviderTool:
     annotations: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class TurnContext:
+    """Contexto del turno que compone extended (ADR 0054, D1).
+
+    Es dato, no instruccion: no llega al modelo. `trusted_providers` en
+    `None` significa que la parte no vino (comportamiento de `v0.5.0`); una
+    tupla vacia es un dato: no hay nada confiado.
+    """
+
+    trusted_providers: tuple[str, ...] | None = None
+
+
+def parse_turn_context(raw: Any) -> TurnContext | None:
+    """Valida `turn_context`. Partes desconocidas se ignoran (tramo B, H13)."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("turn_context must be an object", "turn_context")
+    trusted: tuple[str, ...] | None = None
+    if "trusted_providers" in raw:
+        value = raw["trusted_providers"]
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) and item for item in value
+        ):
+            raise ConfigValidationError(
+                "turn_context.trusted_providers must be a list of non-empty strings",
+                "turn_context.trusted_providers",
+            )
+        trusted = tuple(value)
+    return TurnContext(trusted_providers=trusted)
+
+
+def provider_is_trusted(turn_context: TurnContext | None, provider_id: str) -> bool:
+    """Interseccion del techo (`tool_providers`) con lo confiado (D2).
+
+    Quien llama ya resolvio el proveedor desde `tool_providers`, asi que un
+    nombre confiado fuera del techo nunca llega aqui: la memoria solo resta.
+    """
+    if turn_context is None or turn_context.trusted_providers is None:
+        return True
+    return provider_id in turn_context.trusted_providers
+
+
+def tool_fits_effect(tool: ProviderTool, effect: str) -> bool:
+    """Con `read` solo pasan las de `readOnlyHint: true`; con `order`, todas."""
+    if effect == EFFECT_ORDER:
+        return True
+    return bool(tool.annotations) and tool.annotations.get("readOnlyHint") is True
+
+
+def effect_classification_prompt(text: str) -> str:
+    return (
+        "Decide the effect of the user's request on the house. "
+        "Answer 'read' if it asks to know, check or query something; "
+        "answer 'order' only if it explicitly asks to change, start, stop, "
+        "turn on/off, set or play something. If in doubt, answer 'read'. "
+        'Return only JSON: {"effect": "read" or "order", "reason": "short"}.\n'
+        f"Request: {text}"
+    )
+
+
+def parse_effect_response(text: str) -> tuple[str, str]:
+    """Efecto y motivo; cualquier respuesta no valida es `read` (en la duda)."""
+    match = re.search(r"\{.*\}", text or "", re.DOTALL)
+    if match is None:
+        return EFFECT_READ, "classifier response is not JSON"
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return EFFECT_READ, "classifier response is not JSON"
+    if not isinstance(data, dict):
+        return EFFECT_READ, "classifier response is not an object"
+    effect = data.get("effect")
+    if effect not in EFFECTS:
+        return EFFECT_READ, f"unknown effect {effect!r}"
+    reason = data.get("reason")
+    return effect, str(reason)[:200] if reason else ""
+
+
 def offered_tools(
     domain: DomainConfig,
     interlocutor_profile: str,
     provider_tools: list[ProviderTool],
+    effect: str = EFFECT_ORDER,
 ) -> list[ProviderTool]:
     return [
         tool
         for tool in provider_tools
         if tool_is_allowed(domain, interlocutor_profile, tool)
+        and tool_fits_effect(tool, effect)
     ]
 
 
@@ -51,6 +141,7 @@ def invocation_is_allowed(
     provider_tools: list[ProviderTool],
     provider: str,
     tool_name: str,
+    effect: str = EFFECT_ORDER,
 ) -> bool:
     tool = next(
         (
@@ -60,7 +151,11 @@ def invocation_is_allowed(
         ),
         None,
     )
-    return tool is not None and tool_is_allowed(domain, interlocutor_profile, tool)
+    return (
+        tool is not None
+        and tool_is_allowed(domain, interlocutor_profile, tool)
+        and tool_fits_effect(tool, effect)
+    )
 
 
 def _is_non_destructive(annotations: dict[str, Any] | None) -> bool:

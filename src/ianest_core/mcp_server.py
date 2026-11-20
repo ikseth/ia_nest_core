@@ -27,13 +27,20 @@ def create_server(
         return service.list_capabilities()
 
     @server.tool(name="prompt.run", structured_output=True)
-    def prompt_run(prompt: str, model: str | None = None, domain: str | None = None, identity: dict[str, str] | None = None) -> dict[str, Any]:
+    def prompt_run(
+        prompt: str,
+        model: str | None = None,
+        domain: str | None = None,
+        identity: dict[str, str] | None = None,
+        turn_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         return service.run_prompt(
             config_path=config_path,
             prompt=prompt,
             model=model,
             domain=domain,
             identity=identity or {},
+            turn_context=turn_context,
         )
 
     @server.tool(name="reasoning.run", structured_output=True)
@@ -93,6 +100,10 @@ def create_server(
     @server.tool(name="domain.list", structured_output=True)
     def domain_list() -> dict[str, Any]:
         return service.list_domains(config_path=config_path)
+
+    @server.tool(name="tool_provider.list", structured_output=True)
+    def tool_provider_list() -> dict[str, Any]:
+        return service.list_tool_providers(config_path=config_path)
 
     @server.tool(name="config.validate", structured_output=True)
     def config_validate() -> dict[str, str]:

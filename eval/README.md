@@ -542,3 +542,8 @@ La ficha v0.4/0013 anade el caso de identidad
 `interlocutor_profile_propagated_to_trace`; el digest vigente queda declarado
 junto con su implementacion: 136 casos de conformidad y
 `f6558d3c7e16d20c453c3696e121e105e5869ebfb06f0d4fd9fff6849ceaff57`.
+
+ADR 0054 anade la capacidad publica `tool_provider.list`, que entra en la lista
+EXACTA de `capability_catalog_exact_ordered_names` (17 capacidades). Cambio
+declarado: 136 casos de conformidad y digest
+`4ebd70f1fb08a13fed257ab9da20313d0c75d45b6a56ac83b51f1923d957d94e`.

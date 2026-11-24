@@ -5,6 +5,8 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.7.0] - 2026-11-24
+
 Tramo B de `extended CR-0006` (ia_nest_core#57) y la parte del core de meta
 ADR 0019: el marco en el turno y preguntar lo que falta
 ([ADR 0055](docs/decision_records/0055-el-marco-en-el-turno-y-preguntar-lo-que-falta.md)).

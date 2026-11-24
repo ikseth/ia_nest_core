@@ -234,7 +234,7 @@ def _add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     identity.add_argument("--session-id", metavar="ID", help="identificador opcional de continuidad de sesion")
     identity.add_argument("--domain-tag", metavar="ETIQUETA", help="etiqueta de dominio incluida en identidad y traza")
     identity.add_argument("--namespace", metavar="ESPACIO", help="espacio de identidad incluido en la traza")
-    identity.add_argument("--interlocutor-profile", choices=["adult", "child"], help="perfil del interlocutor incluido en identidad y traza")
+    identity.add_argument("--interlocutor-profile", choices=["adult", "restricted", "child"], help="perfil del interlocutor incluido en identidad y traza")
 
 
 def _init(args: argparse.Namespace) -> int:
@@ -516,6 +516,7 @@ def _domain_route(args: argparse.Namespace) -> int:
         config_path=args.config,
         prompt=args.prompt,
         identity=_identity_override(args),
+        turn_context=getattr(args, "turn_context", None),
     )
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))

@@ -97,7 +97,7 @@ def test_trusted_name_outside_the_ceiling_adds_nothing(tmp_path) -> None:
 
 
 def test_unknown_turn_context_parts_are_ignored() -> None:
-    parsed = parse_turn_context({"frame": {"place": "salon"}, "catalog": {}})
+    parsed = parse_turn_context({"catalog": {"summary": "x"}, "other": 1})
 
     assert parsed is not None
     assert parsed.trusted_providers is None

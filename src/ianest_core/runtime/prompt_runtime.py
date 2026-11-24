@@ -21,6 +21,13 @@ from ianest_core.adapters import (
 from ianest_core.config.schema import CoreConfig, ModelConfig, ToolProviderConfig
 from ianest_core.domain_router import DomainRouter
 from ianest_core.errors import CoreError
+from ianest_core.frame import (
+    INPUT_REQUIRED,
+    Frame,
+    frame_context_block,
+    needs_prompt,
+    parse_needs,
+)
 from ianest_core.identity import Identity
 from ianest_core.mcp_client import MCPClientTurn, ToolCallResult
 from ianest_core.registry import AvailabilityProvider, ModelRegistry, ResolvedModel
@@ -79,6 +86,12 @@ class PreparedPrompt:
     turn_context: TurnContext | None = None
     # Lo que decide el turno con herramientas (efecto y motivo, ADR 0054).
     tool_state: dict[str, Any] = field(default_factory=dict)
+    # Lo que decide el marco (ADR 0055, D4 y D6).
+    frame_state: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def frame(self) -> Frame | None:
+        return self.turn_context.frame if self.turn_context is not None else None
 
 
 class PromptRuntime:
@@ -120,6 +133,9 @@ class PromptRuntime:
             profile_id=profile_id,
             turn_context=turn_context,
         )
+        asked = self._ask_missing(prepared)
+        if asked is not None:
+            return self._asked_result(prepared, asked)
 
         try:
             if self._uses_tools(prepared):
@@ -144,6 +160,7 @@ class PromptRuntime:
             "response": response.text,
             "finish_reason": response.finish_reason,
             **prepared.trace_payload,
+            **_frame_payload(prepared),
         }
         if response.reasoning:
             done_payload["reasoning"] = response.reasoning
@@ -187,6 +204,21 @@ class PromptRuntime:
             capability="prompt.run",
             turn_context=turn_context,
         )
+        asked = self._ask_missing(prepared)
+        if asked is not None:
+            result = self._asked_result(prepared, asked)
+            yield Event("token", {"text": result.response})
+            yield Event(
+                "done",
+                {
+                    "text": result.response,
+                    "tokens_in": 0,
+                    "tokens_out": 0,
+                    "finish_reason": INPUT_REQUIRED,
+                    "trace": result.trace,
+                },
+            )
+            return
 
         text_parts: list[str] = []
         tokens_in = 0
@@ -239,7 +271,11 @@ class PromptRuntime:
             finish_reason=finish_reason,
             tool_calls=turn_tool_calls,
         )
-        done_payload = {"response": response_text, "finish_reason": finish_reason}
+        done_payload = {
+            "response": response_text,
+            "finish_reason": finish_reason,
+            **_frame_payload(prepared),
+        }
         if reasoning:
             done_payload["reasoning"] = reasoning
         self.telemetry.record(
@@ -496,22 +532,96 @@ class PromptRuntime:
         dominio. Quien llama no puede imponer el efecto.
         """
         started = time.monotonic()
-        content = effect_classification_prompt(prepared.prompt)
         try:
-            if self.config.router is not None:
-                text = self.router.complete(content)
-            else:
-                req = ModelRequest(
-                    messages=[{"role": "user", "content": content}],
-                    params=dict(prepared.params),
-                    extra=dict(prepared.req.extra),
-                )
-                text = run_blocking(prepared.adapter, req).text
+            text = self._short_classification(
+                prepared, effect_classification_prompt(prepared.prompt)
+            )
         except Exception as exc:  # cualquier fallo del clasificador resta
-            reason = exc.type if isinstance(exc, CoreError) else exc.__class__.__name__
-            return EFFECT_READ, f"classifier failed: {reason}", _latency_ms(started)
+            return EFFECT_READ, f"classifier failed: {_failure(exc)}", _latency_ms(started)
         effect, reason = parse_effect_response(text)
         return effect, reason, _latency_ms(started)
+
+    def _short_classification(self, prepared: PreparedPrompt, content: str) -> str:
+        """Llamada corta al modelo del enrutador; sin enrutador, al del dominio.
+
+        Camino comun del efecto (ADR 0054, D3) y de lo que falta (ADR 0055, D4).
+        """
+        if self.config.router is not None:
+            return self.router.complete(content)
+        req = ModelRequest(
+            messages=[{"role": "user", "content": content}],
+            params=dict(prepared.params),
+            extra=dict(prepared.req.extra),
+        )
+        return run_blocking(prepared.adapter, req).text
+
+    def _ask_missing(self, prepared: PreparedPrompt) -> dict[str, str] | None:
+        """ADR 0055, D4: si falta lugar o persona y la respuesta depende, preguntar.
+
+        Un intento; cualquier fallo o valor no valido no pregunta.
+        """
+        frame = prepared.frame
+        if frame is None:
+            return None
+        askable = frame.askable_missing()
+        if not askable:
+            return None
+        started = time.monotonic()
+        try:
+            text = self._short_classification(prepared, needs_prompt(prepared.prompt, askable))
+        except Exception as exc:
+            part, reason = None, f"classifier failed: {_failure(exc)}"
+        else:
+            part, reason = parse_needs(text, askable)
+        prepared.frame_state["frame_check"] = {
+            "needs": part,
+            "reason": reason,
+            "latency_ms": _latency_ms(started),
+        }
+        if part is None:
+            return None
+        asked = {"part": part, "reason": reason}
+        prepared.frame_state["input_required"] = asked
+        return asked
+
+    def _asked_result(self, prepared: PreparedPrompt, asked: dict[str, str]) -> PromptRunResult:
+        frame = prepared.frame
+        question = self.config.frame_questions.question(
+            asked["part"], frame.language if frame is not None else None
+        )
+        latency_ms = _latency_ms(prepared.started)
+        trace = _trace(
+            prepared,
+            latency_ms=latency_ms,
+            tokens_in=0,
+            tokens_out=0,
+            finish_reason=INPUT_REQUIRED,
+            tool_calls=0,
+        )
+        self.telemetry.record(
+            request_id=prepared.request_id,
+            event="done",
+            capability=prepared.capability,
+            identity=prepared.identity,
+            payload={
+                "response": question,
+                "finish_reason": INPUT_REQUIRED,
+                **_frame_payload(prepared),
+            },
+            domain=prepared.domain,
+            model=prepared.resolved.model.id,
+            latency_ms=latency_ms,
+            tokens_in=0,
+            tokens_out=0,
+            status="ok",
+        )
+        return PromptRunResult(
+            response=question,
+            model=prepared.resolved.model.id,
+            domain=prepared.domain,
+            params=prepared.params,
+            trace=trace,
+        )
 
     def _record_tools_offered(
         self,
@@ -613,6 +723,14 @@ class PromptRuntime:
         extra = dict(resolved.profile.extra)
         adapter = self._adapter_for(resolved.model)
         messages = _messages_with_system(prompt, resolved.profile.system)
+        frame = parsed_turn_context.frame if parsed_turn_context is not None else None
+        if frame is not None:
+            # ADR 0055, D3: dato aparte de las instrucciones del perfil, justo
+            # antes del mensaje del usuario; sin marco, los mensajes de siempre.
+            messages.insert(
+                len(messages) - 1,
+                {"role": "system", "content": frame_context_block(frame)},
+            )
         req = ModelRequest(messages=messages, params=params, extra=extra)
 
         self.telemetry.record(
@@ -726,7 +844,26 @@ def _trace(
     if "effect" in prepared.tool_state:
         trace["effect"] = prepared.tool_state["effect"]
         trace["effect_reason"] = prepared.tool_state["effect_reason"]
+    if prepared.frame is not None:
+        trace["frame_used"] = True
+    if "input_required" in prepared.frame_state:
+        trace["input_required"] = dict(prepared.frame_state["input_required"])
     return trace
+
+
+def _frame_payload(prepared: PreparedPrompt) -> dict[str, Any]:
+    """Telemetria del turno (ADR 0055, D6): solo si hubo marco."""
+    payload: dict[str, Any] = {}
+    if prepared.frame is not None:
+        payload["frame_used"] = True
+    for key in ("frame_check", "input_required"):
+        if key in prepared.frame_state:
+            payload[key] = dict(prepared.frame_state[key])
+    return payload
+
+
+def _failure(exc: BaseException) -> str:
+    return exc.type if isinstance(exc, CoreError) else exc.__class__.__name__
 
 
 def _messages_with_system(prompt: str, system: str) -> list[dict[str, Any]]:

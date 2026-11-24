@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from ianest_core.frame import FrameQuestions
+from ianest_core.identity import normalize_profile
+
 
 @dataclass(frozen=True)
 class ModelConfig:
@@ -30,6 +33,14 @@ class DomainToolsConfig:
     max_rounds: int = 4
     allow: dict[str, list[str]] = field(default_factory=dict)
     deny: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # `child` es el nombre antiguo de `restricted` (ADR 0055, D5).
+        object.__setattr__(
+            self,
+            "allow",
+            {normalize_profile(profile): names for profile, names in self.allow.items()},
+        )
 
 
 @dataclass(frozen=True)
@@ -129,3 +140,4 @@ class CoreConfig:
     router: RouterConfig | None = None
     default_domain: str | None = None
     tool_providers: dict[str, ToolProviderConfig] = field(default_factory=dict)
+    frame_questions: FrameQuestions = field(default_factory=FrameQuestions)

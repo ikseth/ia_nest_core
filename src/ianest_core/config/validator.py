@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 from ianest_core.errors import ConfigValidationError
-from ianest_core.identity import INTERLOCUTOR_PROFILES
+from ianest_core.identity import ACCEPTED_PROFILE_NAMES, normalize_profile
 
 ENV_PATTERN = re.compile(r"^\$\{([A-Z0-9_]+)\}$")
 ENV_NAME_PATTERN = re.compile(r"^[A-Z_][A-Z0-9_]*$")
@@ -108,6 +108,10 @@ def validate_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
     if router is not None:
         _validate_orchestration_target(router, "router", model_ids, domain_ids, profile_ids)
 
+    frame_questions = raw.get("frame_questions")
+    if frame_questions is not None:
+        _validate_frame_questions(frame_questions)
+
     default_domain = raw.get("default_domain")
     if default_domain is not None and default_domain not in domain_ids:
         raise ConfigValidationError("default_domain does not exist", "default_domain")
@@ -175,16 +179,54 @@ def _validate_domain_tools(raw: Any, provider_ids: set[str]) -> None:
     allow = raw.get("allow")
     if not isinstance(allow, dict):
         raise ConfigValidationError("tools allow must be a mapping", "tools.allow")
+    seen: dict[str, str] = {}
     for profile, names in allow.items():
-        if profile not in INTERLOCUTOR_PROFILES:
+        if profile not in ACCEPTED_PROFILE_NAMES:
             raise ConfigValidationError(
-                "tools allow profile must be adult or child",
+                "tools allow profile must be adult or restricted",
                 f"tools.allow.{profile}",
             )
+        canonical = normalize_profile(profile)
+        if canonical in seen:
+            raise ConfigValidationError(
+                f"tools allow declares both {seen[canonical]} and {profile}; "
+                "child is the old name of restricted",
+                f"tools.allow.{profile}",
+            )
+        seen[canonical] = profile
         _validate_tool_name_list(names, f"tools.allow.{profile}")
     deny = raw.get("deny")
     if deny is not None:
         _validate_tool_name_list(deny, "tools.deny")
+
+
+def _validate_frame_questions(raw: Any) -> None:
+    """Preguntas del marco (ADR 0055, D4): por parte, textos por idioma."""
+    if not isinstance(raw, dict):
+        raise ConfigValidationError("frame_questions must be a mapping", "frame_questions")
+    unknown = set(raw) - {"default_language", "place", "person"}
+    if unknown:
+        raise ConfigValidationError(
+            "unknown frame_questions field", f"frame_questions.{sorted(unknown)[0]}"
+        )
+    language = raw.get("default_language")
+    if language is not None and (not isinstance(language, str) or not language):
+        raise ConfigValidationError(
+            "frame_questions default_language must be a non-empty string",
+            "frame_questions.default_language",
+        )
+    for part in ("place", "person"):
+        texts = raw.get(part)
+        if texts is None:
+            continue
+        if not isinstance(texts, dict) or not all(
+            isinstance(lang, str) and lang and isinstance(text, str) and text.strip()
+            for lang, text in texts.items()
+        ):
+            raise ConfigValidationError(
+                "frame_questions texts must map languages to non-empty strings",
+                f"frame_questions.{part}",
+            )
 
 
 def _validate_tool_name_list(raw: Any, field: str) -> None:

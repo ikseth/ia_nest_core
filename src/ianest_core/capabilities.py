@@ -122,7 +122,7 @@ _PLAN = _param(
 _TURN_CONTEXT = _param(
     "turn_context",
     "object",
-    "contexto del turno compuesto por extended (ADR 0054): trusted_providers",
+    "contexto del turno compuesto por extended (ADR 0054, 0055): trusted_providers, frame",
     cli=False,
 )
 _TURN_CONTEXT_INPUT = CliInput(
@@ -279,6 +279,7 @@ CAPABILITIES: tuple[Capability, ...] = (
                 required=True,
                 metavar="TEXTO",
             ),
+            _TURN_CONTEXT,
         ),
         RestProjection("/domain/route", "POST"),
         CliProjection(
@@ -288,6 +289,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             {"form": "row", "fields": ("domain", "model", "reason")},
             flags=("json",),
             flag_help=(_JSON_RESULT,),
+            inputs=(_TURN_CONTEXT_INPUT,),
         ),
         McpProjection("domain.route"),
     ),

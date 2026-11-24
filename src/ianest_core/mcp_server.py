@@ -86,11 +86,16 @@ def create_server(
         )
 
     @server.tool(name="domain.route", structured_output=True)
-    def domain_route(prompt: str, identity: dict[str, str] | None = None) -> dict[str, Any]:
+    def domain_route(
+        prompt: str,
+        identity: dict[str, str] | None = None,
+        turn_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         return service.route_domain(
             config_path=config_path,
             prompt=prompt,
             identity=identity or {},
+            turn_context=turn_context,
         )
 
     @server.tool(name="model.list", structured_output=True)

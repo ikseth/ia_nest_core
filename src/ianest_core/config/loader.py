@@ -24,6 +24,8 @@ from ianest_core.config.schema import (
     ToolProviderConfig,
 )
 from ianest_core.errors import ConfigError
+from ianest_core.frame import DEFAULT_LANGUAGE, FrameQuestions
+from ianest_core.identity import normalize_profile
 
 ENV_PATTERN = re.compile(r"^\$\{([A-Z0-9_]+)\}$")
 
@@ -54,6 +56,7 @@ def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:
     router = _load_router(raw.get("router"))
     default_domain = str(raw["default_domain"]) if raw.get("default_domain") else None
     tool_providers = _load_tool_providers(raw.get("tool_providers"))
+    frame_questions = _load_frame_questions(raw.get("frame_questions"))
     return CoreConfig(
         models=models,
         domains=domains,
@@ -64,6 +67,7 @@ def load_config_from_dict(raw: dict[str, Any]) -> CoreConfig:
         router=router,
         default_domain=default_domain,
         tool_providers=tool_providers,
+        frame_questions=frame_questions,
     )
 
 
@@ -106,7 +110,10 @@ def _load_domain_tools(raw: dict[str, Any] | None) -> DomainToolsConfig | None:
     return DomainToolsConfig(
         provider=str(raw.get("provider", "")),
         max_rounds=int(raw.get("max_rounds", 4)),
-        allow={str(profile): list(names) for profile, names in raw.get("allow", {}).items()},
+        allow={
+            normalize_profile(str(profile)): list(names)
+            for profile, names in raw.get("allow", {}).items()
+        },
         deny=list(raw.get("deny", [])),
     )
 
@@ -224,4 +231,17 @@ def _load_router(raw: dict[str, Any] | None) -> RouterConfig | None:
         model=str(raw["model"]) if raw.get("model") else None,
         domain=str(raw["domain"]) if raw.get("domain") else None,
         profile=str(raw.get("profile", "")),
+    )
+
+
+def _load_frame_questions(raw: Any) -> FrameQuestions:
+    if not raw:
+        return FrameQuestions()
+    return FrameQuestions(
+        default_language=str(raw.get("default_language") or DEFAULT_LANGUAGE),
+        texts={
+            part: {str(lang): str(text) for lang, text in raw[part].items()}
+            for part in ("place", "person")
+            if isinstance(raw.get(part), dict)
+        },
     )

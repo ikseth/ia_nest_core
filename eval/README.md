@@ -547,3 +547,8 @@ ADR 0054 anade la capacidad publica `tool_provider.list`, que entra en la lista
 EXACTA de `capability_catalog_exact_ordered_names` (17 capacidades). Cambio
 declarado: 136 casos de conformidad y digest
 `4ebd70f1fb08a13fed257ab9da20313d0c75d45b6a56ac83b51f1923d957d94e`.
+
+ADR 0055 (D5) normaliza el perfil `child` a `restricted`: el caso
+`interlocutor_profile_propagated_to_trace` sigue entrando con `child` y espera
+`restricted` en la traza. Cambio declarado: 136 casos de conformidad y digest
+`c10319ba292671c9adbc001cc7e1128ef485a26f3caf96f170be42bdb82a3ba8`.

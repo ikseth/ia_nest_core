@@ -38,8 +38,10 @@ Campos:
 - `domain_tag`
 - `namespace` (ejemplos: `facts`, `tasks`, `preferences`, `persona`, `ops`,
   `safety`)
-- `interlocutor_profile` (`adult` | `child`; ausente o vacio significa que no
-  hay dato)
+- `interlocutor_profile` (`adult` | `restricted`; ausente o vacio significa
+  que no hay dato). Es el nivel de permiso, no el tono (meta ADR 0019). Desde
+  `v0.7.0` (ADR 0055, D5) `child` se acepta como nombre antiguo de
+  `restricted` y se normaliza: la traza dice `restricted`.
 
 Estos campos deben reflejarse en la traza (telemetria, ADR 0010).
 El core transporta y traza `interlocutor_profile`, pero no lo interpreta: no
@@ -215,6 +217,12 @@ Debe devolver:
 - motivo breve,
 - alternativas relevantes.
 
+Desde `v0.7.0` acepta el mismo `turn_context` opcional que `prompt.run`. Con
+`turn_context.frame`, el prompt del clasificador gana una pista corta (canal,
+lugar con su estado y localidad, lo que falta) y la traza lleva
+`frame_used: true`; es pista, no regla (ADR 0055, D2). Sin `frame`, el prompt
+es el de siempre.
+
 ### `prompt.run`
 
 Ejecuta un prompt contra el dominio declarado o el dominio por defecto. NO
@@ -297,6 +305,46 @@ el comportamiento de proveedores es el de `v0.5.0`.
 - **Traza y telemetria (aditivo).** En turnos con herramientas, `done.trace`
   lleva `effect` y `effect_reason`; `tools_offered` lleva `effect`,
   `effect_reason`, `effect_latency_ms` y, cuando aplica, `reason`.
+
+#### El marco y preguntar lo que falta (ADR 0055, desde `v0.7.0`)
+
+`turn_context.frame` es el marco de la conversacion que compone extended
+(extended ADR 0017), ya resuelto y sin ids internos. Se acepta en `prompt.run`,
+`prompt.stream` y `domain.route`. Campos conocidos:
+
+| Campo | Tipo |
+| --- | --- |
+| `channel`, `language` | texto o null |
+| `person`, `device`, `place` | objeto con `state` (texto); el resto de claves, texto, booleano o null |
+| `missing` | lista de textos (`person`, `device`, `place`) |
+| `stated` | objeto de texto a texto (lo dicho en la conversacion) |
+
+Campos desconocidos se ignoran; un tipo invalido en uno conocido es
+`ConfigValidationError`. Sin `frame`, mensajes, prompt del enrutador y traza
+son los de `v0.6.0`.
+
+- **Contexto al responder (D3).** El modelo recibe un mensaje `system` aparte,
+  justo antes del mensaje del usuario y despues de las instrucciones del
+  perfil, que empieza por `## marco de la conversacion`: canal, quien habla,
+  dispositivo (y si es compartido), lugar (casa, localidad, zona horaria),
+  idioma y lo dicho. Es dato; no cambia la politica de herramientas.
+- **Preguntar (D4).** Si `missing` contiene `place` o `person`, antes de
+  responder (y antes de abrir el proveedor o clasificar el efecto) una llamada
+  corta al modelo de `router` (sin `router`, al del dominio) devuelve
+  `{"needs": "place" | "person" | null, "reason": "..."}`. Si `needs` es una
+  parte de `missing`, el modelo no se llama para responder: la respuesta es la
+  pregunta de esa parte en el idioma de `frame.language` (si no hay texto para
+  ese idioma, `frame_questions.default_language`, y despues ingles),
+  `finish_reason: "input_required"` y `done.trace.input_required:
+  {"part", "reason"}`. En `prompt.stream` la pregunta sale como `token` y el
+  `done` lleva lo mismo; sin tipos de evento nuevos. Fallo, JSON invalido o
+  valor no valido: no se pregunta. Un intento. El dispositivo no se pregunta.
+- **Configuracion `frame_questions` (opcional).** `default_language` y, por
+  parte (`place`, `person`), textos por idioma. Valores por defecto en el
+  codigo, en ingles y en espanol.
+- **Traza y telemetria (aditivo).** `done.trace.frame_used: true` si llego
+  `frame`; `input_required` si se pregunto. El evento `done` lleva ademas
+  `frame_check` (`needs`, `reason`, `latency_ms`) cuando hubo clasificacion.
 
 ### `tool_provider.list`
 

@@ -5,6 +5,36 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.7.0] - 2026-11-24
+
+Tramo B de `extended CR-0006` (ia_nest_core#57) y la parte del core de meta
+ADR 0019: el marco en el turno y preguntar lo que falta
+([ADR 0055](docs/decision_records/0055-el-marco-en-el-turno-y-preguntar-lo-que-falta.md)).
+MINOR: parte nueva de `turn_context`, `turn_context` en `domain.route`,
+`finish_reason` nuevo, campos aditivos en la traza, configuracion opcional
+nueva y nivel de permiso `restricted` con transicion. Conformidad 136/136,
+digest declarado de nuevo por la normalizacion de `child`. Validado: 417 tests.
+
+### Anadido
+
+- `turn_context.frame` en `prompt.run`, `prompt.stream` y `domain.route`;
+  `domain.route` declara `turn_context` en `capability.list`.
+- Pista del marco en el prompt del enrutador y bloque `## marco de la
+  conversacion` como contexto del modelo.
+- Preguntar lo que falta como resultado declarado: `finish_reason:
+  "input_required"` y `done.trace.input_required`, con textos de
+  `frame_questions` (opcional) por idioma.
+- `done.trace.frame_used` y `frame_check` en el evento `done`.
+
+### Cambiado
+
+- Nivel de permiso `adult` o `restricted`. `child` se acepta una version como
+  nombre antiguo, en la identidad y en `tools.allow`, y se normaliza a
+  `restricted`; las dos claves a la vez en `tools.allow` es error de
+  configuracion. Las herramientas permitidas no cambian.
+- La clasificacion del efecto y la del marco comparten la llamada corta al
+  modelo del enrutador.
+
 ## [v0.6.0] - 2026-11-20
 
 Tramo A de `extended CR-0006` (ia_nest_core#57), con el ajuste de meta H12P7:

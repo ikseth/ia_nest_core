@@ -47,7 +47,7 @@
 
 - id: interlocutor_profile_propagated_to_trace
   track: conformance
-  description: "El perfil del interlocutor aparece en la traza sin cambiar la inferencia."
+  description: "El perfil del interlocutor aparece en la traza sin cambiar la inferencia; child llega normalizado a restricted (ADR 0055, D5)."
   capability: prompt.run
   fixture: eval/fixtures/config.yaml
   input:
@@ -56,7 +56,7 @@
     identity: { interlocutor_profile: child }
   expect:
     trace_fields:
-      interlocutor_profile: child
+      interlocutor_profile: restricted
 
 - id: admin_capability_no_identity_required
   track: conformance

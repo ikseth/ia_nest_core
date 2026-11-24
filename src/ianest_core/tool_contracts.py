@@ -7,6 +7,8 @@ from typing import Any
 
 from ianest_core.config.schema import DomainConfig
 from ianest_core.errors import ConfigValidationError
+from ianest_core.frame import Frame, parse_frame
+from ianest_core.identity import normalize_profile
 
 
 # Efecto de la peticion (ADR 0054, D3-D4): solo resta de lo permitido.
@@ -28,16 +30,18 @@ class ProviderTool:
 class TurnContext:
     """Contexto del turno que compone extended (ADR 0054, D1).
 
-    Es dato, no instruccion: no llega al modelo. `trusted_providers` en
+    Es dato, no instruccion. `trusted_providers` no llega al modelo; en
     `None` significa que la parte no vino (comportamiento de `v0.5.0`); una
-    tupla vacia es un dato: no hay nada confiado.
+    tupla vacia es un dato: no hay nada confiado. `frame` es el marco de la
+    conversacion (ADR 0055, D1): llega al modelo como dato; `None` si no vino.
     """
 
     trusted_providers: tuple[str, ...] | None = None
+    frame: Frame | None = None
 
 
 def parse_turn_context(raw: Any) -> TurnContext | None:
-    """Valida `turn_context`. Partes desconocidas se ignoran (tramo B, H13)."""
+    """Valida `turn_context`. Partes desconocidas se ignoran (H13)."""
     if raw is None:
         return None
     if not isinstance(raw, dict):
@@ -53,7 +57,7 @@ def parse_turn_context(raw: Any) -> TurnContext | None:
                 "turn_context.trusted_providers",
             )
         trusted = tuple(value)
-    return TurnContext(trusted_providers=trusted)
+    return TurnContext(trusted_providers=trusted, frame=parse_frame(raw.get("frame")))
 
 
 def provider_is_trusted(turn_context: TurnContext | None, provider_id: str) -> bool:
@@ -127,7 +131,7 @@ def tool_is_allowed(
         return False
     if tool.provider != policy.provider:
         return False
-    allowed_names = policy.allow.get(interlocutor_profile)
+    allowed_names = policy.allow.get(normalize_profile(interlocutor_profile))
     if allowed_names is None or tool.name not in allowed_names:
         return False
     if tool.name in policy.deny:

@@ -11,6 +11,7 @@ from ianest_core.domain_router import DomainRouter
 from ianest_core.identity import Identity
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
 from ianest_core.telemetry import TelemetryWriter
+from ianest_core.tool_contracts import parse_turn_context
 
 
 @dataclass(frozen=True)
@@ -56,12 +57,15 @@ class DomainRuntime:
         prompt: str,
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> DomainRouteResult:
         started = time.monotonic()
+        parsed_turn_context = parse_turn_context(turn_context)
+        frame = parsed_turn_context.frame if parsed_turn_context is not None else None
         request_id = request_id or str(uuid4())
         identity_data = dict(identity_override or {})
         Identity.from_defaults(self.config.identity_defaults, identity_data)
-        route = self.router.route(prompt)
+        route = self.router.route(prompt, frame=frame)
         if not identity_data.get("domain_tag"):
             identity_data["domain_tag"] = route.domain
         identity = Identity.from_defaults(self.config.identity_defaults, identity_data)
@@ -80,6 +84,8 @@ class DomainRuntime:
             "latency_ms": latency_ms,
             "status": "ok",
         }
+        if frame is not None:
+            trace["frame_used"] = True
         self.telemetry.record(
             request_id=request_id,
             event="route",

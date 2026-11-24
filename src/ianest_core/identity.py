@@ -5,7 +5,17 @@ from dataclasses import dataclass
 from ianest_core.errors import ConfigValidationError
 
 
-INTERLOCUTOR_PROFILES = frozenset({"adult", "child"})
+PROFILE_ADULT = "adult"
+PROFILE_RESTRICTED = "restricted"
+# `child` es el nombre antiguo de `restricted` (ADR 0055, D5; meta ADR 0019):
+# se acepta una version y se normaliza.
+LEGACY_PROFILE_ALIASES = {"child": PROFILE_RESTRICTED}
+INTERLOCUTOR_PROFILES = frozenset({PROFILE_ADULT, PROFILE_RESTRICTED})
+ACCEPTED_PROFILE_NAMES = INTERLOCUTOR_PROFILES | frozenset(LEGACY_PROFILE_ALIASES)
+
+
+def normalize_profile(value: str) -> str:
+    return LEGACY_PROFILE_ALIASES.get(value, value)
 
 
 @dataclass(frozen=True)
@@ -18,11 +28,14 @@ class Identity:
     interlocutor_profile: str = ""
 
     def __post_init__(self) -> None:
-        if self.interlocutor_profile and self.interlocutor_profile not in INTERLOCUTOR_PROFILES:
+        if self.interlocutor_profile and self.interlocutor_profile not in ACCEPTED_PROFILE_NAMES:
             raise ConfigValidationError(
-                "interlocutor_profile must be adult or child",
+                "interlocutor_profile must be adult or restricted",
                 "interlocutor_profile",
             )
+        object.__setattr__(
+            self, "interlocutor_profile", normalize_profile(self.interlocutor_profile)
+        )
 
     @classmethod
     def from_defaults(

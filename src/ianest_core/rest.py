@@ -126,6 +126,7 @@ def create_app(config_path: str | Path | None = None):
                 config_path=config_path,
                 prompt=payload["prompt"],
                 identity=payload.get("identity", {}),
+                turn_context=payload.get("turn_context"),
             )
         )
 

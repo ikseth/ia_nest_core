@@ -313,7 +313,7 @@ def test_coverage_generation_and_validation_prompts_remain_unchanged(tmp_path) -
     ]
 
 
-@pytest.mark.parametrize("interlocutor_profile", ["adult", "child"])
+@pytest.mark.parametrize("interlocutor_profile", ["adult", "restricted"])
 def test_task_runtime_runs_plan_fanout_combine_and_evaluate(tmp_path, interlocutor_profile) -> None:
     config = _config(tmp_path)
     adapters = {

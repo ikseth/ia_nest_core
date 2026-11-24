@@ -50,7 +50,7 @@ def test_interlocutor_profile_rejects_values_outside_its_vocabulary(profile) -> 
     assert exc.value.field == "interlocutor_profile"
 
 
-@pytest.mark.parametrize("profile", ["adult", "child"])
+@pytest.mark.parametrize("profile", ["adult", "restricted"])
 def test_interlocutor_profile_is_in_trace_and_telemetry(profile, tmp_path) -> None:
     csv_path = tmp_path / "trace.csv"
     jsonl_path = tmp_path / "trace.jsonl"
@@ -108,7 +108,7 @@ def test_telemetry_rotates_csv_with_old_header_before_appending(tmp_path) -> Non
     assert rows[0] == TRACE_CSV_FIELDS
     assert len(rows[1]) == len(TRACE_CSV_FIELDS)
     assert rows[1][0] == SCHEMA_VERSION
-    assert rows[1][-1] == "child"
+    assert rows[1][-1] == "restricted"
 
 
 def test_telemetry_appends_to_csv_with_current_header_without_rotation(tmp_path) -> None:
@@ -142,7 +142,7 @@ def test_interlocutor_profile_absent_is_empty_in_trace() -> None:
     assert result.trace["interlocutor_profile"] == ""
 
 
-@pytest.mark.parametrize("profile", ["adult", "child"])
+@pytest.mark.parametrize("profile", ["adult", "restricted"])
 def test_domain_route_traces_interlocutor_profile(profile, tmp_path) -> None:
     jsonl_path = tmp_path / "trace.jsonl"
     config = replace(
@@ -277,5 +277,5 @@ def test_mcp_rejects_invalid_interlocutor_profile() -> None:
             {"prompt": "hola", "domain": "general", "identity": {"interlocutor_profile": "teen"}},
         )
 
-    with pytest.raises(ToolError, match="interlocutor_profile must be adult or child"):
+    with pytest.raises(ToolError, match="interlocutor_profile must be adult or restricted"):
         anyio.run(call_tool)

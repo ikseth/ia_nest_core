@@ -181,11 +181,13 @@ def route_domain(
     prompt: str,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
+    turn_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     result = DomainRuntime(config, availability=availability).route(
         prompt=prompt,
         identity_override=identity or {},
+        turn_context=turn_context,
     )
     return result.to_dict()
 

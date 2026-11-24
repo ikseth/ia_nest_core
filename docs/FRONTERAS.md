@@ -100,7 +100,10 @@ todo lo destructivo (anotaciones MCP de proveedores declarados; el core solo
 endurece). El cliente ve solo texto; cada llamada consta en la telemetria.
 Desde `v0.6.0` (ADR 0054), declarar un proveedor es el techo y la confianza
 llega de extended en `turn_context`; y el efecto de la peticion (`read` u
-`order`) solo resta: con `read`, solo herramientas de solo lectura.
+`order`) solo resta: con `read`, solo herramientas de solo lectura. Desde
+`v0.7.0` (ADR 0055) el nivel de permiso es `adult` o `restricted` (`child`,
+nombre antiguo); el marco de la conversacion (`turn_context.frame`) es dato
+para el modelo y no cambia la politica.
 
 ## Regla para nuevas capacidades
 

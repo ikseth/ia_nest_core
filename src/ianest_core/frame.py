@@ -144,22 +144,45 @@ def frame_context_block(frame: Frame) -> str:
 
 # --- D4: preguntar lo que falta -------------------------------------------
 
-_PART_HINTS = {
-    "place": "place: where the speaker is or which home (weather, local time, nearby things, the house)",
-    "person": "person: who is speaking (their agenda, their things, their preferences)",
+_PART_RULES = {
+    "place": (
+        'Answer "place" when a correct answer needs to know WHERE the speaker is: '
+        "weather, rain, outside temperature, local time, sunrise, what is open or near, "
+        "traffic, local news. "
+        'Examples: "will it rain?" -> place; "what is the temperature?" -> place; '
+        '"what time is it?" -> place; "is the pharmacy open?" -> place.'
+    ),
+    "person": (
+        'Answer "person" when a correct answer needs to know WHO is speaking: their '
+        "agenda, reminders, messages, preferences, belongings or relatives. "
+        'Examples: "what do I have today?" -> person; "what is my favourite film?" -> person.'
+    ),
 }
+_NULL_RULE = (
+    "Answer null when the answer is the same wherever and whoever asks: general "
+    "knowledge, explanations, definitions, maths, stories, jokes, greetings. "
+    'Examples: "what is a lithium battery?" -> null; "why does it rain?" -> null; '
+    '"tell me a story" -> null; "hello" -> null.'
+)
 
 
 def needs_prompt(text: str, askable: tuple[str, ...]) -> str:
-    parts = "; ".join(_PART_HINTS[part] for part in askable)
+    """Prompt de la clasificacion de D4; solo nombra las partes que faltan.
+
+    Dos juicios separados (de que depende y si la peticion ya lo dice): un
+    modelo pequeno acierta mejor cada uno por separado que el compuesto.
+    """
     options = " or ".join(f'"{part}"' for part in askable)
+    rules = " ".join(_PART_RULES[part] for part in askable)
     return (
-        "Some parts of the conversation are unknown. Decide whether a correct answer "
-        "to the request depends on one of them. "
-        f"Unknown parts: {parts}. "
-        f"Answer {options} only if the answer really depends on it; otherwise null. "
-        "If in doubt, answer null. "
-        f'Return only JSON: {{"needs": {options} or null, "reason": "short"}}.\n'
+        "Some facts about the conversation are unknown. Decide two things about "
+        "the request. "
+        f"1) depends_on: {rules} {_NULL_RULE} "
+        "2) said_in_request: true if the request itself names that fact (a city, "
+        'a country or a place for "place"; a name for "person"), otherwise false. '
+        "Judge only the request itself, not any context around it. "
+        f'Return only JSON: {{"depends_on": {options} or null, '
+        '"said_in_request": true or false, "reason": "why, in a few words"}}.\n'
         f"Request: {text}"
     )
 
@@ -175,13 +198,15 @@ def parse_needs(text: str, askable: tuple[str, ...]) -> tuple[str | None, str]:
         return None, "classifier response is not JSON"
     if not isinstance(data, dict):
         return None, "classifier response is not an object"
-    needs = data.get("needs")
+    needs = data.get("depends_on", data.get("needs"))
     reason = data.get("reason")
     reason_text = str(reason)[:200] if reason else ""
     if needs is None:
         return None, reason_text
     if needs not in askable:
         return None, f"not askable {needs!r}"
+    if data.get("said_in_request") is True:
+        return None, f"{needs} said in the request"
     return str(needs), reason_text
 
 

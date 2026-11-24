@@ -104,3 +104,14 @@ nadie lo mande.
 - No interpreta la respuesta a una pregunta: la guarda extended.
 - No pasa el marco a `reasoning.*` ni `task.*` (no hay consumidor hoy).
 - `catalog` (resumen y preseleccion) sigue en meta `H13`.
+
+## Estado posterior
+
+2026-11-24 (`v0.7.1`, meta H12P8, fase 2): en el laboratorio, el modelo del
+enrutador no acertaba el juicio compuesto de D4. Contesto `needs: null` a "va a
+llover?" y pidio el lugar en "va a llover hoy en Madrid?". La llamada corta pide
+ahora dos juicios: `depends_on` y `said_in_request`. El core pregunta si la
+respuesta depende de una parte de `missing` y la peticion no la dice. Se sigue
+aceptando `needs`. Con mistral-nemo y su perfil, 35 de 36 en 12 frases tipicas
+(antes, 33 de 36 con ejemplos y menos sin ellos). El contrato del turno no
+cambia.

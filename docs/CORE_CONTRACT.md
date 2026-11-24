@@ -331,8 +331,10 @@ son los de `v0.6.0`.
 - **Preguntar (D4).** Si `missing` contiene `place` o `person`, antes de
   responder (y antes de abrir el proveedor o clasificar el efecto) una llamada
   corta al modelo de `router` (sin `router`, al del dominio) devuelve
-  `{"needs": "place" | "person" | null, "reason": "..."}`. Si `needs` es una
-  parte de `missing`, el modelo no se llama para responder: la respuesta es la
+  dos juicios: de que parte depende la respuesta (`depends_on`) y si la
+  peticion ya la dice (`said_in_request`); desde `v0.7.1`, porque el modelo
+  pequeno del enrutador no acertaba el juicio compuesto. Si depende de una
+  parte de `missing` y la peticion no la dice, el modelo no se llama para responder: la respuesta es la
   pregunta de esa parte en el idioma de `frame.language` (si no hay texto para
   ese idioma, `frame_questions.default_language`, y despues ingles),
   `finish_reason: "input_required"` y `done.trace.input_required:

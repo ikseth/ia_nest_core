@@ -183,6 +183,21 @@ def test_missing_place_that_does_not_matter_is_answered(tmp_path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("classifier", "expected"),
+    [
+        ('{"depends_on": "place", "said_in_request": false, "reason": "x"}', "place"),
+        ('{"depends_on": "place", "said_in_request": true, "reason": "x"}', None),
+        ('{"depends_on": null, "said_in_request": false, "reason": "x"}', None),
+        (NEEDS_PLACE, "place"),
+    ],
+)
+def test_two_judgements_ask_only_when_the_request_does_not_say_it(classifier, expected) -> None:
+    from ianest_core.frame import parse_needs
+
+    assert parse_needs(classifier, ("place", "person"))[0] == expected
+
+
+@pytest.mark.parametrize(
     "classifier",
     [
         "basura sin json",

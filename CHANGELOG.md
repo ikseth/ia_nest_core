@@ -5,6 +5,15 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+## [v0.7.1] - 2026-11-24
+
+### Corregido
+- La clasificacion de lo que falta (ADR 0055, D4) pide dos juicios
+  (`depends_on` y `said_in_request`) con reglas y ejemplos: el modelo del
+  enrutador contestaba que el tiempo no depende del lugar y pedia el lugar
+  aunque la frase lo dijera. Sigue aceptando `needs`. Hallazgo de meta H12P8
+  en el laboratorio.
+
 ## [v0.7.0] - 2026-11-24
 
 Tramo B de `extended CR-0006` (ia_nest_core#57) y la parte del core de meta

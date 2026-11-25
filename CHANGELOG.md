@@ -5,7 +5,9 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
-Impacto propuesto: MINOR (ADR 0056). No se cambia version ni se corta tag.
+## [v0.8.0] - 2026-11-25
+
+MINOR (ADR 0056, meta H12P9): el contexto del turno va aparte de la frase.
 
 ### Anadido
 

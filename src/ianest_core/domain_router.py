@@ -51,12 +51,16 @@ class DomainRouter:
         self.config = config
         self.adapter_factory = adapter_factory
 
-    def route(self, prompt: str, frame: Frame | None = None) -> RouteResult:
+    def route(
+        self, prompt: str, frame: Frame | None = None, thread_hint: str | None = None
+    ) -> RouteResult:
         if self.config.router is None:
             raise RoutingError("routing requires config.router", "router")
-        return self._route_semantic(prompt, frame)
+        return self._route_semantic(prompt, frame, thread_hint)
 
-    def _route_semantic(self, prompt: str, frame: Frame | None = None) -> RouteResult:
+    def _route_semantic(
+        self, prompt: str, frame: Frame | None = None, thread_hint: str | None = None
+    ) -> RouteResult:
         selected = self._default_domain()
         confidence = 0.0
         reason = "router response could not be parsed"
@@ -64,7 +68,7 @@ class DomainRouter:
         decision: dict[str, Any] | None = None
         for _ in range(2):
             try:
-                decision = self._classify(prompt, frame)
+                decision = self._classify(prompt, frame, thread_hint)
             except CoreError as exc:
                 reason = f"router failed: {exc.type}"
             else:
@@ -115,27 +119,33 @@ class DomainRouter:
         )
         return response.text
 
-    def _classify(self, prompt: str, frame: Frame | None = None) -> dict[str, Any]:
+    def _classify(
+        self, prompt: str, frame: Frame | None = None, thread_hint: str | None = None
+    ) -> dict[str, Any]:
         decision = _parse_router_response(
-            self.complete(self._classification_prompt(prompt, frame))
+            self.complete(self._classification_prompt(prompt, frame, thread_hint))
         )
         if decision is None:
             raise RoutingError("router response is not valid JSON", "router")
         return decision
 
-    def _classification_prompt(self, prompt: str, frame: Frame | None = None) -> str:
+    def _classification_prompt(
+        self, prompt: str, frame: Frame | None = None, thread_hint: str | None = None
+    ) -> str:
         catalog = [
             {"id": domain.id, "description": domain.description}
             for domain in self.registry.list_domains()
         ]
         # ADR 0055, D2: con marco, una pista corta; sin marco, el prompt de siempre.
         hint = f"{router_hint(frame)}\n" if frame is not None else ""
+        thread = f"{thread_hint}\n" if thread_hint is not None else ""
         return (
             "Classify the text into exactly one configured domain by meaning. "
             "Return only JSON with domain, confidence, reason, and optional alternatives. "
             "confidence must be a NUMBER between 0 and 1, never a word.\n"
             f"Domain catalog: {json.dumps(catalog, ensure_ascii=False)}\n"
             f"{hint}"
+            f"{thread}"
             f"Text to classify: {prompt}"
         )
 

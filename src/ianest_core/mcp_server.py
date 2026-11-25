@@ -61,6 +61,7 @@ def create_server(
         plan: list[dict[str, Any]] | None = None,
         requirements: list[dict[str, Any]] | None = None,
         identity: dict[str, str] | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return service.run_task(
             config_path=config_path,
@@ -70,6 +71,7 @@ def create_server(
             plan=plan,
             requirements=requirements,
             identity=identity or {},
+            turn_context=turn_context,
         )
 
     @server.tool(name="task.plan", structured_output=True)
@@ -77,12 +79,14 @@ def create_server(
         prompt: str,
         effort: str | None = None,
         identity: dict[str, str] | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return service.plan_task(
             config_path=config_path,
             prompt=prompt,
             effort=effort,
             identity=identity or {},
+            turn_context=turn_context,
         )
 
     @server.tool(name="domain.route", structured_output=True)

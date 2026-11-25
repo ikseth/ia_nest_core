@@ -114,6 +114,10 @@ Dos sinks de formato fijo y documentado:
   prompt o respuesta, y para eventos estructurados o anidados. El texto
   libre vive siempre aqui, nunca en el CSV.
 
+Desde ADR 0056, el CSV anade la columna `context` con el objeto de tamanos por
+origen y usa `schema_version` 3; nunca guarda el texto de los bloques. El JSONL
+guarda ese texto en `request_start`, con la misma regla que el prompt.
+
 Como el texto libre no entra en el CSV, se evita de raiz el problema de
 delimitadores y saltos de linea en campos ";". Aun asi, para cualquier campo
 CSV se usa la libreria CSV estandar del lenguaje, no un parser propio.
@@ -219,6 +223,11 @@ contratos.
 - Decisiones que aplica: D1, D2.
 - Prueba aislada: con adaptador fake que emite un flujo conocido; se
   verifica coleccion bloqueante, streaming y campos de trazabilidad.
+- Contexto del turno (ADR 0056): el perfil y el marco conservan sus mensajes
+  `system`; `interlocutor` se coloca despues como `system`; memoria, RAG, hilo
+  y origenes desconocidos se colocan como material de referencia delimitado en
+  un `user`; la frase queda sola en el ultimo `user`. Sin la parte `context`,
+  la lista de mensajes no cambia.
 
 ### reasoning_loop
 

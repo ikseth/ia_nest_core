@@ -363,6 +363,7 @@ def _task_run(args: argparse.Namespace) -> int:
         plan=args.plan,
         requirements=args.requirements,
         identity=_identity_override(args),
+        turn_context=args.turn_context,
     ):
         if args.verbose and started_at is None:
             started_at = time.monotonic()
@@ -413,6 +414,7 @@ def _task_plan(args: argparse.Namespace) -> int:
         prompt=args.prompt,
         effort=args.effort,
         identity=_identity_override(args),
+        turn_context=args.turn_context,
     )
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))

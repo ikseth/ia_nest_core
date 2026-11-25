@@ -18,6 +18,8 @@ from ianest_core.identity import Identity
 from ianest_core.registry import AvailabilityProvider
 from ianest_core.runtime.prompt_runtime import PromptRunResult, PromptRuntime
 from ianest_core.telemetry import TelemetryWriter
+from ianest_core.tool_contracts import TurnContext, parse_turn_context
+from ianest_core.turn_context_blocks import ContextBlock, context_sizes
 
 AdapterFactory = Callable[[str], ModelAdapter | None]
 
@@ -218,6 +220,7 @@ class TaskRuntime:
         effort: str | None = None,
         plan: list[dict[str, Any]] | None = None,
         requirements: list[dict[str, Any]] | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> TaskResult:
         events = list(
             self.stream(
@@ -228,6 +231,7 @@ class TaskRuntime:
                 effort=effort,
                 plan=plan,
                 requirements=requirements,
+                turn_context=turn_context,
             )
         )
         done = next(event for event in reversed(events) if event.type == "task_done")
@@ -243,6 +247,7 @@ class TaskRuntime:
         effort: str | None = None,
         plan: list[dict[str, Any]] | None = None,
         requirements: list[dict[str, Any]] | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> Iterator[Event]:
         runtime = self._runtime_for_effort(effort)
         yield from runtime._stream_resolved(
@@ -252,6 +257,7 @@ class TaskRuntime:
             mode=mode,
             plan=plan,
             requirements=requirements,
+            turn_context=_task_turn_context(turn_context),
         )
 
     def plan(
@@ -261,6 +267,7 @@ class TaskRuntime:
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
         effort: str | None = None,
+        turn_context: dict[str, Any] | None = None,
     ) -> TaskPlanResult:
         runtime = self._runtime_for_effort(effort)
         started = time.monotonic()
@@ -269,6 +276,7 @@ class TaskRuntime:
         identity_data = dict(identity_override or {})
         identity = Identity.from_defaults(runtime.config.identity_defaults, identity_data)
         token_usage = _TokenUsage()
+        parsed_turn_context = _task_turn_context(turn_context)
         resolution = runtime._plan(
             prompt,
             identity_data,
@@ -276,23 +284,40 @@ class TaskRuntime:
             task_id,
             token_usage,
             allow_renegotiation=True,
+            turn_context=_context_only(parsed_turn_context),
         )
         tokens_in, tokens_out = token_usage.snapshot()
+        trace = {
+            "request_id": parent_request_id,
+            "task_id": task_id,
+            "capability": "task.plan",
+            **identity.to_dict(),
+            "latency_ms": int((time.monotonic() - started) * 1000),
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+        }
+        sizes = context_sizes(
+            parsed_turn_context.context if parsed_turn_context is not None else None
+        )
+        if sizes is not None:
+            trace["context"] = sizes
+            runtime.prompt_runtime.telemetry.record(
+                request_id=parent_request_id,
+                event="done",
+                capability="task.plan",
+                identity=identity,
+                payload={"context": sizes},
+                latency_ms=trace["latency_ms"],
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+            )
         return TaskPlanResult(
             plan=runtime._public_pipeline_plan(resolution.final.plan),
             requirements=resolution.final.requirements,
             degradations=resolution.degradations,
             effort=runtime.resolved_effort,
             params=runtime._params(),
-            trace={
-                "request_id": parent_request_id,
-                "task_id": task_id,
-                "capability": "task.plan",
-                **identity.to_dict(),
-                "latency_ms": int((time.monotonic() - started) * 1000),
-                "tokens_in": tokens_in,
-                "tokens_out": tokens_out,
-            },
+            trace=trace,
         )
 
     def _stream_resolved(
@@ -304,6 +329,7 @@ class TaskRuntime:
         mode: str,
         plan: list[dict[str, Any]] | None,
         requirements: list[dict[str, Any]] | None,
+        turn_context: TurnContext | None,
     ) -> Iterator[Event]:
         if mode not in {"pipeline", "coverage"}:
             raise CoreError("ConfigError", "task.run mode must be pipeline or coverage", "mode")
@@ -318,6 +344,7 @@ class TaskRuntime:
                 prompt=prompt,
                 identity_override=identity_override,
                 request_id=request_id,
+                turn_context=turn_context,
             )
             return
 
@@ -348,6 +375,7 @@ class TaskRuntime:
                 task_id,
                 token_usage,
                 allow_renegotiation=True,
+                turn_context=_context_only(turn_context),
             )
             plan_renegotiation_used = plan_resolution.attempt_count == 2
         degradations.extend(plan_resolution.degradations)
@@ -382,6 +410,7 @@ class TaskRuntime:
                 parent_request_id,
                 task_id,
                 token_usage,
+                turn_context,
             )
             subtasks.extend(iteration_results)
             for item in iteration_results:
@@ -397,6 +426,7 @@ class TaskRuntime:
                     parent_request_id,
                     task_id,
                     token_usage,
+                    _context_only(turn_context),
                 )
                 if combine_results
                 else ""
@@ -445,6 +475,7 @@ class TaskRuntime:
                     task_id,
                     token_usage,
                     allow_renegotiation=not plan_renegotiation_used,
+                    turn_context=_context_only(turn_context),
                 )
                 if plan_resolution.attempt_count == 2:
                     plan_renegotiation_used = True
@@ -470,6 +501,9 @@ class TaskRuntime:
             token_budget_total += self._pipeline_token_grant(plan)
 
         tokens_in, tokens_out = token_usage.snapshot()
+        parent_sizes = context_sizes(
+            turn_context.context if turn_context is not None else None
+        )
         payload = {
             "response": response,
             "stop_reason": stop_reason,
@@ -485,6 +519,7 @@ class TaskRuntime:
                 "tokens_out": tokens_out,
                 "token_budget_total": token_budget_total,
                 "stop_reason": stop_reason,
+                **({"context": parent_sizes} if parent_sizes is not None else {}),
             },
             "checkpoints": [*checkpoints, "task_done"],
             "requirements_covered": plan_resolution.final.requirements_covered,
@@ -502,6 +537,7 @@ class TaskRuntime:
         prompt: str,
         identity_override: dict[str, str] | None,
         request_id: str | None,
+        turn_context: TurnContext | None,
     ) -> Iterator[Event]:
         started = time.monotonic()
         parent_request_id = request_id or str(uuid4())
@@ -529,6 +565,7 @@ class TaskRuntime:
             task_id,
             token_usage,
             allow_renegotiation=True,
+            turn_context=_context_only(turn_context),
         )
         token_budget_granted = self._coverage_token_grant(plan_resolution.final.plan)
         token_budget_total = token_budget_granted
@@ -577,6 +614,7 @@ class TaskRuntime:
                 parent_request_id,
                 task_id,
                 token_usage,
+                turn_context,
             )
             completed_before = len(ledger.completed_ids())
             accepted_records: list[dict[str, Any]] = []
@@ -651,6 +689,9 @@ class TaskRuntime:
         )
         tokens_in, tokens_out = token_usage.snapshot()
         coverage = self._coverage_result(ledger, stop_reason == "task_done")
+        parent_sizes = context_sizes(
+            turn_context.context if turn_context is not None else None
+        )
         payload = {
             "response": response,
             "stop_reason": stop_reason,
@@ -667,6 +708,7 @@ class TaskRuntime:
                 "token_budget_total": token_budget_total,
                 "stop_reason": stop_reason,
                 "mode": "coverage",
+                **({"context": parent_sizes} if parent_sizes is not None else {}),
             },
             "checkpoints": [*checkpoints, "task_done"],
             "mode": "coverage",
@@ -697,6 +739,7 @@ class TaskRuntime:
         token_usage: _TokenUsage,
         *,
         allow_renegotiation: bool,
+        turn_context: TurnContext | None,
     ) -> _PlanResolution:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
@@ -718,6 +761,7 @@ class TaskRuntime:
             token_usage=token_usage,
             allow_renegotiation=allow_renegotiation,
             validate=self._validate_coverage_plan,
+            turn_context=turn_context,
         )
 
     def _validate_coverage_plan(self, raw_plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -750,6 +794,9 @@ class TaskRuntime:
             copied = dict(item)
             copied["id"] = unit_id
             copied["depends_on"] = [dependency for dependency in coerced_depends if dependency]
+            # ADR 0056, D4: el plan de cobertura lo produce siempre el
+            # planificador, y un plan producido nunca trae `context`.
+            copied.pop("context", None)
             copied_plan.append(copied)
         dependency_units = [
             _CoverageUnit(
@@ -845,6 +892,7 @@ class TaskRuntime:
         parent: str,
         task_id: str,
         token_usage: _TokenUsage,
+        turn_context: TurnContext | None,
     ) -> list[_CoverageGeneration]:
         with ThreadPoolExecutor(max_workers=min(self.settings.max_parallel, len(groups))) as executor:
             futures = [
@@ -856,6 +904,7 @@ class TaskRuntime:
                     parent,
                     task_id,
                     token_usage,
+                    turn_context,
                 )
                 for group in groups
             ]
@@ -869,6 +918,7 @@ class TaskRuntime:
         parent: str,
         task_id: str,
         token_usage: _TokenUsage,
+        turn_context: TurnContext | None,
     ) -> _CoverageGeneration:
         request_id = str(uuid4())
         unit_ids = [unit.id for unit in group.units]
@@ -880,6 +930,9 @@ class TaskRuntime:
             "chunk_index": group.chunk_index,
             "unit_ids": unit_ids,
         }
+        # Sin plan suministrado no hay contexto por unidad: el generador solo
+        # hereda `trusted_providers` (ADR 0056, D4).
+        generator_context = _turn_context_with_blocks(turn_context, None)
         try:
             result = self._run_prompt(
                 prompt=content,
@@ -888,6 +941,7 @@ class TaskRuntime:
                 request_id=request_id,
                 trace_payload=trace_payload,
                 token_usage=token_usage,
+                turn_context=generator_context,
             )
         except CoreError as exc:
             return _CoverageGeneration(group, request_id, None, exc)
@@ -1185,6 +1239,7 @@ class TaskRuntime:
         token_usage: _TokenUsage,
         *,
         allow_renegotiation: bool,
+        turn_context: TurnContext | None,
     ) -> _PlanResolution:
         domain_ids = ", ".join(domain.id for domain in self.config.domains)
         instruction = (
@@ -1205,6 +1260,7 @@ class TaskRuntime:
             token_usage=token_usage,
             allow_renegotiation=allow_renegotiation,
             validate=self._validate_pipeline_plan,
+            turn_context=turn_context,
         )
 
     def _supplied_plan_resolution(
@@ -1214,7 +1270,9 @@ class TaskRuntime:
     ) -> _PlanResolution:
         if not isinstance(plan, list) or not plan:
             raise CoreError("PlanParseError", "supplied plan must be a non-empty list", "plan")
-        resolved_plan = self._resolve_pipeline_domains(self._validate_pipeline_plan(plan))
+        resolved_plan = self._resolve_pipeline_domains(
+            self._validate_pipeline_plan(plan, accept_context=True)
+        )
         if requirements is None or requirements == []:
             attempt = _PlanAttempt(resolved_plan, [], False, [])
             return _PlanResolution(
@@ -1231,10 +1289,19 @@ class TaskRuntime:
         )
         return _PlanResolution([attempt], [])
 
-    def _validate_pipeline_plan(self, plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _validate_pipeline_plan(
+        self, plan: list[dict[str, Any]], *, accept_context: bool = False
+    ) -> list[dict[str, Any]]:
         if not all(self._valid_subtask(item) for item in plan):
             raise CoreError("PlanParseError", "planner returned an invalid plan", "plan")
-        copied_plan = [dict(item) for item in plan]
+        copied_plan: list[dict[str, Any]] = []
+        for item in plan:
+            copied = dict(item)
+            if accept_context and "context" in copied:
+                copied["_turn_context"] = _context_from_blocks(copied.pop("context"))
+            else:
+                copied.pop("context", None)
+            copied_plan.append(copied)
         self._validate_pipeline_dependencies(copied_plan)
         return copied_plan
 
@@ -1282,6 +1349,7 @@ class TaskRuntime:
         token_usage: _TokenUsage,
         allow_renegotiation: bool,
         validate: Callable[[list[dict[str, Any]]], list[dict[str, Any]]],
+        turn_context: TurnContext | None,
     ) -> _PlanResolution:
         attempts: list[_PlanAttempt] = []
         degradations: list[dict[str, str]] = []
@@ -1296,6 +1364,7 @@ class TaskRuntime:
                 task_id,
                 "planner",
                 token_usage,
+                turn_context,
             )
             try:
                 parsed = _parse_plan(result.response)
@@ -1408,8 +1477,20 @@ class TaskRuntime:
         *,
         plan_source: str | None = None,
     ) -> dict[str, Any]:
+        public_plan = (
+            self._public_pipeline_plan(attempt.plan)
+            if plan_key == "plan"
+            else [
+                {
+                    key: value
+                    for key, value in item.items()
+                    if key not in {"context", "_turn_context"}
+                }
+                for item in attempt.plan
+            ]
+        )
         payload = {
-            plan_key: self._public_pipeline_plan(attempt.plan) if plan_key == "plan" else attempt.plan,
+            plan_key: public_plan,
             "requirements": attempt.requirements,
             "plan_attempts": attempt_number,
             "requirements_covered": attempt.requirements_covered,
@@ -1434,7 +1515,17 @@ class TaskRuntime:
             completed.update(ready)
             remaining.difference_update(ready)
 
-    def _fan_out(self, objective: str, plan: list[dict[str, Any]], iteration: int, identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> list[dict[str, Any]]:
+    def _fan_out(
+        self,
+        objective: str,
+        plan: list[dict[str, Any]],
+        iteration: int,
+        identity: dict[str, str],
+        parent: str,
+        task_id: str,
+        token_usage: _TokenUsage,
+        turn_context: TurnContext | None,
+    ) -> list[dict[str, Any]]:
         pending = set(range(len(plan)))
         completed: dict[int, dict[str, Any]] = {}
         while pending:
@@ -1453,6 +1544,7 @@ class TaskRuntime:
                         parent,
                         task_id,
                         token_usage,
+                        turn_context,
                     )
                     for index in ready
                 }
@@ -1511,7 +1603,18 @@ class TaskRuntime:
         for index, degradation in zip(positions, ordered):
             degradations[index] = degradation
 
-    def _run_subtask(self, index: int, iteration: int, objective: str, item: dict[str, Any], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> dict[str, Any]:
+    def _run_subtask(
+        self,
+        index: int,
+        iteration: int,
+        objective: str,
+        item: dict[str, Any],
+        identity: dict[str, str],
+        parent: str,
+        task_id: str,
+        token_usage: _TokenUsage,
+        turn_context: TurnContext | None,
+    ) -> dict[str, Any]:
         declared_domain = item.get("domain")
         fixed_domain = self._configured_domain(declared_domain)
         domain_hint = item.get("domain_hint")
@@ -1528,9 +1631,15 @@ class TaskRuntime:
             "iteration": iteration,
         }
         content = self._subtask_execution_prompt(objective, str(item["prompt"]))
+        item_context = item.get("_turn_context")
+        subtask_context = _turn_context_with_blocks(
+            turn_context,
+            item_context.context if isinstance(item_context, TurnContext) else None,
+        )
         result = self._run_prompt(
             prompt=content, domain_id=domain_id,
             identity=identity, request_id=request_id, trace_payload=trace_payload, token_usage=token_usage,
+            turn_context=subtask_context,
         )
         record = {
             "index": index,
@@ -1575,7 +1684,16 @@ class TaskRuntime:
             f"domain_hint={json.dumps(domain_hint, ensure_ascii=False)}"
         )
 
-    def _combine(self, prompt: str, results: list[dict[str, Any]], identity: dict[str, str], parent: str, task_id: str, token_usage: _TokenUsage) -> str:
+    def _combine(
+        self,
+        prompt: str,
+        results: list[dict[str, Any]],
+        identity: dict[str, str],
+        parent: str,
+        task_id: str,
+        token_usage: _TokenUsage,
+        turn_context: TurnContext | None,
+    ) -> str:
         content = (
             "Combine the subtask results into one internally consistent answer. "
             "When results make incompatible claims about the same point, do not present both "
@@ -1583,7 +1701,16 @@ class TaskRuntime:
             "or verify any claim. Do not add qualifications where the results do not diverge. "
             f"Task: {prompt}\nResults: {json.dumps(results, ensure_ascii=False)}"
         )
-        return self._run_target(self.settings.combiner, content, identity, parent, task_id, "combiner", token_usage).response
+        return self._run_target(
+            self.settings.combiner,
+            content,
+            identity,
+            parent,
+            task_id,
+            "combiner",
+            token_usage,
+            turn_context,
+        ).response
 
     def _evaluate(
         self,
@@ -1635,12 +1762,23 @@ class TaskRuntime:
                 )
         raise AssertionError("unreachable evaluator attempt loop")
 
-    def _run_target(self, target: OrchestrationTargetConfig, prompt: str, identity: dict[str, str], parent: str, task_id: str, role: str, token_usage: _TokenUsage) -> PromptRunResult:
+    def _run_target(
+        self,
+        target: OrchestrationTargetConfig,
+        prompt: str,
+        identity: dict[str, str],
+        parent: str,
+        task_id: str,
+        role: str,
+        token_usage: _TokenUsage,
+        turn_context: TurnContext | None = None,
+    ) -> PromptRunResult:
         return self._run_prompt(
             prompt=prompt, model_id=target.model, domain_id=target.domain, profile_id=target.profile,
             identity=identity, request_id=str(uuid4()),
             trace_payload={"task_id": task_id, "parent_request_id": parent, "orchestration_role": role},
             token_usage=token_usage,
+            turn_context=turn_context,
         )
 
     def _run_prompt(self, **kwargs: Any) -> PromptRunResult:
@@ -1648,6 +1786,7 @@ class TaskRuntime:
             prompt=kwargs["prompt"], model_id=kwargs.get("model_id"), domain_id=kwargs.get("domain_id"),
             profile_id=kwargs.get("profile_id"), identity_override=kwargs["identity"],
             request_id=kwargs["request_id"], trace_payload=kwargs["trace_payload"],
+            turn_context=kwargs.get("turn_context"),
         )
         kwargs["token_usage"].add(result)
         return result
@@ -1664,6 +1803,9 @@ class TaskRuntime:
     ) -> Event:
         checkpoints.append(name)
         payload = {"task_id": task_id, "parent_request_id": parent, **data}
+        trace = data.get("trace")
+        if name == "task_done" and isinstance(trace, dict) and "context" in trace:
+            payload["context"] = trace["context"]
         self.prompt_runtime.telemetry.record(
             request_id=parent,
             event=name,
@@ -1794,6 +1936,38 @@ def _parse_plan(text: str) -> Any:
             return value
         except json.JSONDecodeError as exc:
             raise CoreError("PlanParseError", "planner returned invalid JSON", "plan") from exc
+
+
+def _task_turn_context(raw: Any) -> TurnContext | None:
+    parsed = parse_turn_context(raw)
+    if parsed is None:
+        return None
+    return TurnContext(
+        trusted_providers=parsed.trusted_providers,
+        context=parsed.context,
+    )
+
+
+def _context_only(turn_context: TurnContext | None) -> TurnContext | None:
+    if turn_context is None or turn_context.context is None:
+        return None
+    return TurnContext(context=turn_context.context)
+
+
+def _context_from_blocks(raw: Any) -> TurnContext:
+    parsed = parse_turn_context({"context": raw})
+    assert parsed is not None
+    return TurnContext(context=parsed.context)
+
+
+def _turn_context_with_blocks(
+    turn_context: TurnContext | None,
+    blocks: tuple[ContextBlock, ...] | None,
+) -> TurnContext | None:
+    trusted = turn_context.trusted_providers if turn_context is not None else None
+    if trusted is None and blocks is None:
+        return None
+    return TurnContext(trusted_providers=trusted, context=blocks)
 
 
 def _plan_lists_from(value: Any, preferred_key: str) -> tuple[list[dict[str, Any]], Any]:

@@ -5,6 +5,27 @@ Formato basado en Keep a Changelog; versionado segun `docs/VERSIONADO.md`
 
 ## [No publicado]
 
+Impacto propuesto: MINOR (ADR 0056). No se cambia version ni se corta tag.
+
+### Anadido
+
+- `turn_context.context` en `prompt.run`, `prompt.stream`, `domain.route`,
+  `task.run` y `task.plan`, con colocacion por confianza y neutralizacion del
+  delimitador de cierre.
+- `context` opcional por subtarea de un plan suministrado (el plan que produce
+  el planificador, tambien el de cobertura, nunca lo trae); propagacion de
+  `trusted_providers` a subtareas y generadores.
+- Tamanos por origen en `done.trace.context` y en la nueva columna CSV
+  `context`, al final (adicion, sin reordenar); el esquema de telemetria pasa a `schema_version` 3. El texto vive
+  solo en JSONL.
+
+### Cambiado
+
+- Efecto y datos que faltan se clasifican solo sobre la frase. El enrutador
+  recibe unicamente los bloques `thread`, como pista delimitada.
+- PLAN y COMBINE reciben el contexto del turno; las subtareas reciben solo el
+  suyo; EVALUATE no cambia y `frame` se ignora en `task.*`.
+
 ## [v0.7.1] - 2026-11-24
 
 ### Corregido

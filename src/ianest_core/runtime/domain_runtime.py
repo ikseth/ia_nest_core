@@ -12,6 +12,7 @@ from ianest_core.identity import Identity
 from ianest_core.registry import AvailabilityProvider, ModelRegistry
 from ianest_core.telemetry import TelemetryWriter
 from ianest_core.tool_contracts import parse_turn_context
+from ianest_core.turn_context_blocks import context_payload, context_sizes, thread_hint
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,27 @@ class DomainRuntime:
         request_id = request_id or str(uuid4())
         identity_data = dict(identity_override or {})
         Identity.from_defaults(self.config.identity_defaults, identity_data)
-        route = self.router.route(prompt, frame=frame)
+        if parsed_turn_context is not None and parsed_turn_context.context is not None:
+            start_identity = Identity.from_defaults(
+                self.config.identity_defaults, identity_data
+            )
+            self.telemetry.record(
+                request_id=request_id,
+                event="request_start",
+                capability="domain.route",
+                identity=start_identity,
+                payload={
+                    "prompt": prompt,
+                    "context": context_payload(parsed_turn_context.context),
+                },
+            )
+        route = self.router.route(
+            prompt,
+            frame=frame,
+            thread_hint=thread_hint(
+                parsed_turn_context.context if parsed_turn_context is not None else None
+            ),
+        )
         if not identity_data.get("domain_tag"):
             identity_data["domain_tag"] = route.domain
         identity = Identity.from_defaults(self.config.identity_defaults, identity_data)
@@ -86,12 +107,17 @@ class DomainRuntime:
         }
         if frame is not None:
             trace["frame_used"] = True
+        sizes = context_sizes(
+            parsed_turn_context.context if parsed_turn_context is not None else None
+        )
+        if sizes is not None:
+            trace["context"] = sizes
         self.telemetry.record(
             request_id=request_id,
             event="route",
             capability="domain.route",
             identity=identity,
-            payload=route.to_dict(),
+            payload={**route.to_dict(), **({"context": sizes} if sizes is not None else {})},
             domain=route.domain,
             model=route.model,
             latency_ms=latency_ms,

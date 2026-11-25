@@ -90,6 +90,7 @@ def create_app(config_path: str | Path | None = None):
                 plan=payload.get("plan"),
                 requirements=payload.get("requirements"),
                 identity=payload.get("identity", {}),
+                turn_context=payload.get("turn_context"),
             )
         )
 
@@ -101,6 +102,7 @@ def create_app(config_path: str | Path | None = None):
                 prompt=payload["prompt"],
                 effort=payload.get("effort"),
                 identity=payload.get("identity", {}),
+                turn_context=payload.get("turn_context"),
             )
         )
 

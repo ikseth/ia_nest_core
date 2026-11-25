@@ -75,12 +75,13 @@ def test_interlocutor_profile_is_in_trace_and_telemetry(profile, tmp_path) -> No
     with csv_path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle, delimiter=";"))
     assert list(rows[0]) == TRACE_CSV_FIELDS
-    assert TRACE_CSV_FIELDS[:-1] == ADR_0015_FIELDS
-    assert TRACE_CSV_FIELDS[-1] == "interlocutor_profile"
-    assert {row["schema_version"] for row in rows} == {"2"}
+    assert TRACE_CSV_FIELDS[:-2] == ADR_0015_FIELDS
+    assert TRACE_CSV_FIELDS[-2] == "interlocutor_profile"
+    assert TRACE_CSV_FIELDS[-1] == "context"
+    assert {row["schema_version"] for row in rows} == {"3"}
     assert {row["interlocutor_profile"] for row in rows} == {profile}
     events = [json.loads(line) for line in jsonl_path.read_text(encoding="utf-8").splitlines()]
-    assert {event["schema_version"] for event in events} == {"2"}
+    assert {event["schema_version"] for event in events} == {"3"}
     assert {event["interlocutor_profile"] for event in events} == {profile}
 
 
@@ -108,7 +109,7 @@ def test_telemetry_rotates_csv_with_old_header_before_appending(tmp_path) -> Non
     assert rows[0] == TRACE_CSV_FIELDS
     assert len(rows[1]) == len(TRACE_CSV_FIELDS)
     assert rows[1][0] == SCHEMA_VERSION
-    assert rows[1][-1] == "restricted"
+    assert rows[1][TRACE_CSV_FIELDS.index("interlocutor_profile")] == "restricted"
 
 
 def test_telemetry_appends_to_csv_with_current_header_without_rotation(tmp_path) -> None:
@@ -131,7 +132,7 @@ def test_telemetry_appends_to_csv_with_current_header_without_rotation(tmp_path)
         rows = list(csv.reader(handle, delimiter=";"))
     assert rows[0] == TRACE_CSV_FIELDS
     assert len(rows) == 3
-    assert rows[-1][-1] == "adult"
+    assert rows[-1][TRACE_CSV_FIELDS.index("interlocutor_profile")] == "adult"
 
 
 def test_interlocutor_profile_absent_is_empty_in_trace() -> None:

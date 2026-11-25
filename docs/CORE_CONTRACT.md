@@ -348,6 +348,34 @@ son los de `v0.6.0`.
   `frame`; `input_required` si se pregunto. El evento `done` lleva ademas
   `frame_check` (`needs`, `reason`, `latency_ms`) cuando hubo clasificacion.
 
+#### El contexto va aparte de la frase (ADR 0056)
+
+`turn_context.context` es una lista opcional de bloques `{origin, text}`. Se
+acepta en `prompt.run`, `prompt.stream`, `domain.route`, `task.run` y
+`task.plan`. `context`, `origin` y `text` con tipo invalido son
+`ConfigValidationError`; un `text` vacio se descarta, las claves desconocidas
+del bloque se ignoran y un origen desconocido se acepta como no fiable. El core
+no recorta ni resume los bloques.
+
+El `prompt` sigue siendo solo la frase. Al responder, los mensajes se ordenan:
+instrucciones `system` del perfil; marco `system`, si existe; bloques
+`interlocutor` juntos en un `system`; bloques `memory`, `rag`, `thread` y de
+origen desconocido en un `user` delimitado por `<reference_data>`, con su
+origen como encabezado; y la frase sola en el ultimo `user`. Un cierre
+`</reference_data>` dentro de un bloque se neutraliza. Sin `context`, los
+mensajes no cambian.
+
+El efecto y lo que falta se clasifican solo sobre la frase y el marco. En
+`domain.route`, solo los bloques `thread` llegan al clasificador, delimitados
+como pista y no como regla; los demas origenes no llegan.
+
+`done.trace.context` publica, por origen, `blocks` y `chars`. El CSV publica el
+mismo objeto serializado en su columna `context` (la ultima), sin texto, y pasa a
+`schema_version` 3. El JSONL conserva el texto en el payload de
+`request_start`, igual que conserva el `prompt`. Si no llego la parte
+`context`, no aparece el campo en la traza ni en el payload; la columna CSV
+queda vacia.
+
 ### `tool_provider.list`
 
 Solo lectura (ADR 0054, D5). Devuelve el techo de proveedores:
@@ -372,6 +400,10 @@ Ejecuta SOLO la etapa PLAN de `task.run` y devuelve el plan sin ejecutarlo
 
 Acepta `effort` con el mismo vocabulario y la misma precedencia que `task.run`
 (ADR 0045).
+
+Acepta `turn_context` (ADR 0056). El planificador recibe solo su parte
+`context`, colocada como se describe en `prompt.run`; `frame` se ignora. El
+plan derivado nunca publica ni inventa `context` dentro de sus subtareas.
 
 Su respuesta ES la peticion de `task.run` (ADR 0048): los datos del core y los
 de quien enriquece viajan como campos HERMANOS, no anidados unos dentro de
@@ -429,6 +461,15 @@ Debe tener:
   re-planificaciones y tope de paralelismo),
 - identidad propagada a cada subtarea,
 - telemetria por subtarea con `task_id` y vinculo al request padre.
+
+Acepta `turn_context` (ADR 0056). PLAN y COMBINE reciben el `context` del
+turno; EVALUATE no cambia. Cada subtarea de un plan suministrado puede traer su
+`context` (misma forma) y lo recibe ella sola; sin el, ninguno. El plan que
+produce el planificador, tambien el de cobertura, nunca trae `context`: si el
+modelo lo escribe, se descarta. `frame` se valida pero se ignora en `task.*`: no se
+clasifica lo que falta ni se termina una llamada interna con
+`input_required`. `trusted_providers`, si llega, se propaga a las subtareas y
+a los generadores de cobertura.
 
 Entrada de esfuerzo (ADR 0045): `task.run` acepta `effort` opcional con
 vocabulario fijo `low | medium | high`. Si se omite, usa
@@ -568,6 +609,9 @@ Con `plan` suministrado:
 - NO se re-planifica: si EVALUATE decide `replan`, la tarea corta con
   `replan_unavailable`. `rerun` sigue disponible;
 - `plan_ready` declara `plan_source`: `planner | supplied`;
+- cada subtarea puede traer `context` con la misma forma que
+  `turn_context.context`; solo esa subtarea lo recibe. El contexto no aparece
+  en el plan publico, `plan_ready` ni el arbol publico de subtareas;
 - el esfuerzo sigue su precedencia de siempre (ADR 0045): lo explicito, y si no,
   `orchestration.default_effort`. No hay herencia desde el plan, porque el
   esfuerzo no viaja dentro de el; el nivel usado se declara en `params.effort`;

@@ -9,6 +9,7 @@ from ianest_core.config.schema import DomainConfig
 from ianest_core.errors import ConfigValidationError
 from ianest_core.frame import Frame, parse_frame
 from ianest_core.identity import normalize_profile
+from ianest_core.turn_context_blocks import ContextBlock
 
 
 # Efecto de la peticion (ADR 0054, D3-D4): solo resta de lo permitido.
@@ -34,16 +35,20 @@ class TurnContext:
     `None` significa que la parte no vino (comportamiento de `v0.5.0`); una
     tupla vacia es un dato: no hay nada confiado. `frame` es el marco de la
     conversacion (ADR 0055, D1): llega al modelo como dato; `None` si no vino.
+    `context` son los bloques separados de la frase (ADR 0056, D1).
     """
 
     trusted_providers: tuple[str, ...] | None = None
     frame: Frame | None = None
+    context: tuple[ContextBlock, ...] | None = None
 
 
 def parse_turn_context(raw: Any) -> TurnContext | None:
     """Valida `turn_context`. Partes desconocidas se ignoran (H13)."""
     if raw is None:
         return None
+    if isinstance(raw, TurnContext):
+        return raw
     if not isinstance(raw, dict):
         raise ConfigValidationError("turn_context must be an object", "turn_context")
     trusted: tuple[str, ...] | None = None
@@ -57,7 +62,32 @@ def parse_turn_context(raw: Any) -> TurnContext | None:
                 "turn_context.trusted_providers",
             )
         trusted = tuple(value)
-    return TurnContext(trusted_providers=trusted, frame=parse_frame(raw.get("frame")))
+    context: tuple[ContextBlock, ...] | None = None
+    if "context" in raw:
+        value = raw["context"]
+        if not isinstance(value, list):
+            raise ConfigValidationError(
+                "turn_context.context must be a list", "turn_context.context"
+            )
+        blocks: list[ContextBlock] = []
+        for index, block in enumerate(value):
+            field = f"turn_context.context.{index}"
+            if not isinstance(block, dict):
+                raise ConfigValidationError(f"{field} must be an object", field)
+            origin = block.get("origin")
+            text = block.get("text")
+            if not isinstance(origin, str):
+                raise ConfigValidationError(f"{field}.origin must be a string", f"{field}.origin")
+            if not isinstance(text, str):
+                raise ConfigValidationError(f"{field}.text must be a string", f"{field}.text")
+            if text.strip():
+                blocks.append(ContextBlock(origin=origin, text=text))
+        context = tuple(blocks)
+    return TurnContext(
+        trusted_providers=trusted,
+        frame=parse_frame(raw.get("frame")),
+        context=context,
+    )
 
 
 def provider_is_trusted(turn_context: TurnContext | None, provider_id: str) -> bool:

@@ -115,3 +115,9 @@ respuesta depende de una parte de `missing` y la peticion no la dice. Se sigue
 aceptando `needs`. Con mistral-nemo y su perfil, 35 de 36 en 12 frases tipicas
 (antes, 33 de 36 con ejemplos y menos sin ellos). El contrato del turno no
 cambia.
+
+2026-11-25 (ADR 0056, meta H12P9): lo que falta (D4) se clasifica solo sobre la
+frase de la persona y el marco; el contexto llega aparte (`turn_context.context`).
+El bloque `interlocutor` va en un mensaje `system` junto al del marco (D3). En
+`domain.route`, el ultimo intercambio llega como bloque `thread` y se usa como
+pista junto a la del marco (D2). `task.*` sigue sin marco.

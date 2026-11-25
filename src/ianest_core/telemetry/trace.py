@@ -10,7 +10,7 @@ from ianest_core.config.schema import TelemetryConfig
 from ianest_core.errors import CoreError
 from ianest_core.identity import Identity
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 ROTATE_SIZE_BYTES = 5 * 1024 * 1024
 
 TRACE_CSV_FIELDS = [
@@ -33,6 +33,7 @@ TRACE_CSV_FIELDS = [
     "status",
     "error_type",
     "interlocutor_profile",
+    "context",
 ]
 
 
@@ -76,6 +77,7 @@ class TelemetryWriter:
             verdict=verdict,
             status=status,
             error_type=error_type,
+            payload=payload,
         )
         json_event = {
             "schema_version": SCHEMA_VERSION,
@@ -103,6 +105,7 @@ class TelemetryWriter:
         verdict: str,
         status: str,
         error_type: str,
+        payload: dict[str, Any] | None,
     ) -> dict[str, Any]:
         return {
             "schema_version": SCHEMA_VERSION,
@@ -124,6 +127,11 @@ class TelemetryWriter:
             "status": status,
             "error_type": error_type,
             "interlocutor_profile": identity.interlocutor_profile,
+            "context": (
+                json.dumps(payload["context"], ensure_ascii=True, sort_keys=True)
+                if payload is not None and isinstance(payload.get("context"), dict)
+                else ""
+            ),
         }
 
     def _write(

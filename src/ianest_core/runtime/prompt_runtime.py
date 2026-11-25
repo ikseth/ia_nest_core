@@ -44,6 +44,11 @@ from ianest_core.tool_contracts import (
     parse_turn_context,
     provider_is_trusted,
 )
+from ianest_core.turn_context_blocks import (
+    context_payload,
+    context_sizes,
+    messages_with_context,
+)
 
 
 ToolTurnFactory = Callable[[ToolProviderConfig], AbstractContextManager[Any]]
@@ -120,7 +125,7 @@ class PromptRuntime:
         request_id: str | None = None,
         trace_payload: dict[str, Any] | None = None,
         profile_id: str | None = None,
-        turn_context: dict[str, Any] | None = None,
+        turn_context: dict[str, Any] | TurnContext | None = None,
     ) -> PromptRunResult:
         prepared = self._prepare(
             prompt=prompt,
@@ -161,6 +166,7 @@ class PromptRuntime:
             "finish_reason": response.finish_reason,
             **prepared.trace_payload,
             **_frame_payload(prepared),
+            **_context_metrics_payload(prepared),
         }
         if response.reasoning:
             done_payload["reasoning"] = response.reasoning
@@ -193,7 +199,7 @@ class PromptRuntime:
         domain_id: str | None = None,
         identity_override: dict[str, str] | None = None,
         request_id: str | None = None,
-        turn_context: dict[str, Any] | None = None,
+        turn_context: dict[str, Any] | TurnContext | None = None,
     ):
         prepared = self._prepare(
             prompt=prompt,
@@ -275,6 +281,7 @@ class PromptRuntime:
             "response": response_text,
             "finish_reason": finish_reason,
             **_frame_payload(prepared),
+            **_context_metrics_payload(prepared),
         }
         if reasoning:
             done_payload["reasoning"] = reasoning
@@ -607,6 +614,7 @@ class PromptRuntime:
                 "response": question,
                 "finish_reason": INPUT_REQUIRED,
                 **_frame_payload(prepared),
+                **_context_metrics_payload(prepared),
             },
             domain=prepared.domain,
             model=prepared.resolved.model.id,
@@ -694,7 +702,7 @@ class PromptRuntime:
         capability: str = "prompt.run",
         trace_payload: dict[str, Any] | None = None,
         profile_id: str | None = None,
-        turn_context: dict[str, Any] | None = None,
+        turn_context: dict[str, Any] | TurnContext | None = None,
     ) -> PreparedPrompt:
         started = time.monotonic()
         parsed_turn_context = parse_turn_context(turn_context)
@@ -731,6 +739,10 @@ class PromptRuntime:
                 len(messages) - 1,
                 {"role": "system", "content": frame_context_block(frame)},
             )
+        messages = messages_with_context(
+            messages,
+            parsed_turn_context.context if parsed_turn_context is not None else None,
+        )
         req = ModelRequest(messages=messages, params=params, extra=extra)
 
         self.telemetry.record(
@@ -738,7 +750,16 @@ class PromptRuntime:
             event="request_start",
             capability=capability,
             identity=identity,
-            payload={"prompt": prompt, **(trace_payload or {})},
+            payload={
+                "prompt": prompt,
+                **(
+                    {"context": context_payload(parsed_turn_context.context)}
+                    if parsed_turn_context is not None
+                    and parsed_turn_context.context is not None
+                    else {}
+                ),
+                **(trace_payload or {}),
+            },
             domain=domain,
             model=resolved.model.id,
         )
@@ -848,6 +869,11 @@ def _trace(
         trace["frame_used"] = True
     if "input_required" in prepared.frame_state:
         trace["input_required"] = dict(prepared.frame_state["input_required"])
+    sizes = context_sizes(
+        prepared.turn_context.context if prepared.turn_context is not None else None
+    )
+    if sizes is not None:
+        trace["context"] = sizes
     return trace
 
 
@@ -860,6 +886,13 @@ def _frame_payload(prepared: PreparedPrompt) -> dict[str, Any]:
         if key in prepared.frame_state:
             payload[key] = dict(prepared.frame_state[key])
     return payload
+
+
+def _context_metrics_payload(prepared: PreparedPrompt) -> dict[str, Any]:
+    sizes = context_sizes(
+        prepared.turn_context.context if prepared.turn_context is not None else None
+    )
+    return {"context": sizes} if sizes is not None else {}
 
 
 def _failure(exc: BaseException) -> str:

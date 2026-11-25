@@ -123,6 +123,7 @@ def run_task(
     requirements: list[dict[str, Any]] | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
+    turn_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     return TaskRuntime(config, availability=availability).run(
@@ -132,6 +133,7 @@ def run_task(
         plan=plan,
         requirements=requirements,
         identity_override=identity or {},
+        turn_context=turn_context,
     ).to_dict()
 
 
@@ -142,12 +144,14 @@ def plan_task(
     effort: str | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
+    turn_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     return TaskRuntime(config, availability=availability).plan(
         prompt=prompt,
         effort=effort,
         identity_override=identity or {},
+        turn_context=turn_context,
     ).to_dict()
 
 
@@ -161,6 +165,7 @@ def stream_task(
     requirements: list[dict[str, Any]] | None = None,
     identity: dict[str, str] | None = None,
     availability: AvailabilityProvider | None = None,
+    turn_context: dict[str, Any] | None = None,
 ) -> Iterator[dict[str, Any]]:
     config = load_config(config_path)
     runtime = TaskRuntime(config, availability=availability)
@@ -171,6 +176,7 @@ def stream_task(
         plan=plan,
         requirements=requirements,
         identity_override=identity or {},
+        turn_context=turn_context,
     ):
         yield {"type": event.type, "data": event.data}
 

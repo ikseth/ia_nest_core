@@ -122,7 +122,7 @@ _PLAN = _param(
 _TURN_CONTEXT = _param(
     "turn_context",
     "object",
-    "contexto del turno compuesto por extended (ADR 0054, 0055): trusted_providers, frame",
+    "contexto del turno compuesto por extended (ADR 0054-0056): trusted_providers, frame, context",
     cli=False,
 )
 _TURN_CONTEXT_INPUT = CliInput(
@@ -508,7 +508,7 @@ CAPABILITIES: tuple[Capability, ...] = (
         "deriva un plan ejecutable sin ejecutar subtareas",
         True,
         False,
-        (_TASK_PROMPT, _EFFORT),
+        (_TASK_PROMPT, _EFFORT, _TURN_CONTEXT),
         RestProjection("/task/plan", "POST"),
         CliProjection(
             "task",
@@ -525,6 +525,7 @@ CAPABILITIES: tuple[Capability, ...] = (
             ),
             flags=("json",),
             flag_help=(("json", "emite plan ejecutable completo"),),
+            inputs=(_TURN_CONTEXT_INPUT,),
         ),
         McpProjection("task.plan"),
     ),
@@ -533,7 +534,7 @@ CAPABILITIES: tuple[Capability, ...] = (
         "ejecuta una tarea y muestra sus checkpoints",
         True,
         False,
-        (_TASK_PROMPT, _MODE, _PLAN, _REQUIREMENTS, _EFFORT),
+        (_TASK_PROMPT, _MODE, _PLAN, _REQUIREMENTS, _EFFORT, _TURN_CONTEXT),
         RestProjection("/task/run", "POST"),
         CliProjection(
             "task",
@@ -554,6 +555,7 @@ CAPABILITIES: tuple[Capability, ...] = (
                     "RUTA",
                     "JSON producido por task plan; rellena plan, requirements y effort",
                 ),
+                _TURN_CONTEXT_INPUT,
             ),
         ),
         McpProjection("task.run"),

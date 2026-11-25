@@ -101,3 +101,10 @@ extended tome el techo del core en vez de declararlo dos veces (meta H12P6).
 - El resumen y la preseleccion del catalogo (meta `H13`).
 - Acotar por clase de aparato (aplazado en meta ADR 0018, D5).
 - La confirmacion humana de ADR 0007 (sigue aplazada).
+
+## Estado posterior
+
+2026-11-25 (ADR 0056, meta H12P9): el efecto (D3) se clasifica solo sobre la
+frase de la persona; el contexto que manda extended llega aparte
+(`turn_context.context`) y nunca entra en esa llamada. `trusted_providers` (D1)
+se acepta tambien en `task.run` y baja a cada subtarea.

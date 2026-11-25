@@ -145,6 +145,7 @@ def test_cli_task_plan_json_round_trips_through_plan_file_with_explicit_effort_p
         "plan": plan_result["plan"],
         "requirements": plan_result["requirements"],
         "identity": {},
+        "turn_context": None,
     }]
 
 
